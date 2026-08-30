@@ -19,7 +19,7 @@ function globToRegExp(glob: string): RegExp {
     } else if (c === "?") {
       out += "[^/]"
     } else {
-      out += c!.replace(/[.+^${}()|[\]\\]/g, "\\$&")
+      out += glob.charAt(i).replace(/[.+^${}()|[\]\\]/g, "\\$&")
     }
   }
   return new RegExp(`${out}$`)

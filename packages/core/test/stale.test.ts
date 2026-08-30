@@ -51,3 +51,45 @@ describe("chuẩn hoá đường dẫn", () => {
     expect(shouldStale("./README.md", d)).toBe(false)
   })
 })
+
+describe("* đơn không vượt qua /", () => {
+  it("*.md khớp file root nhưng không khớp trong thư mục", () => {
+    expect(shouldStale("README.md", ["*.md"])).toBe(false)
+    expect(shouldStale("docs/a.md", ["*.md"])).toBe(true)
+  })
+
+  it("docs/* khớp trong docs nhưng không khớp trong thư mục con", () => {
+    expect(shouldStale("docs/a.md", ["docs/*"])).toBe(false)
+    expect(shouldStale("docs/sub/a.md", ["docs/*"])).toBe(true)
+  })
+})
+
+describe("** ở giữa pattern", () => {
+  it("a/**/b.md khớp zero-segment và nhiều segment", () => {
+    expect(shouldStale("a/b.md", ["a/**/b.md"])).toBe(false)
+    expect(shouldStale("a/x/b.md", ["a/**/b.md"])).toBe(false)
+    expect(shouldStale("a/x/y/b.md", ["a/**/b.md"])).toBe(false)
+  })
+})
+
+describe("**/prefix/** pattern", () => {
+  it("**/test/** khớp test ở bất kỳ đâu nhưng không khớp tiền tố giống test", () => {
+    expect(shouldStale("test/b.md", ["**/test/**"])).toBe(false)
+    expect(shouldStale("a/test/b.md", ["**/test/**"])).toBe(false)
+    expect(shouldStale("a/test/x/b.md", ["**/test/**"])).toBe(false)
+    expect(shouldStale("atest/b.md", ["**/test/**"])).toBe(true)
+    expect(shouldStale("testb/a.md", ["**/test/**"])).toBe(true)
+  })
+})
+
+describe("escape ký tự regex-đặc-biệt trong pattern", () => {
+  it("dot literal: a.b/c+d.md khớp chính nó nhưng không khớp wildcard", () => {
+    expect(shouldStale("a.b/c+d.md", ["a.b/c+d.md"])).toBe(false)
+    expect(shouldStale("aXb/cYd.md", ["a.b/c+d.md"])).toBe(true)
+  })
+
+  it("parentheses literal: file(1).md khớp chính nó nhưng không khớp wildcard", () => {
+    expect(shouldStale("file(1).md", ["file(1).md"])).toBe(false)
+    expect(shouldStale("fileX1X.md", ["file(1).md"])).toBe(true)
+  })
+})
