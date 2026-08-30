@@ -22,7 +22,7 @@ Dự án khởi nguồn từ việc khảo sát [ccg-workflow](https://github.co
 | # | Mục tiêu | Đo bằng |
 |---|---|---|
 | G1 | An toàn & minh bạch | Test ranh giới trong CI; không có binary tải về; không lưu bí mật |
-| G2 | Đơn giản & dễ hiểu | 6 lệnh, 4 hook, 4 tool, 4 role, 4 luật. Đọc source là hiểu |
+| G2 | Đơn giản & dễ hiểu | 6 lệnh, 4 hook, 5 tool, 4 role, 4 luật. Đọc source là hiểu |
 | G3 | State bền | Toàn bộ trạng thái trên đĩa; sống sót qua compaction |
 | G4 | Kiểm chứng thật | Verdict do code sinh, không do model khai |
 
@@ -66,8 +66,8 @@ Ba thành phần.
                                    ▲
                                    │ ghi verdict, consult, task.json
                        ┌─ MCP server (stdio) ────┐
-                       │  consult panel verify   │
-                       │  advance                │
+                       │  task advance verify    │
+                       │  consult panel          │
                        │  Backend: Api | Cli     │
                        └─────────────────────────┘
 ```
@@ -133,7 +133,9 @@ Nhiều task tồn tại song song được, nhưng **chỉ một active**.
 }
 ```
 
-`baseCommit` được ghi lúc `/junto:start`, dùng cho `git diff` ở phase review.
+`baseCommit` được ghi lúc `/junto:start` bằng `git rev-parse HEAD`, dùng cho `git diff` ở phase review.
+
+**Không có git thì sao.** junto không đòi project phải là git repo. Khi `git rev-parse` thất bại, `baseCommit` là `null`, và phase `review` chuyển sang tư vấn dựa trên toàn bộ file liệt kê trong `context.jsonl` thay vì một diff. Mọi thứ khác hoạt động y nguyên. junto chỉ **đọc** git, không bao giờ chạy lệnh git làm đổi trạng thái repo (mục 16).
 
 ### `config.json`
 
@@ -148,8 +150,8 @@ Nhiều task tồn tại song song được, nhưng **chỉ một active**.
   "roles": {
     "architect":  "gpt-5",
     "adversary":  "gemini-3-pro",
-    "pragmatist": "gpt-5",
-    "reviewer":   "gemini-3-pro"
+    "pragmatist": "claude-opus",
+    "reviewer":   "codex-cli"
   },
   "gates": {
     "typecheck": { "argv": ["pnpm", "typecheck"], "required": true },
@@ -157,12 +159,20 @@ Nhiều task tồn tại song song được, nhưng **chỉ một active**.
     "lint":      { "argv": ["pnpm", "lint"], "required": false },
     "audit":     { "argv": ["npm", "audit", "--json"], "required": false }
   },
+  "staleIgnore": ["**/*.md", "docs/**", ".junto/**"],
   "maxConsultTokens": 4000,
+  "maxPanelTokens": 8000,
   "autoApprove": []
 }
 ```
 
 **R3**: chỉ có `apiKeyEnv` (tên biến), không bao giờ có giá trị. MCP server đọc `process.env`.
+
+**Role phải trải trên nhiều backend.** Map hai role về cùng một backend nghĩa là hỏi cùng một model hai lần — bất đồng biến mất, và cùng với nó là toàn bộ lý do tồn tại của panel. Xem mục 9.
+
+### Lệch `schemaVersion`
+
+State file được commit vào repo dùng chung, nên hai thành viên có thể chạy hai phiên bản junto khác nhau. Khi `schemaVersion` trong file lớn hơn phiên bản mà code hiểu, mọi tool **từ chối và báo rõ** phiên bản cần nâng. Không đoán, không tự migrate ngầm, không đọc kiểu "cố hiểu được đến đâu hay đến đó". Ngược lại (file cũ hơn code) thì code migrate lên và ghi lại, có ghi vào `decisions[]`.
 
 ---
 
@@ -204,9 +214,23 @@ Bốn luật, không hơn:
 | L3 | `build → verify` | Không điều kiện |
 | L4 | `verify → done` | Với mọi gate `required`: file verdict có `state === "pass"` **và** `task.gates[id].stale === false` |
 
-**L2 là điểm dừng cứng duy nhất.** Engine không bao giờ tự đặt `approvedBy`; chỉ lệnh `/junto:approve` do người gõ mới đặt được.
+**L2 là điểm dừng cứng duy nhất** — và vì thế nó phải chịu được sức ép mạnh nhất trong cả hệ thống.
 
-Ngoại lệ duy nhất: `config.json` có thể liệt kê cỡ được bỏ qua L2, ví dụ `autoApprove: ["standard"]`. Danh sách mặc định rỗng, và tài liệu sẽ khuyến cáo không dùng. Lưu ý cỡ `small` không có phase `plan` nên L2 vốn đã không áp dụng cho nó — đưa `"small"` vào danh sách này là vô nghĩa.
+### Vì sao approval không được là MCP tool
+
+Nếu `approvedBy` do một MCP tool đặt, **model gọi tool đó lúc nào cũng được**. Cái chốt duy nhất của hệ thống sẽ tự mở. Không vá được bằng cách dặn model đừng tự gọi: một quy tắc mà bên bị ràng buộc có toàn quyền bỏ qua thì không phải là quy tắc.
+
+Cần một kênh mà model không giả mạo được. Kênh đó là **chính đầu vào của người dùng**:
+
+> Hook `UserPromptSubmit` đọc văn bản người dùng vừa gõ. Khi nó thấy `/junto:approve`, **hook tự ghi** `phases.plan.approvedBy = "user"`. Không MCP tool nào chạm được vào trường này.
+
+Model không sinh ra được một user message, nên nó không đi qua được cửa này. Đây là một ranh giới tin cậy thật, không phải một quy ước dựa trên sự tự giác.
+
+**Giả định cần xác minh trước.** Chưa xác minh được hook `UserPromptSubmit` nhận chuỗi `/junto:approve` nguyên bản hay đã bị plugin command khai triển thành prompt. Đây là **hạng mục đầu tiên của M1** (mục 14). Nếu cơ chế không chạy như mong đợi, L2 không còn cách thực thi đáng tin và phải thiết kế lại — chứ không hạ xuống dùng MCP tool.
+
+### Ngoại lệ
+
+`config.json` có thể liệt kê cỡ được bỏ qua L2, ví dụ `autoApprove: ["standard"]`. Danh sách mặc định rỗng và tài liệu khuyến cáo không dùng. Lưu ý cỡ `small` không có phase `plan` nên L2 vốn đã không áp dụng — đưa `"small"` vào đây là vô nghĩa.
 
 Với cỡ `deep`, thêm hai phase tư vấn (`panel` sau `brief`, `review` sau `verify`). Chúng **không phải gate** (R5): chúng ghi consult ra đĩa và luôn cho đi tiếp. Giá trị của chúng là phát hiện, không phải quyền phủ quyết.
 
@@ -214,16 +238,21 @@ Hook và MCP tool gọi **cùng một** `canEnter`. Không có hai bản chính 
 
 ---
 
-## 7. Bốn MCP tool
+## 7. Năm MCP tool
 
 | Tool | Tham số | Làm gì | Ghi |
 |---|---|---|---|
+| `junto__task` | `{ action: "start" \| "switch" \| "finish", ... }` | Vòng đời **của task** | `tasks/<id>/`, `active` |
+| `junto__advance` | `{ to }` | Chuyển phase **trong** task | `task.json` hoặc trả lý do bị chặn |
+| `junto__verify` | `{ gates? }` | **Tự chạy** lệnh gate | `verdicts/*`, `task.json` |
 | `junto__consult` | `{ role, brief, files? }` | Hỏi một model ngoài | `consults/NNN-<role>.md` |
 | `junto__panel` | `{ roles[], brief, files? }` | Hỏi nhiều model song song | nhiều consult |
-| `junto__verify` | `{ gates? }` | **Tự chạy** lệnh gate | `verdicts/*`, `task.json` |
-| `junto__advance` | `{ to }` | Xin chuyển phase | `task.json` hoặc trả lý do bị chặn |
 
-Số lượng tool là một khoản chi phí context trong **mọi** phiên, nên bốn là trần.
+Phân vai giữa hai tool đầu là cố ý: `junto__task` lo *task nào đang tồn tại*, `junto__advance` lo *task đó đang ở phase nào*. Trộn chúng lại sẽ tạo ra một tool có bốn nghĩa.
+
+`junto__task` **không** đặt được `phases.plan.approvedBy` — trường đó chỉ hook ghi (mục 6).
+
+Số lượng tool là chi phí context trong **mọi** phiên, nên năm là trần.
 
 ### Vì sao verify phải là tool, không phải Bash
 
@@ -231,9 +260,17 @@ Nếu model chạy `pnpm test` bằng Bash rồi tự ghi verdict, nó có thể
 
 Do đó `junto__verify` **tự spawn** tiến trình, tự đọc mã thoát, tự ghi file. Model không nằm trong vòng lặp đó.
 
-Và để điều đó có nghĩa, hook `guard.js` **chặn** ở `PreToolUse`: mọi `Edit` / `Write` / `MultiEdit` nhắm vào `.junto/**/task.json`, `.junto/**/verdicts/**`, `.junto/active` bị từ chối kèm lý do. Model đọc được, không ghi được.
+Và để điều đó có nghĩa, hook `guard.js` **chặn** ở `PreToolUse`: mọi `Edit` / `Write` / `MultiEdit` nhắm vào `.junto/**/task.json`, `.junto/**/verdicts/**`, `.junto/active` bị từ chối kèm lý do. Đây là chỗ **duy nhất** junto dùng quyền chặn của hook.
 
-Đây là chỗ **duy nhất** junto dùng quyền chặn của hook.
+### `guard.js` chặn được gì, và không chặn được gì
+
+Phải nói thẳng, vì G1 là minh bạch và vì đây đúng là kiểu nói quá mà junto tồn tại để tránh:
+
+`guard.js` chỉ thấy `Edit`, `Write`, `MultiEdit`. Model còn có Bash, và `echo '{...}' > .junto/tasks/x/task.json` đi lọt. Chặn cả Bash đòi hỏi so khớp chuỗi shell — mong manh, hay báo nhầm, và vẫn vòng được bằng mười cách khác. Không đáng làm.
+
+> **Threat model**: `guard.js` ngăn **tai nạn và đường tắt dưới áp lực**, không ngăn một tác nhân cố tình. Một model có quyền shell thì luôn ghi được file. Giá trị của cơ chế này là làm cho con đường trung thực dễ đi hơn con đường gian lận — không phải làm cho con đường gian lận bất khả thi.
+
+Cần hiểu đúng để không xây tiếp lên một giả định sai. Sự bảo đảm thật của junto không nằm ở việc cấm ghi, mà ở chỗ **con đường trung thực luôn có sẵn và rẻ hơn**: gọi `junto__verify` thì dễ hơn là chế ra một file verdict giả cho khớp schema.
 
 ---
 
@@ -294,7 +331,11 @@ Mô tả tool nói rõ với Claude: *"Đừng lấy trung bình. Chỗ nào ch�
 
 **Hỏng một phần**: 1 trong 3 backend chết → trả về 2 cái chạy được **kèm ghi chú rõ backend nào hỏng vì sao**. Không bao giờ im lặng bỏ qua. Một panel thiếu người mà không nói là một panel nói dối.
 
-Tối đa 4 role một lần gọi.
+### Hai ràng buộc bắt buộc
+
+**Trải backend.** Nếu các role được chọn trỏ về cùng một backend, panel đang hỏi cùng một model nhiều lần và bất đồng — thứ duy nhất nó tạo ra — sẽ biến mất. `junto__panel` **cảnh báo ngay trong kết quả trả về** khi phát hiện trùng backend, nêu rõ role nào trùng role nào. Không chặn (người dùng có thể cố ý), nhưng không im lặng.
+
+**Trần token.** `maxConsultTokens` là trần cho *một* consult; panel 4 role sẽ đổ tới 16K token vào context trong một tool result. Nên panel có trần riêng `maxPanelTokens` (mặc định 8000), chia đều cho số role tham gia. Tối đa 4 role một lần gọi.
 
 ### Chi phí là opt-in
 
@@ -344,6 +385,14 @@ Hook `guard.js` chạy ở `PostToolUse` sau mỗi `Edit`/`Write`/`MultiEdit`: �
 
 Hệ quả: model không thể viện dẫn lần test trước khi nó vừa sửa file. Muốn qua L4 phải chạy lại thật.
 
+**Một ngoại lệ, vì thô quá thành vô lý.** Không lọc gì thì thêm một dòng vào README cũng bắt chạy lại bộ test 5 phút. `config.json` có `staleIgnore`, mặc định:
+
+```json
+"staleIgnore": ["**/*.md", "docs/**", ".junto/**"]
+```
+
+File khớp `staleIgnore` không làm hết hạn gì cả. Đây vẫn là một luật duy nhất, vẫn không có fingerprint — chỉ thêm một bộ lọc đường dẫn mà người dùng đọc được và sửa được. Ai nới nó ra quá tay thì tự chịu, và điều đó nhìn thấy được ngay trong file config đã commit.
+
 ### Chống đập đầu vào tường
 
 `task.json` đếm `failStreak` mỗi gate. Đến lần thứ 3 liên tiếp cùng một gate fail, `junto__verify` chèn thêm:
@@ -374,9 +423,11 @@ Hệ quả dễ chịu: PR kèm luôn hồ sơ quyết định — hỏi model n
 | File | Sự kiện | Việc |
 |---|---|---|
 | `session.js` | `SessionStart` (startup / resume / **compact**) | Tiêm lại brief + plan + phase đầy đủ |
-| `state.js` | `UserPromptSubmit` | Tiêm khối `<junto>` gọn (< ~120 token) |
+| `state.js` | `UserPromptSubmit` | Tiêm khối `<junto>` gọn (< ~120 token) **và ghi approval khi thấy `/junto:approve`** |
 | `handoff.js` | `PreToolUse` trên `Task` | Nhét `context.jsonl` vào prompt subagent |
-| `guard.js` | `PreToolUse` + `PostToolUse` trên Edit/Write/MultiEdit | Chặn ghi vùng bảo vệ; đặt `stale` |
+| `guard.js` | `PreToolUse` + `PostToolUse` trên Edit/Write/MultiEdit | Chặn ghi vùng bảo vệ; đặt `stale` theo `staleIgnore` |
+
+`state.js` mang hai việc vì cả hai đều bắt đầu từ đúng một thứ: **văn bản người dùng vừa gõ**. Đây là hook duy nhất nhìn thấy đầu vào của con người trước khi model chạm vào nó, nên nó là chỗ duy nhất ghi được `approvedBy` (mục 6).
 
 Khối tiêm mỗi lượt:
 
@@ -396,14 +447,16 @@ Không có task active → hook không tiêm gì và thoát ngay.
 
 `start` · `plan` · `approve` · `panel` · `verify` · `finish`
 
-| Lệnh | Việc |
-|---|---|
-| `/junto:start <brief>` | Tạo task, chọn cỡ, ghi `brief.md`, dò gate nếu chưa có config |
-| `/junto:plan` | Sinh `plan.md` (cỡ `deep` gọi panel trước) |
-| `/junto:approve` | **Chỉ người gõ.** Đặt `phases.plan.approvedBy = "user"` |
-| `/junto:panel [roles]` | Gọi panel thủ công bất kỳ lúc nào |
-| `/junto:verify` | Chạy gate |
-| `/junto:finish` | Chuyển task sang `archive/`, ghi `summary.md` |
+| Lệnh | Việc | Thực thi bởi |
+|---|---|---|
+| `/junto:start <brief>` | Tạo task, chọn cỡ, ghi `brief.md`, dò gate nếu chưa có config | `junto__task` |
+| `/junto:plan` | Sinh `plan.md` (cỡ `deep` gọi panel trước) | model + `junto__advance` |
+| `/junto:approve` | Đặt `phases.plan.approvedBy = "user"` | **`state.js` hook** |
+| `/junto:panel [roles]` | Gọi panel thủ công bất kỳ lúc nào | `junto__panel` |
+| `/junto:verify` | Chạy gate | `junto__verify` |
+| `/junto:finish` | Chuyển task sang `archive/`, ghi `summary.md` | `junto__task` |
+
+`/junto:approve` là lệnh duy nhất **không** đi qua MCP tool nào. Nó được thực thi bởi hook đọc chính đầu vào của người dùng, vì đó là cách duy nhất để model không tự duyệt được plan của mình (mục 6).
 
 **Không có `/junto:status`** — khối `<junto>` đã tiêm mỗi lượt nên hỏi trạng thái là thừa. Một cơ chế tốt xoá bỏ nhu cầu về lệnh khác.
 
@@ -451,12 +504,14 @@ Stack: TypeScript, pnpm workspace, esbuild (bundle), vitest (test), Node >= 20.
 | Mốc | Nội dung | Dùng thật? |
 |---|---|---|
 | **M0** | `packages/core`: schema, `canEnter`, gate runner. Thuần hàm + test | Chưa |
-| **M1** | Task engine **không có model ngoài**. 4 hook, tool `verify` + `advance`, cỡ `small`/`standard`, 5 lệnh `start`/`plan`/`approve`/`verify`/`finish` | **✅ Có** |
+| **M1** | Task engine **không có model ngoài**. 4 hook, tool `task` + `advance` + `verify`, cỡ `small`/`standard`, 5 lệnh `start`/`plan`/`approve`/`verify`/`finish` | **✅ Có** |
 | **M2** | `ApiBackend`, tool `consult` + `panel`, 4 role, lệnh thứ 6 `/junto:panel` | Có model ngoài |
 | **M3** | `CliBackend`, cỡ `deep` với phase panel/review, dò gate hoàn chỉnh | Đủ tính năng |
 | **M4** | Docs, marketplace, ví dụ, phát hành công khai | Người ngoài dùng được |
 
-M1 giao **G1, G2, G3 và phần lớn G4 mà không cần một API key nào**. Toàn bộ máy móc đa model đắt đỏ nằm ở M2–M3.
+**Hạng mục đầu tiên của M1 là một câu hỏi, không phải một tính năng**: xác minh hook `UserPromptSubmit` có nhận được chuỗi `/junto:approve` nguyên bản hay không (mục 6). Toàn bộ L2 — điểm dừng cứng duy nhất của hệ thống — dựa vào đó. Làm trước mọi thứ khác, vì nếu câu trả lời là không thì thiết kế phải đổi trước khi có code để đổi.
+
+M1 giao **cả bốn mục tiêu G1–G4 mà không cần một API key nào**. Toàn bộ máy móc đa model đắt đỏ nằm ở M2–M3.
 
 Thứ tự này cố ý đặt phần rủi ro nhất ra sau bằng chứng: nếu dùng M1 vài tuần mà không ai gọi model ngoài, đó là phát hiện quý — biết trước khi tiêu công.
 
@@ -494,7 +549,9 @@ Ghi ra để không bị đưa vào lúc nửa đường:
 
 | Rủi ro | Mức | Xử lý |
 |---|---|---|
+| **Hook `UserPromptSubmit` không thấy `/junto:approve` nguyên bản** | **Cao** | Xác minh là hạng mục đầu tiên của M1. Nếu hỏng, L2 phải thiết kế lại — **không** hạ xuống dùng MCP tool, vì như thế model tự duyệt được plan của mình |
 | Format plugin & hook event của Claude Code còn thay đổi | Trung bình | Giữ bề mặt tiếp xúc nhỏ: 4 hook, 1 `.mcp.json`. Ghim phiên bản Claude Code tối thiểu trong README |
+| `guard.js` không chặn được Bash — model vẫn ghi đè state được nếu cố tình | Thấp | Nằm ngoài threat model (mục 7). Bảo đảm thật đến từ việc con đường trung thực rẻ hơn, không từ việc cấm ghi |
 | `guard.js` chặn ghi gây khó chịu khi MCP server chết | Trung bình | Vẫn sửa được `task.json` bằng editor thường. Thông báo chặn nói rõ cách xử lý |
 | `stale` toàn bộ quá thô, phải chạy lại gate nhiều | Thấp | Chấp nhận ở v1. Chỉ tinh chỉnh nếu dùng thật thấy phiền |
 | Artifact build commit dễ lệch với source | Trung bình | Job CI bắt buộc `git diff --exit-code` |
