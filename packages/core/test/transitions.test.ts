@@ -87,6 +87,7 @@ describe("L2 plan -> build", () => {
   it("autoApprove cỡ khác thì không giúp gì", () => {
     const r = canEnter(atPlan, "build", ctx({ autoApprove: ["deep"] }))
     expect(r.ok).toBe(false)
+    expect(r.ok === false && r.reason).toMatch(/junto:approve/)
   })
 })
 
@@ -122,6 +123,21 @@ describe("L4 verify -> done", () => {
     const t = atVerify({ tests: gate() })
     const r = canEnter(t, "done", ctx({ verdictStates: { tests: "fail" } }))
     expect(r.ok).toBe(false)
+    expect(r.ok === false && r.reason).toMatch(/tests/)
+  })
+
+  it("chặn khi gate required có verdict path nhưng ctx.verdictStates KHÔNG có tên gate (map rỗng) — fail-closed", () => {
+    const t = atVerify({ tests: gate() })
+    const r = canEnter(t, "done", ctx({ verdictStates: {} }))
+    expect(r.ok).toBe(false)
+    expect(r.ok === false && r.reason).toMatch(/tests/)
+  })
+
+  it("chặn khi ctx.verdictStates ghi rõ null cho gate — fail-closed, không coi null là pass", () => {
+    const t = atVerify({ tests: gate() })
+    const r = canEnter(t, "done", ctx({ verdictStates: { tests: null } }))
+    expect(r.ok).toBe(false)
+    expect(r.ok === false && r.reason).toMatch(/tests/)
   })
 
   it("skipped KHÔNG thoả mãn gate required", () => {
@@ -144,7 +160,7 @@ describe("L4 verify -> done", () => {
   })
 })
 
-describe("bánh cóc một chiều và bước nhảy", () => {
+describe("liền kề phase và chặn lùi", () => {
   it("không cho nhảy cóc phase", () => {
     const r = canEnter(makeTask({ phase: "brief" }), "build", ctx())
     expect(r.ok).toBe(false)
@@ -154,10 +170,19 @@ describe("bánh cóc một chiều và bước nhảy", () => {
   it("không cho lùi phase", () => {
     const r = canEnter(makeTask({ phase: "verify" }), "build", ctx())
     expect(r.ok).toBe(false)
+    expect(r.ok === false && r.reason).toMatch(/liền kề/)
   })
 
   it("task small vào thẳng verify từ build", () => {
     const t = makeTask({ size: "small", phase: "build" })
     expect(canEnter(t, "verify", ctx())).toEqual({ ok: true })
+  })
+
+  it("phase không thuộc vòng đời của cỡ này bị chặn (small không có plan)", () => {
+    const t = makeTask({ size: "small", phase: "build" })
+    const r = canEnter(t, "plan", ctx())
+    expect(r.ok).toBe(false)
+    expect(r.ok === false && r.reason).toMatch(/plan/)
+    expect(r.ok === false && r.reason).toMatch(/small/)
   })
 })
