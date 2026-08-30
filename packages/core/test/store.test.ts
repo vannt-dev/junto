@@ -1,11 +1,19 @@
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs"
+import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { beforeEach, describe, expect, it } from "vitest"
-import { findProjectRoot, readActiveId, readTask, setActiveId, writeTask } from "../src/store.js"
-import type { Task } from "../src/schema.js"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { findProjectRoot, readActiveId, readConfig, readTask, setActiveId, writeTask } from "../src/store.js"
+import type { Config, Task } from "../src/schema.js"
 
 let root: string
+const tmpDirs: string[] = []
+
+/** mkdtemp có theo dõi, để afterEach dọn hết — kể cả thư mục tạo trong từng test lẻ. */
+function mktemp(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix))
+  tmpDirs.push(dir)
+  return dir
+}
 
 const task: Task = {
   schemaVersion: 1,
@@ -23,8 +31,14 @@ const task: Task = {
 }
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "junto-"))
+  root = mktemp("junto-")
   mkdirSync(join(root, ".junto", "tasks", "2026-08-30-x"), { recursive: true })
+})
+
+afterEach(() => {
+  for (const dir of tmpDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 describe("findProjectRoot", () => {
@@ -35,7 +49,7 @@ describe("findProjectRoot", () => {
   })
 
   it("trả null khi không có .junto ở đâu cả", () => {
-    const orphan = mkdtempSync(join(tmpdir(), "junto-none-"))
+    const orphan = mktemp("junto-none-")
     expect(findProjectRoot(orphan)).toBeNull()
   })
 })
@@ -63,6 +77,12 @@ describe("task round-trip", () => {
     expect(() => writeTask(root, bad)).toThrow()
     expect(readTask(root, task.id).size).toBe("small")
   })
+
+  it("ghi đè đúng nội dung khi ghi hợp lệ hai lần liên tiếp (đi qua nhánh rename đè)", () => {
+    writeTask(root, task)
+    writeTask(root, { ...task, title: "Y" })
+    expect(readTask(root, task.id).title).toBe("Y")
+  })
 })
 
 describe("active", () => {
@@ -84,5 +104,30 @@ describe("active", () => {
   it("bỏ qua khoảng trắng thừa trong file", () => {
     writeFileSync(join(root, ".junto", "active"), "  2026-08-30-x \n")
     expect(readActiveId(root)).toBe("2026-08-30-x")
+  })
+})
+
+describe("readConfig", () => {
+  it("đọc đúng config.json hợp lệ, giữ nguyên trường lạ nhờ .passthrough()", () => {
+    const raw = {
+      schemaVersion: 1,
+      gates: { lint: { argv: ["pnpm", "lint"], required: true } },
+      staleIgnore: ["**/*.md"],
+      autoApprove: ["small"],
+      futureField: "trường lạ của M2, phải sống sót qua parseConfig",
+    }
+    writeFileSync(join(root, ".junto", "config.json"), JSON.stringify(raw))
+
+    const config = readConfig(root)
+
+    expect(config.gates.lint?.argv).toEqual(["pnpm", "lint"])
+    expect(config.staleIgnore).toEqual(["**/*.md"])
+    expect((config as Config & { futureField?: string }).futureField).toBe(
+      "trường lạ của M2, phải sống sót qua parseConfig",
+    )
+  })
+
+  it("ném lỗi khi config.json không tồn tại (hành vi hiện tại — ENOENT thô, chưa qua xử lý mềm)", () => {
+    expect(() => readConfig(root)).toThrow()
   })
 })
