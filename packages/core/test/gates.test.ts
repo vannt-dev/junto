@@ -1,15 +1,23 @@
-import { mkdirSync, mkdtempSync, readFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { OUTPUT_TAIL_BYTES, runGate } from "../src/gates.js"
 
 let root: string
 const taskId = "2026-08-30-g"
+const tmpDirs: string[] = []
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "junto-gate-"))
+  tmpDirs.push(root)
   mkdirSync(join(root, ".junto", "tasks", taskId), { recursive: true })
+})
+
+afterEach(() => {
+  for (const dir of tmpDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 const run = (argv: string[], timeoutMs?: number) =>
@@ -67,5 +75,47 @@ describe("runGate", () => {
   it("ghi lại argv nguyên vẹn để kiểm chứng được", async () => {
     const v = await run(["node", "-e", "process.exit(0)"])
     expect(v.argv).toEqual(["node", "-e", "process.exit(0)"])
+  })
+
+  // --- Bổ sung ở vòng review 1 (fix R-O/R-Q/R-T) — không sửa 9 test ở trên ---
+
+  it("lệnh có thật in đúng câu bẫy 'not recognized' rồi thoát 1 vẫn là fail, không phải skipped", async () => {
+    // Ghim chiều dương tính giả của cách dò chuỗi cũ: một gate như
+    // `["npm","run","build"]` có thể chuyển tiếp nguyên văn lỗi "not
+    // recognized" của một binary con thiếu — output đó không do người dùng
+    // kiểm soát và không được phép biến gate thành skipped.
+    const v = await run([
+      "node",
+      "-e",
+      "console.log(\"'x' is not recognized as an internal or external command\"); process.exit(1)",
+    ])
+    expect(v.state).toBe("fail")
+    expect(v.exitCode).toBe(1)
+  })
+
+  it("lệnh có thật thoát mã 1 phải là fail (chiều còn lại của ranh giới fail/skipped)", async () => {
+    const v = await run(["node", "-e", "console.error('loi o day'); process.exit(1)"])
+    expect(v.state).toBe("fail")
+    expect(v.exitCode).toBe(1)
+  })
+
+  it("skipped không mang exit code và log không rỗng", async () => {
+    const v = await run(["junto-khong-ton-tai-abc123"])
+    expect(v.state).toBe("skipped")
+    expect(v.exitCode).toBeNull()
+    const log = readFileSync(join(root, ".junto", "tasks", taskId, "verdicts", "g.log"), "utf-8")
+    expect(log.length).toBeGreaterThan(0)
+  })
+
+  it("tên gate không hợp lệ (có thể thoát khỏi verdicts/) bị từ chối", async () => {
+    await expect(
+      runGate({
+        root,
+        taskId,
+        name: "../../../evil",
+        spec: { argv: ["node", "-e", "process.exit(0)"], required: true },
+        runner: "test@0",
+      }),
+    ).rejects.toThrow()
   })
 })

@@ -79,6 +79,7 @@ export type GateSpec = z.infer<typeof gateSpecSchema>
 export type Config = z.infer<typeof configSchema>
 
 export interface VerdictFile {
+  schemaVersion: number
   gate: string
   argv: string[]
   cwd: string
