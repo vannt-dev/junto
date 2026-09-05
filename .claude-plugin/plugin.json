@@ -1,0 +1,13 @@
+{
+  "name": "junto",
+  "description": "Workflow engine for Claude Code with durable state and evidence-based quality gates. No binaries, no runtime downloads, and writes only under the project's .junto directory.",
+  "version": "0.1.0",
+  "author": { "name": "vannt-dev", "url": "https://github.com/vannt-dev" },
+  "homepage": "https://github.com/vannt-dev/junto",
+  "repository": "https://github.com/vannt-dev/junto",
+  "license": "MIT",
+  "keywords": ["workflow", "quality-gate", "task-state"],
+  "commands": "./plugin/commands",
+  "hooks": "./plugin/hooks.json",
+  "mcpServers": "./plugin/.mcp.json"
+}

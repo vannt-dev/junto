@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": ["src-hooks", "test"],
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist/integration"
+  },
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/mcp" }
+  ]
+}
