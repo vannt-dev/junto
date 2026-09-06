@@ -91,6 +91,15 @@ describe("consultTool", () => {
     await expect(consultTool(ctx(), { role: "philosopher", question: "?" })).rejects.toThrow(/unknown role/i)
   })
 
+  it("rejects a role name that could escape the consults directory", async () => {
+    await taskTool(ctx(), { action: "start", title: "X", size: "standard" })
+    const fetchMock = vi.fn()
+    vi.stubGlobal("fetch", fetchMock)
+    await expect(consultTool(ctx(), { role: "../../../evil", question: "?" }))
+      .rejects.toThrow(/invalid role name/i)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it("includes brief.md and plan.md content in the request", async () => {
     await taskTool(ctx(), { action: "start", title: "X", size: "standard" })
     const id = readActiveId(root)

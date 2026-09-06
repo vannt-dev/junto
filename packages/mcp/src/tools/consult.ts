@@ -26,11 +26,22 @@ function nextSequence(consultsDir: string): number {
   return (numbers.length === 0 ? 0 : Math.max(...numbers)) + 1
 }
 
+const VALID_ROLE_NAME = /^[a-z0-9_-]+$/i
+
 /**
  * Shared by junto__consult and junto__panel. Never throws: a panel with several roles must let
  * one role's failure show up next to the others' successes rather than aborting the whole call.
  */
 export async function runConsult(ctx: ToolContext, role: string, question: string): Promise<ConsultResult> {
+  // Reject before role touches any filesystem path: it is interpolated into `consults/${seq}-${role}.md`,
+  // and an unchecked "../" sequence could otherwise escape the task's consults directory.
+  if (!VALID_ROLE_NAME.test(role)) {
+    return {
+      role,
+      ok: false,
+      error: `Invalid role name "${role}". Use only letters, digits, "_", and "-".`,
+    }
+  }
   try {
     const id = readActiveId(ctx.root)
     if (id === null) throw new Error("No active task. Run /junto:start first.")
