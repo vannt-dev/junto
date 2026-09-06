@@ -44,3 +44,35 @@ describe("resolveBackend", () => {
     expect(typeof resolved.backend.complete).toBe("function")
   })
 })
+
+describe("resolveBackend — cliBackends", () => {
+  it("resolves a role whose provider names a cliBackends entry", () => {
+    const config: Config = {
+      ...baseConfig,
+      cliBackends: { codex: { argv: ["node", "-e", "process.exit(0)"] } },
+    }
+    const resolved = resolveBackend("codex", config)
+    expect(typeof resolved.backend.complete).toBe("function")
+  })
+
+  it("checks backends before cliBackends", () => {
+    process.env.JUNTO_TEST_KEY = "sk-test"
+    const config: Config = {
+      ...baseConfig,
+      backends: { dual: { apiKeyEnv: "JUNTO_TEST_KEY" } },
+      cliBackends: { dual: { argv: ["node", "-e", "process.exit(0)"] } },
+    }
+    expect(() => resolveBackend("dual", config)).toThrow(/not a supported api vendor/i)
+  })
+
+  it("throws naming both config sections when a name is in neither", () => {
+    expect(() => resolveBackend("nonexistent", baseConfig))
+      .toThrow(/backends.*cliBackends|cliBackends.*backends/is)
+  })
+
+  it("throws clearly for a backends entry keyed by an unsupported vendor name, without falling through to openai", () => {
+    process.env.JUNTO_TEST_KEY = "sk-test"
+    const config: Config = { ...baseConfig, backends: { cohere: { apiKeyEnv: "JUNTO_TEST_KEY" } } }
+    expect(() => resolveBackend("cohere", config)).toThrow(/not a supported api vendor/i)
+  })
+})
