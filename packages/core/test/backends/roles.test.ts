@@ -2,7 +2,13 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { BUILT_IN_ROLES, DEFAULT_ROLE_PROMPT, isBuiltInRole, resolveRolePrompt } from "../../src/backends/roles.js"
+import {
+  BUILT_IN_ROLES,
+  DEFAULT_ROLE_PROMPT,
+  DEFAULT_ROLE_PROVIDER,
+  isBuiltInRole,
+  resolveRolePrompt,
+} from "../../src/backends/roles.js"
 
 const tmpDirs: string[] = []
 afterEach(() => { for (const d of tmpDirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -20,6 +26,12 @@ describe("isBuiltInRole", () => {
 
   it("rejects a made-up role name", () => {
     expect(isBuiltInRole("philosopher")).toBe(false)
+  })
+
+  it("keeps adversary on a different vendor than the other three roles, by design", () => {
+    expect(DEFAULT_ROLE_PROVIDER.adversary).not.toBe(DEFAULT_ROLE_PROVIDER.architect)
+    expect(DEFAULT_ROLE_PROVIDER.adversary).not.toBe(DEFAULT_ROLE_PROVIDER.pragmatist)
+    expect(DEFAULT_ROLE_PROVIDER.adversary).not.toBe(DEFAULT_ROLE_PROVIDER.reviewer)
   })
 })
 

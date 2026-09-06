@@ -74,7 +74,7 @@ describe("panelTool", () => {
     mockMixedBackends()
     const out = await panelTool(ctx(), { question: "Review this plan", roles: ["architect", "pragmatist"] })
     expect(out).toMatch(/architect - ok/)
-    expect(out).toMatch(/pragmatist - failed/)
+    expect(out).toMatch(/pragmatist - skipped/)
     expect(out).toMatch(/budget/i)
   })
 

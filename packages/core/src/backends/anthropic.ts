@@ -2,6 +2,7 @@ import type { CompleteInput, CompleteResult, ModelBackend } from "./types.js"
 
 const DEFAULT_MODEL = "claude-sonnet-5"
 const DEFAULT_MAX_TOKENS = 4096
+const DEFAULT_TIMEOUT_MS = 60_000
 const API_URL = "https://api.anthropic.com/v1/messages"
 
 interface AnthropicResponse {
@@ -14,7 +15,8 @@ export function anthropicBackend(apiKey: string): ModelBackend {
   return {
     async complete({ systemPrompt, userPrompt, model, timeoutMs }: CompleteInput): Promise<CompleteResult> {
       const controller = new AbortController()
-      const timer = timeoutMs !== undefined ? setTimeout(() => controller.abort(), timeoutMs) : undefined
+      const effectiveTimeoutMs = timeoutMs ?? DEFAULT_TIMEOUT_MS
+      const timer = setTimeout(() => controller.abort(), effectiveTimeoutMs)
       try {
         const res = await fetch(API_URL, {
           method: "POST",
@@ -39,11 +41,11 @@ export function anthropicBackend(apiKey: string): ModelBackend {
         return { text, tokensUsed: data.usage.input_tokens + data.usage.output_tokens, model: data.model }
       } catch (err) {
         if ((err as Error).name === "AbortError") {
-          throw new Error(`Anthropic API call timed out after ${timeoutMs}ms.`)
+          throw new Error(`Anthropic API call timed out after ${effectiveTimeoutMs}ms.`)
         }
         throw err
       } finally {
-        if (timer !== undefined) clearTimeout(timer)
+        clearTimeout(timer)
       }
     },
   }

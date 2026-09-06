@@ -1,9 +1,10 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { homedir, tmpdir } from "node:os"
 import { join, relative } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { readActiveId } from "@junto/core"
 import { advanceTool } from "../packages/mcp/src/tools/advance.js"
+import { consultTool } from "../packages/mcp/src/tools/consult.js"
 import { taskTool } from "../packages/mcp/src/tools/task.js"
 import { verifyTool } from "../packages/mcp/src/tools/verify.js"
 
@@ -74,6 +75,43 @@ describe("R1 - Junto writes only inside .junto/", () => {
       if (!after.has(path)) touched.push(`DELETED: ${relative(root, path)}`)
     }
     expect(touched, `Junto changed a file outside .junto/: ${touched.join(", ")}`).toEqual([])
+  })
+
+  it("keeps a consult call inside .junto/", async () => {
+    const root = makeRoot("junto-boundary-consult-")
+    mkdirSync(join(root, ".junto"), { recursive: true })
+    writeFileSync(join(root, ".junto", "config.json"), JSON.stringify({
+      schemaVersion: 1,
+      gates: {},
+      backends: { anthropic: { apiKeyEnv: "JUNTO_BOUNDARY_TEST_KEY" } },
+    }), "utf-8")
+    process.env.JUNTO_BOUNDARY_TEST_KEY = "sk-test"
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        content: [{ type: "text", text: "looks fine" }],
+        usage: { input_tokens: 1, output_tokens: 1 },
+        model: "claude-sonnet-5",
+      }),
+    }))
+
+    const before = snapshot(root)
+    const ctx = { root, runner: "boundary@0" }
+    await taskTool(ctx, { action: "start", title: "Test boundary consult", size: "standard" })
+    await consultTool(ctx, { role: "architect", question: "Sound?" })
+
+    const after = snapshot(root)
+    const junto = join(root, ".junto")
+    const touched: string[] = []
+    for (const [path, mtime] of after) {
+      if (path === junto || path.startsWith(`${junto}\\`) || path.startsWith(`${junto}/`)) continue
+      const previous = before.get(path)
+      if (previous === undefined || previous !== mtime) touched.push(relative(root, path))
+    }
+    expect(touched, `Junto changed a file outside .junto/: ${touched.join(", ")}`).toEqual([])
+
+    vi.unstubAllGlobals()
+    delete process.env.JUNTO_BOUNDARY_TEST_KEY
   })
 
   it("does not create state in HOME or modify Claude settings", async () => {

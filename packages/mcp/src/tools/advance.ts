@@ -62,8 +62,9 @@ export async function advanceTool(ctx: ToolContext, input: { to: Phase }): Promi
   task.phase = input.to
   writeTask(ctx.root, task)
 
-  // Purely advisory text — canEnter() above never sees task.size, so nothing here can block a
-  // transition. M3 is expected to turn this into an actual phase in the deep lifecycle.
+  // Purely advisory text, computed after canEnter() has already decided and writeTask() has
+  // already persisted the transition — nothing here can retroactively affect it. M3 is expected
+  // to turn this into an actual phase in the deep lifecycle.
   const nudge = input.to === "build" && size === "deep"
     ? " This is a deep task — consider running /junto:panel before you start building."
     : ""

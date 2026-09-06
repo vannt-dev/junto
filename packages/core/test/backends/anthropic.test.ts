@@ -57,4 +57,23 @@ describe("anthropicBackend", () => {
       anthropicBackend("key").complete({ systemPrompt: "s", userPrompt: "u", timeoutMs: 10 }),
     ).rejects.toThrow(/timed out after 10ms/i)
   })
+
+  it("times out using the default even when timeoutMs is omitted", async () => {
+    vi.useFakeTimers()
+    try {
+      vi.stubGlobal("fetch", vi.fn((_url: string, init: RequestInit) => new Promise((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () => {
+          const err = new Error("aborted")
+          err.name = "AbortError"
+          reject(err)
+        })
+      })))
+      const completePromise = anthropicBackend("key").complete({ systemPrompt: "s", userPrompt: "u" })
+      const assertion = expect(completePromise).rejects.toThrow(/timed out after 60000ms/i)
+      await vi.advanceTimersByTimeAsync(60_000)
+      await assertion
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

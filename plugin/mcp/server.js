@@ -26039,12 +26039,14 @@ function resolveRolePrompt(root, role) {
 // packages/core/src/backends/anthropic.ts
 var DEFAULT_MODEL = "claude-sonnet-5";
 var DEFAULT_MAX_TOKENS = 4096;
+var DEFAULT_TIMEOUT_MS2 = 6e4;
 var API_URL = "https://api.anthropic.com/v1/messages";
 function anthropicBackend(apiKey) {
   return {
     async complete({ systemPrompt, userPrompt, model, timeoutMs }) {
       const controller = new AbortController();
-      const timer = timeoutMs !== void 0 ? setTimeout(() => controller.abort(), timeoutMs) : void 0;
+      const effectiveTimeoutMs = timeoutMs ?? DEFAULT_TIMEOUT_MS2;
+      const timer = setTimeout(() => controller.abort(), effectiveTimeoutMs);
       try {
         const res = await fetch(API_URL, {
           method: "POST",
@@ -26069,11 +26071,11 @@ function anthropicBackend(apiKey) {
         return { text, tokensUsed: data.usage.input_tokens + data.usage.output_tokens, model: data.model };
       } catch (err) {
         if (err.name === "AbortError") {
-          throw new Error(`Anthropic API call timed out after ${timeoutMs}ms.`);
+          throw new Error(`Anthropic API call timed out after ${effectiveTimeoutMs}ms.`);
         }
         throw err;
       } finally {
-        if (timer !== void 0) clearTimeout(timer);
+        clearTimeout(timer);
       }
     }
   };
@@ -26081,12 +26083,14 @@ function anthropicBackend(apiKey) {
 
 // packages/core/src/backends/openai.ts
 var DEFAULT_MODEL2 = "gpt-5";
+var DEFAULT_TIMEOUT_MS3 = 6e4;
 var API_URL2 = "https://api.openai.com/v1/chat/completions";
 function openaiBackend(apiKey) {
   return {
     async complete({ systemPrompt, userPrompt, model, timeoutMs }) {
       const controller = new AbortController();
-      const timer = timeoutMs !== void 0 ? setTimeout(() => controller.abort(), timeoutMs) : void 0;
+      const effectiveTimeoutMs = timeoutMs ?? DEFAULT_TIMEOUT_MS3;
+      const timer = setTimeout(() => controller.abort(), effectiveTimeoutMs);
       try {
         const res = await fetch(API_URL2, {
           method: "POST",
@@ -26115,11 +26119,11 @@ function openaiBackend(apiKey) {
         };
       } catch (err) {
         if (err.name === "AbortError") {
-          throw new Error(`OpenAI API call timed out after ${timeoutMs}ms.`);
+          throw new Error(`OpenAI API call timed out after ${effectiveTimeoutMs}ms.`);
         }
         throw err;
       } finally {
-        if (timer !== void 0) clearTimeout(timer);
+        clearTimeout(timer);
       }
     }
   };
@@ -26306,9 +26310,10 @@ async function panelTool(ctx, input) {
   const sections = [];
   for (const role of roles) {
     const result = await runConsult(ctx, role, input.question);
+    const label = result.ok ? "ok" : result.error?.includes("budget exhausted") ? "skipped" : "failed";
     sections.push(
-      result.ok ? `## ${role} - ok
-Saved to ${result.path}. Tokens used: ${result.tokensUsed}.` : `## ${role} - failed
+      result.ok ? `## ${role} - ${label}
+Saved to ${result.path}. Tokens used: ${result.tokensUsed}.` : `## ${role} - ${label}
 ${result.error}`
     );
   }

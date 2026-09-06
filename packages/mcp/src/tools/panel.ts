@@ -13,10 +13,11 @@ export async function panelTool(ctx: ToolContext, input: { roles?: string[], que
   // both pass the check against the same stale reading before either writes back its spend.
   for (const role of roles) {
     const result = await runConsult(ctx, role, input.question)
+    const label = result.ok ? "ok" : result.error?.includes("budget exhausted") ? "skipped" : "failed"
     sections.push(
       result.ok
-        ? `## ${role} - ok\nSaved to ${result.path}. Tokens used: ${result.tokensUsed}.`
-        : `## ${role} - failed\n${result.error}`,
+        ? `## ${role} - ${label}\nSaved to ${result.path}. Tokens used: ${result.tokensUsed}.`
+        : `## ${role} - ${label}\n${result.error}`,
     )
   }
 

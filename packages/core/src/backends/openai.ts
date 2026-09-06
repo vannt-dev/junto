@@ -1,6 +1,7 @@
 import type { CompleteInput, CompleteResult, ModelBackend } from "./types.js"
 
 const DEFAULT_MODEL = "gpt-5"
+const DEFAULT_TIMEOUT_MS = 60_000
 const API_URL = "https://api.openai.com/v1/chat/completions"
 
 interface OpenAIResponse {
@@ -13,7 +14,8 @@ export function openaiBackend(apiKey: string): ModelBackend {
   return {
     async complete({ systemPrompt, userPrompt, model, timeoutMs }: CompleteInput): Promise<CompleteResult> {
       const controller = new AbortController()
-      const timer = timeoutMs !== undefined ? setTimeout(() => controller.abort(), timeoutMs) : undefined
+      const effectiveTimeoutMs = timeoutMs ?? DEFAULT_TIMEOUT_MS
+      const timer = setTimeout(() => controller.abort(), effectiveTimeoutMs)
       try {
         const res = await fetch(API_URL, {
           method: "POST",
@@ -42,11 +44,11 @@ export function openaiBackend(apiKey: string): ModelBackend {
         }
       } catch (err) {
         if ((err as Error).name === "AbortError") {
-          throw new Error(`OpenAI API call timed out after ${timeoutMs}ms.`)
+          throw new Error(`OpenAI API call timed out after ${effectiveTimeoutMs}ms.`)
         }
         throw err
       } finally {
-        if (timer !== undefined) clearTimeout(timer)
+        clearTimeout(timer)
       }
     },
   }

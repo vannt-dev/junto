@@ -4351,7 +4351,7 @@ function handleGuard(input) {
   if (input.hook_event_name === "PreToolUse") {
     if (!isProtected(rel)) return "";
     return deny(
-      `junto protects ${rel} as evidence; only MCP tools may write it. Use junto__verify to run gates, junto__advance to change phases, and junto__task for the task lifecycle.`
+      `junto protects ${rel} as evidence; only MCP tools may write it. Use junto__verify to run gates, junto__advance to change phases, junto__task for the task lifecycle, and junto__consult/junto__panel for advisory review.`
     );
   }
   if (input.hook_event_name !== "PostToolUse") return "";

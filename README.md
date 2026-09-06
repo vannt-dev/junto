@@ -21,6 +21,7 @@ No `npx`, downloaded binary, or install script is required.
 /junto:plan
 /junto:approve          # only the user can approve; the model cannot approve its own plan
 /junto:verify
+/junto:panel [question] # optional: ask an advisory multi-model panel before finishing
 /junto:finish
 ```
 
@@ -43,8 +44,31 @@ When source files change, previous verdicts become stale and gates must run agai
 The `guard.js` hook blocks evidence writes through Edit/Write/MultiEdit, but it **cannot block Bash**.
 It prevents accidents and shortcuts; it is not a security boundary against a malicious actor.
 
+## Advisory consult and panel
+
+`junto__consult` asks one advisory role (`architect`, `adversary`, `pragmatist`, `reviewer`, or a
+project-defined role) about the active task's brief and plan; `junto__panel` (via `/junto:panel`)
+asks several roles in sequence. Both are strictly advisory: their output never blocks a phase
+transition and is never evidence for a gate.
+
+Configure providers in `.junto/config.json`:
+
+```json
+{
+  "backends": {
+    "anthropic": { "apiKeyEnv": "ANTHROPIC_API_KEY" },
+    "openai": { "apiKeyEnv": "OPENAI_API_KEY" }
+  },
+  "consultBudget": { "maxTokensPerTask": 200000 }
+}
+```
+
+`apiKeyEnv` names an environment variable holding the key — junto never stores the key value
+itself. Override any role's prompt by adding `.junto/roles/<role>.md`.
+
 ## Status
 
-M1 provides the task engine without external models. The multi-model panel is planned for M2.
+M1 provides the task engine without external models. M2 adds advisory multi-model consult/panel
+(Anthropic + OpenAI). See "Advisory consult and panel" below for configuration.
 
 MIT.
