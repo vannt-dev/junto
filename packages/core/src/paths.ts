@@ -8,6 +8,7 @@ export const PROTECTED_GLOBS = [
   ".junto/active",
   ".junto/tasks/*/task.json*",
   ".junto/tasks/*/verdicts/**",
+  ".junto/tasks/*/consults/**",
 ]
 
 export function juntoDir(root: string): string {

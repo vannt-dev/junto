@@ -56,6 +56,7 @@ describe("isProtected", () => {
     expect(isProtected(".junto/tasks/t/task.json.tmp")).toBe(true)
   })
   it("protects the verdicts directory", () => expect(isProtected(".junto/tasks/t/verdicts/tests.json")).toBe(true))
+  it("protects the consults directory", () => expect(isProtected(".junto/tasks/t/consults/001-architect.md")).toBe(true))
   it("protects the active file", () => expect(isProtected(".junto/active")).toBe(true))
   it("does not protect plan.md", () => expect(isProtected(".junto/tasks/t/plan.md")).toBe(false))
   it("does not protect config.json", () => expect(isProtected(".junto/config.json")).toBe(false))
