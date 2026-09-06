@@ -58,7 +58,7 @@ export async function runConsult(ctx: ToolContext, role: string, question: strin
 
     const prompt = resolveRolePrompt(ctx.root, role)
     const provider = resolveRoleProvider(role, config)
-    const { backend, model, timeoutMs } = resolveBackend(provider, config)
+    const { backend, model, timeoutMs } = resolveBackend(provider, config, ctx.root)
 
     const dir = taskDir(ctx.root, id)
     const brief = readIfExists(join(dir, "brief.md"))

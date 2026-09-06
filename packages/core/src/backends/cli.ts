@@ -4,17 +4,18 @@ import type { CompleteInput, CompleteResult, ModelBackend } from "./types.js"
 
 const DEFAULT_CLI_TIMEOUT_MS = 120_000
 
-export function cliBackend(argv: string[]): ModelBackend {
+export function cliBackend(argv: string[], root: string): ModelBackend {
   return {
     async complete({ systemPrompt, userPrompt, timeoutMs }: CompleteInput): Promise<CompleteResult> {
       const [cmd, ...args] = argv
       if (cmd === undefined) throw new Error("CLI backend argv is empty.")
-      if (!resolveExecutable(cmd, process.cwd())) {
+      if (!resolveExecutable(cmd, root)) {
         throw new Error(`CLI backend command "${cmd}" does not exist or is not executable. Install it and retry.`)
       }
 
       const effectiveTimeoutMs = timeoutMs ?? DEFAULT_CLI_TIMEOUT_MS
       const res = await execa(cmd, args, {
+        cwd: root,
         input: `${systemPrompt}\n\n${userPrompt}`,
         timeout: effectiveTimeoutMs,
         reject: false,

@@ -136,4 +136,12 @@ describe("parseConfig", () => {
       cliBackends: { codex: { argv: [] } },
     })).toThrow()
   })
+
+  it("rejects a cliBackends entry with an unknown key", () => {
+    expect(() => parseConfig({
+      schemaVersion: 1,
+      gates: {},
+      cliBackends: { codex: { argv: ["codex"], cwd: "/tmp" } },
+    })).toThrow()
+  })
 })

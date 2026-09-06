@@ -24,12 +24,12 @@ describe("resolveBackend", () => {
   afterEach(() => { delete process.env.JUNTO_TEST_KEY })
 
   it("throws when the backend has no entry in config.json", () => {
-    expect(() => resolveBackend("anthropic", baseConfig)).toThrow(/no "anthropic" entry/i)
+    expect(() => resolveBackend("anthropic", baseConfig, "/tmp/does-not-need-to-exist")).toThrow(/no "anthropic" entry/i)
   })
 
   it("throws naming the env var, and never a key value, when it is unset", () => {
     const config: Config = { ...baseConfig, backends: { anthropic: { apiKeyEnv: "JUNTO_TEST_KEY" } } }
-    expect(() => resolveBackend("anthropic", config)).toThrow(/JUNTO_TEST_KEY/)
+    expect(() => resolveBackend("anthropic", config, "/tmp/does-not-need-to-exist")).toThrow(/JUNTO_TEST_KEY/)
   })
 
   it("resolves a usable backend once the env var is set", () => {
@@ -38,7 +38,7 @@ describe("resolveBackend", () => {
       ...baseConfig,
       backends: { anthropic: { apiKeyEnv: "JUNTO_TEST_KEY", model: "m", timeoutMs: 9000 } },
     }
-    const resolved = resolveBackend("anthropic", config)
+    const resolved = resolveBackend("anthropic", config, "/tmp/does-not-need-to-exist")
     expect(resolved.model).toBe("m")
     expect(resolved.timeoutMs).toBe(9000)
     expect(typeof resolved.backend.complete).toBe("function")
@@ -46,12 +46,14 @@ describe("resolveBackend", () => {
 })
 
 describe("resolveBackend — cliBackends", () => {
+  afterEach(() => { delete process.env.JUNTO_TEST_KEY })
+
   it("resolves a role whose provider names a cliBackends entry", () => {
     const config: Config = {
       ...baseConfig,
       cliBackends: { codex: { argv: ["node", "-e", "process.exit(0)"] } },
     }
-    const resolved = resolveBackend("codex", config)
+    const resolved = resolveBackend("codex", config, "/tmp/does-not-need-to-exist")
     expect(typeof resolved.backend.complete).toBe("function")
   })
 
@@ -62,17 +64,17 @@ describe("resolveBackend — cliBackends", () => {
       backends: { dual: { apiKeyEnv: "JUNTO_TEST_KEY" } },
       cliBackends: { dual: { argv: ["node", "-e", "process.exit(0)"] } },
     }
-    expect(() => resolveBackend("dual", config)).toThrow(/not a supported api vendor/i)
+    expect(() => resolveBackend("dual", config, "/tmp/does-not-need-to-exist")).toThrow(/not a supported api vendor/i)
   })
 
   it("throws naming both config sections when a name is in neither", () => {
-    expect(() => resolveBackend("nonexistent", baseConfig))
+    expect(() => resolveBackend("nonexistent", baseConfig, "/tmp/does-not-need-to-exist"))
       .toThrow(/backends.*cliBackends|cliBackends.*backends/is)
   })
 
   it("throws clearly for a backends entry keyed by an unsupported vendor name, without falling through to openai", () => {
     process.env.JUNTO_TEST_KEY = "sk-test"
     const config: Config = { ...baseConfig, backends: { cohere: { apiKeyEnv: "JUNTO_TEST_KEY" } } }
-    expect(() => resolveBackend("cohere", config)).toThrow(/not a supported api vendor/i)
+    expect(() => resolveBackend("cohere", config, "/tmp/does-not-need-to-exist")).toThrow(/not a supported api vendor/i)
   })
 })
