@@ -101,4 +101,30 @@ describe("advanceTool", () => {
     await advanceTool(ctx(), { to: "plan" })
     expect(readTask(root, id).phases.plan?.approvedBy).toBeUndefined()
   })
+
+  it("suggests a panel review when a deep task reaches build", async () => {
+    await taskTool(ctx(), { action: "start", title: "X", size: "deep" })
+    const id = activeId()
+    write(id, "brief.md", "x")
+    await advanceTool(ctx(), { to: "plan" })
+    write(id, "plan.md", "1. Implement the change")
+    const task = readTask(root, id)
+    task.phases.plan = { status: "done", approvedBy: "user" }
+    writeTask(root, task)
+    const out = await advanceTool(ctx(), { to: "build" })
+    expect(out).toMatch(/junto:panel/)
+  })
+
+  it("does not suggest a panel review for a standard task", async () => {
+    await taskTool(ctx(), { action: "start", title: "X", size: "standard" })
+    const id = activeId()
+    write(id, "brief.md", "x")
+    await advanceTool(ctx(), { to: "plan" })
+    write(id, "plan.md", "1. Implement the change")
+    const task = readTask(root, id)
+    task.phases.plan = { status: "done", approvedBy: "user" }
+    writeTask(root, task)
+    const out = await advanceTool(ctx(), { to: "build" })
+    expect(out).not.toMatch(/junto:panel/)
+  })
 })

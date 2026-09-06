@@ -58,8 +58,15 @@ export async function advanceTool(ctx: ToolContext, input: { to: Phase }): Promi
   const previous = task.phases[task.phase]
   if (previous !== undefined) task.phases[task.phase] = { ...previous, status: "done", at: now }
   task.phases[input.to] = { ...(task.phases[input.to] ?? {}), status: "active", at: now }
+  const size = task.size
   task.phase = input.to
   writeTask(ctx.root, task)
 
-  return `Task "${id}" transitioned to phase ${input.to}.`
+  // Purely advisory text — canEnter() above never sees task.size, so nothing here can block a
+  // transition. M3 is expected to turn this into an actual phase in the deep lifecycle.
+  const nudge = input.to === "build" && size === "deep"
+    ? " This is a deep task — consider running /junto:panel before you start building."
+    : ""
+
+  return `Task "${id}" transitioned to phase ${input.to}.${nudge}`
 }
