@@ -4096,18 +4096,35 @@ var taskSchema = external_exports.object({
   phases: external_exports.record(external_exports.string(), phaseStatusSchema),
   gates: external_exports.record(external_exports.string(), gateStatusSchema),
   decisions: external_exports.array(decisionSchema),
-  consults: external_exports.array(external_exports.string())
+  consults: external_exports.array(external_exports.string()),
+  consultTokensUsed: external_exports.number().int().min(0).default(0)
 });
 var gateSpecSchema = external_exports.object({
   argv: external_exports.array(external_exports.string()).min(1),
   required: external_exports.boolean(),
   timeoutMs: external_exports.number().int().positive().optional()
 });
+var providerSchema = external_exports.enum(["anthropic", "openai"]);
+var backendSpecSchema = external_exports.object({
+  apiKeyEnv: external_exports.string().min(1),
+  model: external_exports.string().optional(),
+  timeoutMs: external_exports.number().int().positive().optional()
+}).strict();
+var roleSpecSchema = external_exports.object({
+  provider: providerSchema,
+  model: external_exports.string().optional()
+}).strict();
+var consultBudgetSchema = external_exports.object({
+  maxTokensPerTask: external_exports.number().int().positive().optional()
+}).strict();
 var configSchema = external_exports.object({
   schemaVersion: external_exports.number().int(),
   gates: external_exports.record(external_exports.string(), gateSpecSchema),
   staleIgnore: external_exports.array(external_exports.string()).default(DEFAULT_STALE_IGNORE),
-  autoApprove: external_exports.array(sizeSchema).default([])
+  autoApprove: external_exports.array(sizeSchema).default([]),
+  backends: external_exports.record(external_exports.string(), backendSpecSchema).optional(),
+  roles: external_exports.record(external_exports.string(), roleSpecSchema).optional(),
+  consultBudget: consultBudgetSchema.optional()
 }).passthrough();
 function parseTask(raw) {
   assertVersion(raw);

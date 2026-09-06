@@ -18867,18 +18867,35 @@ var taskSchema = external_exports.object({
   phases: external_exports.record(external_exports.string(), phaseStatusSchema),
   gates: external_exports.record(external_exports.string(), gateStatusSchema),
   decisions: external_exports.array(decisionSchema),
-  consults: external_exports.array(external_exports.string())
+  consults: external_exports.array(external_exports.string()),
+  consultTokensUsed: external_exports.number().int().min(0).default(0)
 });
 var gateSpecSchema = external_exports.object({
   argv: external_exports.array(external_exports.string()).min(1),
   required: external_exports.boolean(),
   timeoutMs: external_exports.number().int().positive().optional()
 });
+var providerSchema = external_exports.enum(["anthropic", "openai"]);
+var backendSpecSchema = external_exports.object({
+  apiKeyEnv: external_exports.string().min(1),
+  model: external_exports.string().optional(),
+  timeoutMs: external_exports.number().int().positive().optional()
+}).strict();
+var roleSpecSchema = external_exports.object({
+  provider: providerSchema,
+  model: external_exports.string().optional()
+}).strict();
+var consultBudgetSchema = external_exports.object({
+  maxTokensPerTask: external_exports.number().int().positive().optional()
+}).strict();
 var configSchema = external_exports.object({
   schemaVersion: external_exports.number().int(),
   gates: external_exports.record(external_exports.string(), gateSpecSchema),
   staleIgnore: external_exports.array(external_exports.string()).default(DEFAULT_STALE_IGNORE),
-  autoApprove: external_exports.array(sizeSchema).default([])
+  autoApprove: external_exports.array(sizeSchema).default([]),
+  backends: external_exports.record(external_exports.string(), backendSpecSchema).optional(),
+  roles: external_exports.record(external_exports.string(), roleSpecSchema).optional(),
+  consultBudget: consultBudgetSchema.optional()
 }).passthrough();
 function parseTask(raw) {
   assertVersion(raw);
@@ -18943,7 +18960,43 @@ function writeJsonAtomic(path6, value) {
     throw err;
   }
 }
+var LOCK_RETRY_MS = 5;
+var LOCK_ATTEMPTS = 50;
+var STALE_LOCK_MS = 3e4;
 var lockWaiter = new Int32Array(new SharedArrayBuffer(4));
+function withTaskLock(root, id, fn) {
+  const dir = taskDir(root, id);
+  if (!existsSync2(join2(dir, "task.json"))) {
+    throw new Error(`Task "${id}" was not found for update.`);
+  }
+  const lock = join2(dir, "task.json.lock");
+  for (let attempt = 0; attempt < LOCK_ATTEMPTS; attempt++) {
+    let fd;
+    try {
+      fd = openSync(lock, "wx");
+    } catch (error2) {
+      const code = error2.code;
+      if (code !== "EEXIST") throw error2;
+      try {
+        if (Date.now() - statSync2(lock).mtimeMs > STALE_LOCK_MS) {
+          rmSync(lock, { force: true });
+          continue;
+        }
+      } catch {
+        continue;
+      }
+      Atomics.wait(lockWaiter, 0, 0, LOCK_RETRY_MS);
+      continue;
+    }
+    try {
+      return fn();
+    } finally {
+      closeSync(fd);
+      rmSync(lock, { force: true });
+    }
+  }
+  throw new Error(`Task "${id}" is being updated by another process. Try again.`);
+}
 function readConfig(root) {
   const path6 = join2(juntoDir(root), "config.json");
   if (!existsSync2(path6)) {
@@ -18978,6 +19031,14 @@ function writeTask(root, task) {
   const dir = taskDir(root, next.id);
   mkdirSync(dir, { recursive: true });
   writeJsonAtomic(join2(dir, "task.json"), next);
+}
+function updateTask(root, id, update) {
+  return withTaskLock(root, id, () => {
+    const task = readTask(root, id);
+    if (update(task) === false) return task;
+    writeTask(root, task);
+    return readTask(root, id);
+  });
 }
 
 // packages/core/src/transitions.ts
@@ -25947,6 +26008,149 @@ async function runGate(opts) {
   return verdict;
 }
 
+// packages/core/src/backends/roles.ts
+import { existsSync as existsSync4, readFileSync as readFileSync4 } from "node:fs";
+import { join as join4 } from "node:path";
+var BUILT_IN_ROLES = ["architect", "adversary", "pragmatist", "reviewer"];
+function isBuiltInRole(role) {
+  return BUILT_IN_ROLES.includes(role);
+}
+var DEFAULT_ROLE_PROVIDER = {
+  architect: "anthropic",
+  adversary: "openai",
+  pragmatist: "anthropic",
+  reviewer: "anthropic"
+};
+var DEFAULT_ROLE_PROMPT = {
+  architect: "You are the architect role in an advisory review panel for a software task. Read the task's brief and plan, then answer the question with your own reasoning about structure, module boundaries, and long-term maintainability. Point out where the design creates coupling, hides complexity, or under-specifies an interface. Be concrete: name files, functions, or data shapes where you can. Do not comment on unrelated code style.",
+  adversary: "You are the adversary role in an advisory review panel for a software task. Read the task's brief and plan, then argue against it: find the scenario, input, or sequence of events where this plan fails, is misused, or produces a wrong result silently. Assume the plan's author already thought of the obvious cases; look past those. Be concrete and specific rather than generically cautious.",
+  pragmatist: "You are the pragmatist role in an advisory review panel for a software task. Read the task's brief and plan, then push back on unnecessary complexity, speculative generality, and scope creep. Identify anything being built for a need that does not exist yet, and any simpler approach that would satisfy the actual brief. Prefer concrete suggestions over general principles.",
+  reviewer: "You are the reviewer role in an advisory review panel for a software task. Read the task's brief and plan, then give a final correctness read: does the plan actually satisfy the brief, are there gaps between what is described and what would need to be built, and is anything in the plan internally inconsistent? Call out ambiguity that a future implementer could interpret two different ways."
+};
+function resolveRolePrompt(root, role) {
+  const overridePath = join4(juntoDir(root), "roles", `${role}.md`);
+  if (existsSync4(overridePath)) return readFileSync4(overridePath, "utf-8");
+  if (isBuiltInRole(role)) return DEFAULT_ROLE_PROMPT[role];
+  throw new Error(
+    `Unknown role "${role}". Built-in roles are ${BUILT_IN_ROLES.join(", ")}. Define .junto/roles/${role}.md to add a custom role.`
+  );
+}
+
+// packages/core/src/backends/anthropic.ts
+var DEFAULT_MODEL = "claude-sonnet-5";
+var DEFAULT_MAX_TOKENS = 4096;
+var API_URL = "https://api.anthropic.com/v1/messages";
+function anthropicBackend(apiKey) {
+  return {
+    async complete({ systemPrompt, userPrompt, model, timeoutMs }) {
+      const controller = new AbortController();
+      const timer = timeoutMs !== void 0 ? setTimeout(() => controller.abort(), timeoutMs) : void 0;
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: {
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+          },
+          body: JSON.stringify({
+            model: model ?? DEFAULT_MODEL,
+            max_tokens: DEFAULT_MAX_TOKENS,
+            system: systemPrompt,
+            messages: [{ role: "user", content: userPrompt }]
+          }),
+          signal: controller.signal
+        });
+        if (!res.ok) {
+          throw new Error(`Anthropic API returned ${res.status}: ${await res.text()}`);
+        }
+        const data = await res.json();
+        const text = data.content.filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
+        return { text, tokensUsed: data.usage.input_tokens + data.usage.output_tokens, model: data.model };
+      } catch (err) {
+        if (err.name === "AbortError") {
+          throw new Error(`Anthropic API call timed out after ${timeoutMs}ms.`);
+        }
+        throw err;
+      } finally {
+        if (timer !== void 0) clearTimeout(timer);
+      }
+    }
+  };
+}
+
+// packages/core/src/backends/openai.ts
+var DEFAULT_MODEL2 = "gpt-5";
+var API_URL2 = "https://api.openai.com/v1/chat/completions";
+function openaiBackend(apiKey) {
+  return {
+    async complete({ systemPrompt, userPrompt, model, timeoutMs }) {
+      const controller = new AbortController();
+      const timer = timeoutMs !== void 0 ? setTimeout(() => controller.abort(), timeoutMs) : void 0;
+      try {
+        const res = await fetch(API_URL2, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "content-type": "application/json"
+          },
+          body: JSON.stringify({
+            model: model ?? DEFAULT_MODEL2,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt }
+            ]
+          }),
+          signal: controller.signal
+        });
+        if (!res.ok) {
+          throw new Error(`OpenAI API returned ${res.status}: ${await res.text()}`);
+        }
+        const data = await res.json();
+        const first = data.choices[0];
+        return {
+          text: first?.message.content ?? "",
+          tokensUsed: data.usage.total_tokens,
+          model: data.model
+        };
+      } catch (err) {
+        if (err.name === "AbortError") {
+          throw new Error(`OpenAI API call timed out after ${timeoutMs}ms.`);
+        }
+        throw err;
+      } finally {
+        if (timer !== void 0) clearTimeout(timer);
+      }
+    }
+  };
+}
+
+// packages/core/src/backends/resolve.ts
+function resolveRoleProvider(role, config2) {
+  const configured = config2.roles?.[role]?.provider;
+  if (configured !== void 0) return configured;
+  if (isBuiltInRole(role)) return DEFAULT_ROLE_PROVIDER[role];
+  throw new Error(
+    `Role "${role}" has no provider. Add roles: { "${role}": { "provider": "anthropic" | "openai" } } to .junto/config.json.`
+  );
+}
+function resolveBackend(provider, config2) {
+  const spec = config2.backends?.[provider];
+  if (spec === void 0) {
+    throw new Error(
+      `No "${provider}" entry under "backends" in .junto/config.json. Add { "backends": { "${provider}": { "apiKeyEnv": "..." } } }.`
+    );
+  }
+  const apiKey = process.env[spec.apiKeyEnv];
+  if (apiKey === void 0 || apiKey === "") {
+    throw new Error(
+      `Environment variable "${spec.apiKeyEnv}" is not set (required by backends.${provider}.apiKeyEnv in .junto/config.json).`
+    );
+  }
+  const backend = provider === "anthropic" ? anthropicBackend(apiKey) : openaiBackend(apiKey);
+  return { backend, model: spec.model, timeoutMs: spec.timeoutMs };
+}
+
 // packages/mcp/src/context.ts
 var RUNNER = "@junto/mcp@0.1.0";
 function resolveContext(cwd) {
@@ -25960,16 +26164,16 @@ function resolveContext(cwd) {
 }
 
 // packages/mcp/src/tools/advance.ts
-import { existsSync as existsSync4, readFileSync as readFileSync4 } from "node:fs";
-import { join as join4 } from "node:path";
+import { existsSync as existsSync5, readFileSync as readFileSync5 } from "node:fs";
+import { join as join5 } from "node:path";
 function buildTransitionContext(root, task, config2) {
   const dir = taskDir(root, task.id);
   const readState = (rel) => {
     if (rel === null) return null;
-    const path6 = join4(dir, rel);
-    if (!existsSync4(path6)) return null;
+    const path6 = join5(dir, rel);
+    if (!existsSync5(path6)) return null;
     try {
-      return gateStateSchema.parse(JSON.parse(readFileSync4(path6, "utf-8")).state);
+      return gateStateSchema.parse(JSON.parse(readFileSync5(path6, "utf-8")).state);
     } catch {
       return null;
     }
@@ -25978,10 +26182,10 @@ function buildTransitionContext(root, task, config2) {
   for (const [name, status] of Object.entries(task.gates)) {
     verdictStates[name] = readState(status.verdict);
   }
-  const brief = join4(dir, "brief.md");
+  const brief = join5(dir, "brief.md");
   return {
-    briefNonEmpty: existsSync4(brief) && readFileSync4(brief, "utf-8").trim() !== "",
-    planExists: existsSync4(join4(dir, "plan.md")),
+    briefNonEmpty: existsSync5(brief) && readFileSync5(brief, "utf-8").trim() !== "",
+    planExists: existsSync5(join5(dir, "plan.md")),
     autoApprove: config2.autoApprove,
     verdictStates
   };
@@ -25997,14 +26201,123 @@ async function advanceTool(ctx, input) {
   const previous = task.phases[task.phase];
   if (previous !== void 0) task.phases[task.phase] = { ...previous, status: "done", at: now };
   task.phases[input.to] = { ...task.phases[input.to] ?? {}, status: "active", at: now };
+  const size = task.size;
   task.phase = input.to;
   writeTask(ctx.root, task);
-  return `Task "${id}" transitioned to phase ${input.to}.`;
+  const nudge = input.to === "build" && size === "deep" ? " This is a deep task \u2014 consider running /junto:panel before you start building." : "";
+  return `Task "${id}" transitioned to phase ${input.to}.${nudge}`;
+}
+
+// packages/mcp/src/tools/consult.ts
+import { existsSync as existsSync6, mkdirSync as mkdirSync3, readdirSync, readFileSync as readFileSync6, writeFileSync as writeFileSync4 } from "node:fs";
+import { join as join6 } from "node:path";
+function readIfExists(path6) {
+  return existsSync6(path6) ? readFileSync6(path6, "utf-8") : "";
+}
+function nextSequence(consultsDir) {
+  if (!existsSync6(consultsDir)) return 1;
+  const numbers = readdirSync(consultsDir).map((name) => /^(\d+)-/.exec(name)).filter((m) => m !== null).map((m) => Number(m[1]));
+  return (numbers.length === 0 ? 0 : Math.max(...numbers)) + 1;
+}
+var VALID_ROLE_NAME = /^[a-z0-9_-]+$/i;
+async function runConsult(ctx, role, question) {
+  if (!VALID_ROLE_NAME.test(role)) {
+    return {
+      role,
+      ok: false,
+      error: `Invalid role name "${role}". Use only letters, digits, "_", and "-".`
+    };
+  }
+  try {
+    const id = readActiveId(ctx.root);
+    if (id === null) throw new Error("No active task. Run /junto:start first.");
+    const config2 = readConfig(ctx.root);
+    const task = readTask(ctx.root, id);
+    const cap = config2.consultBudget?.maxTokensPerTask;
+    if (cap !== void 0 && task.consultTokensUsed >= cap) {
+      throw new Error(
+        `Consult budget exhausted for this task: ${task.consultTokensUsed}/${cap} tokens used. Raise consultBudget.maxTokensPerTask in .junto/config.json to continue.`
+      );
+    }
+    const prompt = resolveRolePrompt(ctx.root, role);
+    const provider = resolveRoleProvider(role, config2);
+    const { backend, model, timeoutMs } = resolveBackend(provider, config2);
+    const dir = taskDir(ctx.root, id);
+    const brief = readIfExists(join6(dir, "brief.md"));
+    const plan = readIfExists(join6(dir, "plan.md"));
+    const userPrompt = `## Brief
+
+${brief}
+
+## Plan
+
+${plan}
+
+## Question
+
+${question}`;
+    const result = await backend.complete({ systemPrompt: prompt, userPrompt, model, timeoutMs });
+    const consultsDir = join6(dir, "consults");
+    mkdirSync3(consultsDir, { recursive: true });
+    const seq = String(nextSequence(consultsDir)).padStart(3, "0");
+    const relPath = `consults/${seq}-${role}.md`;
+    const content = `---
+role: ${role}
+provider: ${provider}
+model: ${result.model}
+tokensUsed: ${result.tokensUsed}
+createdAt: ${(/* @__PURE__ */ new Date()).toISOString()}
+---
+
+## Question
+
+${question}
+
+## Response
+
+${result.text}
+`;
+    writeFileSync4(join6(dir, relPath), content, "utf-8");
+    const updated = updateTask(ctx.root, id, (t) => {
+      t.consultTokensUsed += result.tokensUsed;
+      t.consults.push(relPath);
+    });
+    return {
+      role,
+      ok: true,
+      path: relPath,
+      tokensUsed: result.tokensUsed,
+      consultTokensUsedTotal: updated.consultTokensUsed
+    };
+  } catch (error2) {
+    return { role, ok: false, error: error2.message };
+  }
+}
+async function consultTool(ctx, input) {
+  const result = await runConsult(ctx, input.role, input.question);
+  if (!result.ok) throw new Error(result.error);
+  return `Consulted "${result.role}": saved to ${result.path}. Tokens used: ${result.tokensUsed} (task total: ${result.consultTokensUsedTotal}).`;
+}
+
+// packages/mcp/src/tools/panel.ts
+async function panelTool(ctx, input) {
+  if (readActiveId(ctx.root) === null) throw new Error("No active task. Run /junto:start first.");
+  const roles = input.roles ?? [...BUILT_IN_ROLES];
+  const sections = [];
+  for (const role of roles) {
+    const result = await runConsult(ctx, role, input.question);
+    sections.push(
+      result.ok ? `## ${role} - ok
+Saved to ${result.path}. Tokens used: ${result.tokensUsed}.` : `## ${role} - failed
+${result.error}`
+    );
+  }
+  return sections.join("\n\n");
 }
 
 // packages/mcp/src/tools/task.ts
-import { existsSync as existsSync5, mkdirSync as mkdirSync3, renameSync as renameSync2, writeFileSync as writeFileSync4 } from "node:fs";
-import { join as join5 } from "node:path";
+import { existsSync as existsSync7, mkdirSync as mkdirSync4, renameSync as renameSync2, writeFileSync as writeFileSync5 } from "node:fs";
+import { join as join7 } from "node:path";
 var MAX_SLUG = 40;
 var TASK_ID_PATTERN = /^\d{4}-\d{2}-\d{2}-[a-z0-9-]+$/;
 function newTaskId(title, now) {
@@ -26031,13 +26344,13 @@ async function start(ctx, input) {
   const id = newTaskId(input.title, now);
   const iso = now.toISOString();
   const dir = taskDir(ctx.root, id);
-  const archiveDir = join5(juntoDir(ctx.root), "archive", id);
-  if (existsSync5(dir)) {
+  const archiveDir = join7(juntoDir(ctx.root), "archive", id);
+  if (existsSync7(dir)) {
     throw new Error(
       `Task "${id}" already exists in .junto/tasks/ (same date and title as an open task). Choose a different title to avoid an ID collision.`
     );
   }
-  if (existsSync5(archiveDir)) {
+  if (existsSync7(archiveDir)) {
     throw new Error(
       `Task "${id}" already exists in .junto/archive/ (same date and title as an archived task). Choose a different title to avoid an ID collision.`
     );
@@ -26066,15 +26379,16 @@ async function start(ctx, input) {
     phases: { [firstPhase]: { status: "active", at: iso } },
     gates,
     decisions: [],
-    consults: []
+    consults: [],
+    consultTokensUsed: 0
   };
-  mkdirSync3(join5(dir, "verdicts"), { recursive: true });
-  if (!existsSync5(join5(dir, "brief.md"))) writeFileSync4(join5(dir, "brief.md"), "", "utf-8");
-  writeFileSync4(join5(dir, "context.jsonl"), "", "utf-8");
+  mkdirSync4(join7(dir, "verdicts"), { recursive: true });
+  if (!existsSync7(join7(dir, "brief.md"))) writeFileSync5(join7(dir, "brief.md"), "", "utf-8");
+  writeFileSync5(join7(dir, "context.jsonl"), "", "utf-8");
   writeTask(ctx.root, task);
   setActiveId(ctx.root, id);
-  const ignore = join5(juntoDir(ctx.root), ".gitignore");
-  if (!existsSync5(ignore)) writeFileSync4(ignore, "*.log\n", "utf-8");
+  const ignore = join7(juntoDir(ctx.root), ".gitignore");
+  if (!existsSync7(ignore)) writeFileSync5(ignore, "*.log\n", "utf-8");
   return `Created task "${id}" (size ${input.size}) in phase ${firstPhase}. Gates: ${Object.keys(gates).join(", ") || "none"}.`;
 }
 function finish(ctx) {
@@ -26087,13 +26401,13 @@ function finish(ctx) {
     );
   }
   const from = taskDir(ctx.root, id);
-  const to = join5(juntoDir(ctx.root), "archive", id);
-  if (existsSync5(to)) {
+  const to = join7(juntoDir(ctx.root), "archive", id);
+  if (existsSync7(to)) {
     throw new Error(
       `Task "${id}" already exists in .junto/archive/. junto will not overwrite it; inspect the archive directory before trying again.`
     );
   }
-  mkdirSync3(join5(juntoDir(ctx.root), "archive"), { recursive: true });
+  mkdirSync4(join7(juntoDir(ctx.root), "archive"), { recursive: true });
   const gateLines = Object.entries(task.gates).map(([n2, g]) => `- ${n2}: ${g.verdict === null ? "not run" : g.stale ? "stale" : "run"}${g.required ? " (required)" : ""}`).join("\n");
   const summary = `# ${task.title}
 
@@ -26111,7 +26425,7 @@ ${gateLines || "(none)"}
 
 ${task.decisions.map((d) => `- ${d.what} - ${d.why}`).join("\n") || "(none)"}
 `;
-  writeFileSync4(join5(from, "summary.md"), summary, "utf-8");
+  writeFileSync5(join7(from, "summary.md"), summary, "utf-8");
   renameSync2(from, to);
   setActiveId(ctx.root, null);
   return `Archived task "${id}" at .junto/archive/${id}/.`;
@@ -26120,7 +26434,7 @@ function switchTo(ctx, id) {
   if (!TASK_ID_PATTERN.test(id)) {
     throw new Error(`Invalid task ID "${id}". Expected YYYY-MM-DD-slug.`);
   }
-  if (!existsSync5(join5(taskDir(ctx.root, id), "task.json"))) {
+  if (!existsSync7(join7(taskDir(ctx.root, id), "task.json"))) {
     throw new Error(`Task "${id}" was not found in .junto/tasks/.`);
   }
   setActiveId(ctx.root, id);
@@ -26199,6 +26513,8 @@ var taskInput = external_exports.discriminatedUnion("action", [
 ]);
 var verifyInput = external_exports.object({ gates: external_exports.array(external_exports.string()).optional() });
 var advanceInput = external_exports.object({ to: external_exports.enum(["brief", "plan", "build", "verify", "done"]) });
+var consultInput = external_exports.object({ role: external_exports.string(), question: external_exports.string() });
+var panelInput = external_exports.object({ roles: external_exports.array(external_exports.string()).optional(), question: external_exports.string() });
 var TOOLS = [
   {
     name: "junto__task",
@@ -26231,6 +26547,30 @@ var TOOLS = [
       properties: { to: { type: "string", enum: ["brief", "plan", "build", "verify", "done"] } },
       required: ["to"]
     }
+  },
+  {
+    name: "junto__consult",
+    description: "Ask one advisory role (architect, adversary, pragmatist, reviewer, or a project-defined role in .junto/roles/) about the active task's brief and plan. Advisory only: the response never blocks a phase transition and is not evidence for a gate.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        role: { type: "string", description: "architect, adversary, pragmatist, reviewer, or a role defined in .junto/roles/" },
+        question: { type: "string" }
+      },
+      required: ["role", "question"]
+    }
+  },
+  {
+    name: "junto__panel",
+    description: "Ask several advisory roles the same question about the active task; defaults to all four built-in roles. Advisory only, same as junto__consult.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        roles: { type: "array", items: { type: "string" }, description: "Omit to ask all four built-in roles" },
+        question: { type: "string" }
+      },
+      required: ["question"]
+    }
   }
 ];
 function createServer() {
@@ -26250,6 +26590,12 @@ function createServer() {
           break;
         case "junto__advance":
           text = await advanceTool(ctx, advanceInput.parse(args));
+          break;
+        case "junto__consult":
+          text = await consultTool(ctx, consultInput.parse(args));
+          break;
+        case "junto__panel":
+          text = await panelTool(ctx, panelInput.parse(args));
           break;
         default:
           throw new Error(`Unknown tool: ${request.params.name}`);

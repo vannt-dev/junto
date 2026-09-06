@@ -15,7 +15,7 @@ afterEach(() => {
 })
 
 describe("MCP bundle stdio", () => {
-  it("starts and exposes all three M1 tools", async () => {
+  it("starts and exposes all five M1+M2 tools", async () => {
     const root = mkdtempSync(join(tmpdir(), "junto-mcp-"))
     temporaryRoots.push(root)
     mkdirSync(join(root, ".junto"), { recursive: true })
@@ -33,6 +33,8 @@ describe("MCP bundle stdio", () => {
       const response = await client.listTools()
       expect(response.tools.map(tool => tool.name).sort()).toEqual([
         "junto__advance",
+        "junto__consult",
+        "junto__panel",
         "junto__task",
         "junto__verify",
       ])
