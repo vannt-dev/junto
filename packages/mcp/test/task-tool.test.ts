@@ -189,6 +189,7 @@ describe("action: switch", () => {
         gates: {},
         decisions: [],
         consults: [],
+        consultTokensUsed: 0,
       }),
       "utf-8",
     )

@@ -39,22 +39,69 @@ describe("parseTask", () => {
   it("rejects an unknown size", () => {
     expect(() => parseTask({ ...validTask, size: "huge" })).toThrow()
   })
+
+  it("defaults consultTokensUsed to 0 when absent (old task.json files)", () => {
+    expect(parseTask(validTask).consultTokensUsed).toBe(0)
+  })
+
+  it("accepts an explicit consultTokensUsed", () => {
+    expect(parseTask({ ...validTask, consultTokensUsed: 4200 }).consultTokensUsed).toBe(4200)
+  })
 })
 
 describe("parseConfig", () => {
-  it("preserves M2 fields unknown to M1", () => {
+  it("preserves fields unknown to this version of junto", () => {
     const cfg = parseConfig({
       schemaVersion: 1,
       gates: {},
       staleIgnore: [],
       autoApprove: [],
-      roles: { architect: "gpt-5" },
+      aFutureFieldNotYetDefined: { anything: true },
     }) as Record<string, unknown>
-    expect(cfg.roles).toEqual({ architect: "gpt-5" })
+    expect(cfg.aFutureFieldNotYetDefined).toEqual({ anything: true })
   })
 
   it("fills in the default staleIgnore when omitted", () => {
     const cfg = parseConfig({ schemaVersion: 1, gates: {} })
     expect(cfg.staleIgnore).toEqual(DEFAULT_STALE_IGNORE)
+  })
+
+  it("accepts a full backends/roles/consultBudget block", () => {
+    const cfg = parseConfig({
+      schemaVersion: 1,
+      gates: {},
+      backends: {
+        anthropic: { apiKeyEnv: "ANTHROPIC_API_KEY", model: "claude-sonnet-5", timeoutMs: 60000 },
+        openai: { apiKeyEnv: "OPENAI_API_KEY" },
+      },
+      roles: { adversary: { provider: "openai" } },
+      consultBudget: { maxTokensPerTask: 200000 },
+    })
+    expect(cfg.backends?.anthropic?.apiKeyEnv).toBe("ANTHROPIC_API_KEY")
+    expect(cfg.roles?.adversary?.provider).toBe("openai")
+    expect(cfg.consultBudget?.maxTokensPerTask).toBe(200000)
+  })
+
+  it("omits backends/roles/consultBudget cleanly when absent", () => {
+    const cfg = parseConfig({ schemaVersion: 1, gates: {} })
+    expect(cfg.backends).toBeUndefined()
+    expect(cfg.roles).toBeUndefined()
+    expect(cfg.consultBudget).toBeUndefined()
+  })
+
+  it("rejects a backend spec carrying a literal key value instead of an env var name", () => {
+    expect(() => parseConfig({
+      schemaVersion: 1,
+      gates: {},
+      backends: { anthropic: { apiKeyEnv: "ANTHROPIC_API_KEY", apiKey: "sk-live-secret" } },
+    })).toThrow()
+  })
+
+  it("rejects an unknown provider name in a role entry", () => {
+    expect(() => parseConfig({
+      schemaVersion: 1,
+      gates: {},
+      roles: { adversary: { provider: "cohere" } },
+    })).toThrow()
   })
 })

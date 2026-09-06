@@ -27,6 +27,7 @@ beforeEach(() => {
     gates: {},
     decisions: [{ at: now, what: "Use jose", why: "Native ESM" }],
     consults: [],
+    consultTokensUsed: 0,
   }
   mkdirSync(taskDir(root, "t"), { recursive: true })
   writeTask(root, task)

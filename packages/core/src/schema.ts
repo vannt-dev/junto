@@ -53,6 +53,7 @@ export const taskSchema = z.object({
   gates: z.record(z.string(), gateStatusSchema),
   decisions: z.array(decisionSchema),
   consults: z.array(z.string()),
+  consultTokensUsed: z.number().int().min(0).default(0),
 })
 
 export const gateSpecSchema = z.object({
@@ -61,11 +62,32 @@ export const gateSpecSchema = z.object({
   timeoutMs: z.number().int().positive().optional(),
 })
 
+export const providerSchema = z.enum(["anthropic", "openai"])
+export type Provider = z.infer<typeof providerSchema>
+
+export const backendSpecSchema = z.object({
+  apiKeyEnv: z.string().min(1),
+  model: z.string().optional(),
+  timeoutMs: z.number().int().positive().optional(),
+}).strict()
+
+export const roleSpecSchema = z.object({
+  provider: providerSchema,
+  model: z.string().optional(),
+}).strict()
+
+export const consultBudgetSchema = z.object({
+  maxTokensPerTask: z.number().int().positive().optional(),
+}).strict()
+
 export const configSchema = z.object({
   schemaVersion: z.number().int(),
   gates: z.record(z.string(), gateSpecSchema),
   staleIgnore: z.array(z.string()).default(DEFAULT_STALE_IGNORE),
   autoApprove: z.array(sizeSchema).default([]),
+  backends: z.record(z.string(), backendSpecSchema).optional(),
+  roles: z.record(z.string(), roleSpecSchema).optional(),
+  consultBudget: consultBudgetSchema.optional(),
 }).passthrough()
 
 export type Phase = z.infer<typeof phaseSchema>
@@ -76,6 +98,9 @@ export type GateStatus = z.infer<typeof gateStatusSchema>
 export type Decision = z.infer<typeof decisionSchema>
 export type Task = z.infer<typeof taskSchema>
 export type GateSpec = z.infer<typeof gateSpecSchema>
+export type BackendSpec = z.infer<typeof backendSpecSchema>
+export type RoleSpec = z.infer<typeof roleSpecSchema>
+export type ConsultBudget = z.infer<typeof consultBudgetSchema>
 export type Config = z.infer<typeof configSchema>
 
 export interface VerdictFile {

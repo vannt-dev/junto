@@ -16,6 +16,7 @@ beforeEach(() => {
     schemaVersion: 1, id: "t", title: "T", size: "small", phase: "build",
     baseCommit: null, createdAt: now, updatedAt: now,
     phases: { build: { status: "active" } }, gates: {}, decisions: [], consults: [],
+    consultTokensUsed: 0,
   }
   mkdirSync(taskDir(root, "t"), { recursive: true })
   writeTask(root, task)

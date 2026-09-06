@@ -16,6 +16,7 @@ function makeTask(over: Partial<Task> = {}): Task {
     gates: {},
     decisions: [],
     consults: [],
+    consultTokensUsed: 0,
     ...over,
   }
 }

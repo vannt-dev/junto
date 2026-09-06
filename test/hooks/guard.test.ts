@@ -25,6 +25,7 @@ function seed(): Task {
     },
     decisions: [],
     consults: [],
+    consultTokensUsed: 0,
   }
   mkdirSync(taskDir(root, task.id), { recursive: true })
   writeTask(root, task)

@@ -31,6 +31,7 @@ function seed(overrides: Partial<Task> = {}): Task {
     gates: { tests: { required: true, verdict: null, stale: false, failStreak: 0 } },
     decisions: [],
     consults: [],
+    consultTokensUsed: 0,
     ...overrides,
   }
   mkdirSync(taskDir(root, task.id), { recursive: true })

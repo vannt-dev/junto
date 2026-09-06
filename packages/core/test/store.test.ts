@@ -28,6 +28,7 @@ const task: Task = {
   gates: {},
   decisions: [],
   consults: [],
+  consultTokensUsed: 0,
 }
 
 beforeEach(() => {

@@ -99,6 +99,7 @@ async function start(ctx: ToolContext, input: Extract<TaskToolInput, { action: "
     gates,
     decisions: [],
     consults: [],
+    consultTokensUsed: 0,
   }
 
   mkdirSync(join(dir, "verdicts"), { recursive: true })
