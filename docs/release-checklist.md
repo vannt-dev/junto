@@ -25,6 +25,9 @@ part of automated CI.
 
 1. Update `CHANGELOG.md` and all version surfaces.
 2. Commit and push the release preparation.
-3. Create the annotated tag `v<version>` at the reviewed commit and push the tag.
-4. Create the GitHub release from that tag using the matching changelog section.
-5. Re-run installation from the public marketplace source and repeat the smoke workflow.
+3. Wait for CI to pass on the exact release commit.
+4. Run `claude plugin tag --dry-run .`, then `claude plugin tag --push .` to create and push the
+   marketplace tag `{plugin}--v{version}`.
+5. Create and push the annotated tag `v<version>` at the same commit for the GitHub release.
+6. Create the GitHub release from `v<version>` using the matching changelog section.
+7. Re-run installation from the public marketplace source and repeat the smoke workflow.
