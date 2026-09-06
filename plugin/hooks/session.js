@@ -4110,8 +4110,12 @@ var backendSpecSchema = external_exports.object({
   model: external_exports.string().optional(),
   timeoutMs: external_exports.number().int().positive().optional()
 }).strict();
+var cliBackendSpecSchema = external_exports.object({
+  argv: external_exports.array(external_exports.string()).min(1),
+  timeoutMs: external_exports.number().int().positive().optional()
+}).strict();
 var roleSpecSchema = external_exports.object({
-  provider: providerSchema,
+  provider: external_exports.string().min(1),
   model: external_exports.string().optional()
 }).strict();
 var consultBudgetSchema = external_exports.object({
@@ -4123,6 +4127,7 @@ var configSchema = external_exports.object({
   staleIgnore: external_exports.array(external_exports.string()).default(DEFAULT_STALE_IGNORE),
   autoApprove: external_exports.array(sizeSchema).default([]),
   backends: external_exports.record(external_exports.string(), backendSpecSchema).optional(),
+  cliBackends: external_exports.record(external_exports.string(), cliBackendSpecSchema).optional(),
   roles: external_exports.record(external_exports.string(), roleSpecSchema).optional(),
   consultBudget: consultBudgetSchema.optional()
 }).passthrough();

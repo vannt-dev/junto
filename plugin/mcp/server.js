@@ -18881,8 +18881,12 @@ var backendSpecSchema = external_exports.object({
   model: external_exports.string().optional(),
   timeoutMs: external_exports.number().int().positive().optional()
 }).strict();
+var cliBackendSpecSchema = external_exports.object({
+  argv: external_exports.array(external_exports.string()).min(1),
+  timeoutMs: external_exports.number().int().positive().optional()
+}).strict();
 var roleSpecSchema = external_exports.object({
-  provider: providerSchema,
+  provider: external_exports.string().min(1),
   model: external_exports.string().optional()
 }).strict();
 var consultBudgetSchema = external_exports.object({
@@ -18894,6 +18898,7 @@ var configSchema = external_exports.object({
   staleIgnore: external_exports.array(external_exports.string()).default(DEFAULT_STALE_IGNORE),
   autoApprove: external_exports.array(sizeSchema).default([]),
   backends: external_exports.record(external_exports.string(), backendSpecSchema).optional(),
+  cliBackends: external_exports.record(external_exports.string(), cliBackendSpecSchema).optional(),
   roles: external_exports.record(external_exports.string(), roleSpecSchema).optional(),
   consultBudget: consultBudgetSchema.optional()
 }).passthrough();
@@ -19093,8 +19098,8 @@ function canEnter(task, to, ctx) {
 }
 
 // packages/core/src/gates.ts
-import { accessSync, constants as constants4, existsSync as existsSync3, mkdirSync as mkdirSync2, statSync as statSync4, writeFileSync as writeFileSync3 } from "node:fs";
-import { delimiter, isAbsolute, join as join3 } from "node:path";
+import { mkdirSync as mkdirSync2, writeFileSync as writeFileSync3 } from "node:fs";
+import { join as join4 } from "node:path";
 
 // node_modules/.pnpm/is-plain-obj@4.1.0/node_modules/is-plain-obj/index.js
 function isPlainObject3(value) {
@@ -25897,16 +25902,9 @@ var {
   getCancelSignal: getCancelSignal2
 } = getIpcExport();
 
-// packages/core/src/gates.ts
-var OUTPUT_TAIL_BYTES = 8192;
-var DEFAULT_TIMEOUT_MS = 3e5;
-var VALID_GATE_NAME = /^[A-Za-z0-9._-]+$/;
-var WINDOWS_DEVICE_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
-function tail(text, maxBytes) {
-  const buf = Buffer.from(text, "utf-8");
-  if (buf.byteLength <= maxBytes) return text;
-  return new TextDecoder("utf-8", { fatal: false }).decode(buf.subarray(buf.byteLength - maxBytes));
-}
+// packages/core/src/exec.ts
+import { accessSync, constants as constants4, existsSync as existsSync3, statSync as statSync4 } from "node:fs";
+import { delimiter, isAbsolute, join as join3 } from "node:path";
 function candidateExtensions() {
   if (process.platform !== "win32") return [""];
   const pathext = process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD";
@@ -25925,9 +25923,6 @@ function existsAsExecutable(base) {
     }
   });
 }
-function validGateName(name) {
-  return VALID_GATE_NAME.test(name) && name !== "." && name !== ".." && !WINDOWS_DEVICE_NAME.test(name);
-}
 function resolveExecutable(cmd, cwd) {
   if (cmd.includes("/") || cmd.includes("\\")) {
     const base = isAbsolute(cmd) ? cmd : join3(cwd, cmd);
@@ -25935,6 +25930,20 @@ function resolveExecutable(cmd, cwd) {
   }
   const dirs = (process.env.PATH ?? "").split(delimiter).filter(Boolean);
   return dirs.some((dir) => existsAsExecutable(join3(dir, cmd)));
+}
+
+// packages/core/src/gates.ts
+var OUTPUT_TAIL_BYTES = 8192;
+var DEFAULT_TIMEOUT_MS = 3e5;
+var VALID_GATE_NAME = /^[A-Za-z0-9._-]+$/;
+var WINDOWS_DEVICE_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
+function tail(text, maxBytes) {
+  const buf = Buffer.from(text, "utf-8");
+  if (buf.byteLength <= maxBytes) return text;
+  return new TextDecoder("utf-8", { fatal: false }).decode(buf.subarray(buf.byteLength - maxBytes));
+}
+function validGateName(name) {
+  return VALID_GATE_NAME.test(name) && name !== "." && name !== ".." && !WINDOWS_DEVICE_NAME.test(name);
 }
 function skipOutcome(name, detail) {
   const reason = `Gate "${name}" could not run: ${detail}. Install the tool and retry, or set required: false in .junto/config.json.`;
@@ -25985,9 +25994,9 @@ async function runGate(opts) {
   const t0 = Date.now();
   const [cmd, ...args] = spec.argv;
   const outcome = cmd === void 0 ? skipOutcome(name, "empty argv") : resolveExecutable(cmd, cwd) ? await spawnOutcome(cmd, args, cwd, name, spec.timeoutMs ?? DEFAULT_TIMEOUT_MS) : skipOutcome(name, `command "${cmd}" does not exist or is not executable`);
-  const dir = join3(taskDir(root, taskId), "verdicts");
+  const dir = join4(taskDir(root, taskId), "verdicts");
   mkdirSync2(dir, { recursive: true });
-  writeFileSync3(join3(dir, `${name}.log`), outcome.output, "utf-8");
+  writeFileSync3(join4(dir, `${name}.log`), outcome.output, "utf-8");
   const verdict = {
     schemaVersion: SCHEMA_VERSION,
     gate: name,
@@ -26003,14 +26012,14 @@ async function runGate(opts) {
     runner,
     ...outcome.reason ? { reason: outcome.reason } : {}
   };
-  writeFileSync3(join3(dir, `${name}.json`), `${JSON.stringify(verdict, null, 2)}
+  writeFileSync3(join4(dir, `${name}.json`), `${JSON.stringify(verdict, null, 2)}
 `, "utf-8");
   return verdict;
 }
 
 // packages/core/src/backends/roles.ts
-import { existsSync as existsSync4, readFileSync as readFileSync4 } from "node:fs";
-import { join as join4 } from "node:path";
+import { existsSync as existsSync5, readFileSync as readFileSync4 } from "node:fs";
+import { join as join5 } from "node:path";
 var BUILT_IN_ROLES = ["architect", "adversary", "pragmatist", "reviewer"];
 function isBuiltInRole(role) {
   return BUILT_IN_ROLES.includes(role);
@@ -26028,8 +26037,8 @@ var DEFAULT_ROLE_PROMPT = {
   reviewer: "You are the reviewer role in an advisory review panel for a software task. Read the task's brief and plan, then give a final correctness read: does the plan actually satisfy the brief, are there gaps between what is described and what would need to be built, and is anything in the plan internally inconsistent? Call out ambiguity that a future implementer could interpret two different ways."
 };
 function resolveRolePrompt(root, role) {
-  const overridePath = join4(juntoDir(root), "roles", `${role}.md`);
-  if (existsSync4(overridePath)) return readFileSync4(overridePath, "utf-8");
+  const overridePath = join5(juntoDir(root), "roles", `${role}.md`);
+  if (existsSync5(overridePath)) return readFileSync4(overridePath, "utf-8");
   if (isBuiltInRole(role)) return DEFAULT_ROLE_PROMPT[role];
   throw new Error(
     `Unknown role "${role}". Built-in roles are ${BUILT_IN_ROLES.join(", ")}. Define .junto/roles/${role}.md to add a custom role.`
@@ -26129,6 +26138,36 @@ function openaiBackend(apiKey) {
   };
 }
 
+// packages/core/src/backends/cli.ts
+var DEFAULT_CLI_TIMEOUT_MS = 12e4;
+function cliBackend(argv) {
+  return {
+    async complete({ systemPrompt, userPrompt, timeoutMs }) {
+      const [cmd, ...args] = argv;
+      if (cmd === void 0) throw new Error("CLI backend argv is empty.");
+      if (!resolveExecutable(cmd, process.cwd())) {
+        throw new Error(`CLI backend command "${cmd}" does not exist or is not executable. Install it and retry.`);
+      }
+      const effectiveTimeoutMs = timeoutMs ?? DEFAULT_CLI_TIMEOUT_MS;
+      const res = await execa(cmd, args, {
+        input: `${systemPrompt}
+
+${userPrompt}`,
+        timeout: effectiveTimeoutMs,
+        reject: false,
+        all: true
+      });
+      if (res.timedOut) {
+        throw new Error(`CLI backend "${cmd}" timed out after ${effectiveTimeoutMs}ms.`);
+      }
+      if (res.exitCode !== 0) {
+        throw new Error(`CLI backend "${cmd}" exited ${res.exitCode}: ${res.all ?? ""}`);
+      }
+      return { text: (res.all ?? "").trim(), tokensUsed: 0, model: cmd };
+    }
+  };
+}
+
 // packages/core/src/backends/resolve.ts
 function resolveRoleProvider(role, config2) {
   const configured = config2.roles?.[role]?.provider;
@@ -26138,21 +26177,26 @@ function resolveRoleProvider(role, config2) {
     `Role "${role}" has no provider. Add roles: { "${role}": { "provider": "anthropic" | "openai" } } to .junto/config.json.`
   );
 }
-function resolveBackend(provider, config2) {
-  const spec = config2.backends?.[provider];
-  if (spec === void 0) {
-    throw new Error(
-      `No "${provider}" entry under "backends" in .junto/config.json. Add { "backends": { "${provider}": { "apiKeyEnv": "..." } } }.`
-    );
+function resolveBackend(name, config2) {
+  const apiSpec = config2.backends?.[name];
+  if (apiSpec !== void 0) {
+    const apiKey = process.env[apiSpec.apiKeyEnv];
+    if (apiKey === void 0 || apiKey === "") {
+      throw new Error(
+        `Environment variable "${apiSpec.apiKeyEnv}" is not set (required by backends.${name}.apiKeyEnv in .junto/config.json).`
+      );
+    }
+    if (name === "anthropic") return { backend: anthropicBackend(apiKey), model: apiSpec.model, timeoutMs: apiSpec.timeoutMs };
+    if (name === "openai") return { backend: openaiBackend(apiKey), model: apiSpec.model, timeoutMs: apiSpec.timeoutMs };
+    throw new Error(`"${name}" under "backends" is not a supported API vendor (only "anthropic" and "openai" are).`);
   }
-  const apiKey = process.env[spec.apiKeyEnv];
-  if (apiKey === void 0 || apiKey === "") {
-    throw new Error(
-      `Environment variable "${spec.apiKeyEnv}" is not set (required by backends.${provider}.apiKeyEnv in .junto/config.json).`
-    );
+  const cliSpec = config2.cliBackends?.[name];
+  if (cliSpec !== void 0) {
+    return { backend: cliBackend(cliSpec.argv), timeoutMs: cliSpec.timeoutMs };
   }
-  const backend = provider === "anthropic" ? anthropicBackend(apiKey) : openaiBackend(apiKey);
-  return { backend, model: spec.model, timeoutMs: spec.timeoutMs };
+  throw new Error(
+    `No "${name}" entry under "backends" or "cliBackends" in .junto/config.json. Add one under "backends" (API vendor) or "cliBackends" (spawned CLI tool).`
+  );
 }
 
 // packages/mcp/src/context.ts
@@ -26168,14 +26212,14 @@ function resolveContext(cwd) {
 }
 
 // packages/mcp/src/tools/advance.ts
-import { existsSync as existsSync5, readFileSync as readFileSync5 } from "node:fs";
-import { join as join5 } from "node:path";
+import { existsSync as existsSync6, readFileSync as readFileSync5 } from "node:fs";
+import { join as join6 } from "node:path";
 function buildTransitionContext(root, task, config2) {
   const dir = taskDir(root, task.id);
   const readState = (rel) => {
     if (rel === null) return null;
-    const path6 = join5(dir, rel);
-    if (!existsSync5(path6)) return null;
+    const path6 = join6(dir, rel);
+    if (!existsSync6(path6)) return null;
     try {
       return gateStateSchema.parse(JSON.parse(readFileSync5(path6, "utf-8")).state);
     } catch {
@@ -26186,10 +26230,10 @@ function buildTransitionContext(root, task, config2) {
   for (const [name, status] of Object.entries(task.gates)) {
     verdictStates[name] = readState(status.verdict);
   }
-  const brief = join5(dir, "brief.md");
+  const brief = join6(dir, "brief.md");
   return {
-    briefNonEmpty: existsSync5(brief) && readFileSync5(brief, "utf-8").trim() !== "",
-    planExists: existsSync5(join5(dir, "plan.md")),
+    briefNonEmpty: existsSync6(brief) && readFileSync5(brief, "utf-8").trim() !== "",
+    planExists: existsSync6(join6(dir, "plan.md")),
     autoApprove: config2.autoApprove,
     verdictStates
   };
@@ -26213,13 +26257,13 @@ async function advanceTool(ctx, input) {
 }
 
 // packages/mcp/src/tools/consult.ts
-import { existsSync as existsSync6, mkdirSync as mkdirSync3, readdirSync, readFileSync as readFileSync6, writeFileSync as writeFileSync4 } from "node:fs";
-import { join as join6 } from "node:path";
+import { existsSync as existsSync7, mkdirSync as mkdirSync3, readdirSync, readFileSync as readFileSync6, writeFileSync as writeFileSync4 } from "node:fs";
+import { join as join7 } from "node:path";
 function readIfExists(path6) {
-  return existsSync6(path6) ? readFileSync6(path6, "utf-8") : "";
+  return existsSync7(path6) ? readFileSync6(path6, "utf-8") : "";
 }
 function nextSequence(consultsDir) {
-  if (!existsSync6(consultsDir)) return 1;
+  if (!existsSync7(consultsDir)) return 1;
   const numbers = readdirSync(consultsDir).map((name) => /^(\d+)-/.exec(name)).filter((m) => m !== null).map((m) => Number(m[1]));
   return (numbers.length === 0 ? 0 : Math.max(...numbers)) + 1;
 }
@@ -26247,8 +26291,8 @@ async function runConsult(ctx, role, question) {
     const provider = resolveRoleProvider(role, config2);
     const { backend, model, timeoutMs } = resolveBackend(provider, config2);
     const dir = taskDir(ctx.root, id);
-    const brief = readIfExists(join6(dir, "brief.md"));
-    const plan = readIfExists(join6(dir, "plan.md"));
+    const brief = readIfExists(join7(dir, "brief.md"));
+    const plan = readIfExists(join7(dir, "plan.md"));
     const userPrompt = `## Brief
 
 ${brief}
@@ -26261,7 +26305,7 @@ ${plan}
 
 ${question}`;
     const result = await backend.complete({ systemPrompt: prompt, userPrompt, model, timeoutMs });
-    const consultsDir = join6(dir, "consults");
+    const consultsDir = join7(dir, "consults");
     mkdirSync3(consultsDir, { recursive: true });
     const seq = String(nextSequence(consultsDir)).padStart(3, "0");
     const relPath = `consults/${seq}-${role}.md`;
@@ -26281,7 +26325,7 @@ ${question}
 
 ${result.text}
 `;
-    writeFileSync4(join6(dir, relPath), content, "utf-8");
+    writeFileSync4(join7(dir, relPath), content, "utf-8");
     const updated = updateTask(ctx.root, id, (t) => {
       t.consultTokensUsed += result.tokensUsed;
       t.consults.push(relPath);
@@ -26321,8 +26365,8 @@ ${result.error}`
 }
 
 // packages/mcp/src/tools/task.ts
-import { existsSync as existsSync7, mkdirSync as mkdirSync4, renameSync as renameSync2, writeFileSync as writeFileSync5 } from "node:fs";
-import { join as join7 } from "node:path";
+import { existsSync as existsSync8, mkdirSync as mkdirSync4, renameSync as renameSync2, writeFileSync as writeFileSync5 } from "node:fs";
+import { join as join8 } from "node:path";
 var MAX_SLUG = 40;
 var TASK_ID_PATTERN = /^\d{4}-\d{2}-\d{2}-[a-z0-9-]+$/;
 function newTaskId(title, now) {
@@ -26349,13 +26393,13 @@ async function start(ctx, input) {
   const id = newTaskId(input.title, now);
   const iso = now.toISOString();
   const dir = taskDir(ctx.root, id);
-  const archiveDir = join7(juntoDir(ctx.root), "archive", id);
-  if (existsSync7(dir)) {
+  const archiveDir = join8(juntoDir(ctx.root), "archive", id);
+  if (existsSync8(dir)) {
     throw new Error(
       `Task "${id}" already exists in .junto/tasks/ (same date and title as an open task). Choose a different title to avoid an ID collision.`
     );
   }
-  if (existsSync7(archiveDir)) {
+  if (existsSync8(archiveDir)) {
     throw new Error(
       `Task "${id}" already exists in .junto/archive/ (same date and title as an archived task). Choose a different title to avoid an ID collision.`
     );
@@ -26387,13 +26431,13 @@ async function start(ctx, input) {
     consults: [],
     consultTokensUsed: 0
   };
-  mkdirSync4(join7(dir, "verdicts"), { recursive: true });
-  if (!existsSync7(join7(dir, "brief.md"))) writeFileSync5(join7(dir, "brief.md"), "", "utf-8");
-  writeFileSync5(join7(dir, "context.jsonl"), "", "utf-8");
+  mkdirSync4(join8(dir, "verdicts"), { recursive: true });
+  if (!existsSync8(join8(dir, "brief.md"))) writeFileSync5(join8(dir, "brief.md"), "", "utf-8");
+  writeFileSync5(join8(dir, "context.jsonl"), "", "utf-8");
   writeTask(ctx.root, task);
   setActiveId(ctx.root, id);
-  const ignore = join7(juntoDir(ctx.root), ".gitignore");
-  if (!existsSync7(ignore)) writeFileSync5(ignore, "*.log\n", "utf-8");
+  const ignore = join8(juntoDir(ctx.root), ".gitignore");
+  if (!existsSync8(ignore)) writeFileSync5(ignore, "*.log\n", "utf-8");
   return `Created task "${id}" (size ${input.size}) in phase ${firstPhase}. Gates: ${Object.keys(gates).join(", ") || "none"}.`;
 }
 function finish(ctx) {
@@ -26406,13 +26450,13 @@ function finish(ctx) {
     );
   }
   const from = taskDir(ctx.root, id);
-  const to = join7(juntoDir(ctx.root), "archive", id);
-  if (existsSync7(to)) {
+  const to = join8(juntoDir(ctx.root), "archive", id);
+  if (existsSync8(to)) {
     throw new Error(
       `Task "${id}" already exists in .junto/archive/. junto will not overwrite it; inspect the archive directory before trying again.`
     );
   }
-  mkdirSync4(join7(juntoDir(ctx.root), "archive"), { recursive: true });
+  mkdirSync4(join8(juntoDir(ctx.root), "archive"), { recursive: true });
   const gateLines = Object.entries(task.gates).map(([n2, g]) => `- ${n2}: ${g.verdict === null ? "not run" : g.stale ? "stale" : "run"}${g.required ? " (required)" : ""}`).join("\n");
   const summary = `# ${task.title}
 
@@ -26430,7 +26474,7 @@ ${gateLines || "(none)"}
 
 ${task.decisions.map((d) => `- ${d.what} - ${d.why}`).join("\n") || "(none)"}
 `;
-  writeFileSync5(join7(from, "summary.md"), summary, "utf-8");
+  writeFileSync5(join8(from, "summary.md"), summary, "utf-8");
   renameSync2(from, to);
   setActiveId(ctx.root, null);
   return `Archived task "${id}" at .junto/archive/${id}/.`;
@@ -26439,7 +26483,7 @@ function switchTo(ctx, id) {
   if (!TASK_ID_PATTERN.test(id)) {
     throw new Error(`Invalid task ID "${id}". Expected YYYY-MM-DD-slug.`);
   }
-  if (!existsSync7(join7(taskDir(ctx.root, id), "task.json"))) {
+  if (!existsSync8(join8(taskDir(ctx.root, id), "task.json"))) {
     throw new Error(`Task "${id}" was not found in .junto/tasks/.`);
   }
   setActiveId(ctx.root, id);
