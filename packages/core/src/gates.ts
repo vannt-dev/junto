@@ -1,6 +1,7 @@
-import { accessSync, constants, existsSync, mkdirSync, statSync, writeFileSync } from "node:fs"
-import { delimiter, isAbsolute, join } from "node:path"
+import { existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
 import { execa } from "execa"
+import { resolveExecutable } from "./exec.js"
 import { taskDir } from "./paths.js"
 import { SCHEMA_VERSION, type GateSpec, type GateState, type VerdictFile } from "./schema.js"
 
@@ -29,45 +30,11 @@ function tail(text: string, maxBytes: number): string {
   return new TextDecoder("utf-8", { fatal: false }).decode(buf.subarray(buf.byteLength - maxBytes))
 }
 
-/** Candidate executable extensions. Try the original name first because it may already include one. */
-function candidateExtensions(): string[] {
-  if (process.platform !== "win32") return [""]
-  const pathext = process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD"
-  return ["", ...pathext.split(";").filter(Boolean)]
-}
-
-function existsAsExecutable(base: string): boolean {
-  return candidateExtensions().some((ext) => {
-    const candidate = base + ext
-    if (!existsSync(candidate)) return false
-    try {
-      if (!statSync(candidate).isFile()) return false
-      if (process.platform !== "win32") accessSync(candidate, constants.X_OK)
-      return true
-    } catch {
-      return false
-    }
-  })
-}
-
 function validGateName(name: string): boolean {
   return VALID_GATE_NAME.test(name)
     && name !== "."
     && name !== ".."
     && !WINDOWS_DEVICE_NAME.test(name)
-}
-
-/**
- * Resolve `argv[0]` to a real executable before spawning. This deterministic
- * check avoids classifying localized or forwarded process output.
- */
-function resolveExecutable(cmd: string, cwd: string): boolean {
-  if (cmd.includes("/") || cmd.includes("\\")) {
-    const base = isAbsolute(cmd) ? cmd : join(cwd, cmd)
-    return existsAsExecutable(base)
-  }
-  const dirs = (process.env.PATH ?? "").split(delimiter).filter(Boolean)
-  return dirs.some(dir => existsAsExecutable(join(dir, cmd)))
 }
 
 interface Outcome {
