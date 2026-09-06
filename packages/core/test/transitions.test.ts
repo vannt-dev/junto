@@ -40,8 +40,8 @@ describe("requiredPhases", () => {
   it("standard includes plan approval", () => {
     expect(requiredPhases("standard")).toEqual(["brief", "plan", "build", "verify", "done"])
   })
-  it("deep matches standard in M1 (panel/review phases belong to M3)", () => {
-    expect(requiredPhases("deep")).toEqual(["brief", "plan", "build", "verify", "done"])
+  it("deep includes advisory panel and review checkpoints", () => {
+    expect(requiredPhases("deep")).toEqual(["brief", "plan", "panel", "build", "review", "verify", "done"])
   })
 })
 
@@ -89,6 +89,35 @@ describe("L2 plan -> build", () => {
     const r = canEnter(atPlan, "build", ctx({ autoApprove: ["deep"] }))
     expect(r.ok).toBe(false)
     expect(r.ok === false && r.reason).toMatch(/junto:approve/)
+  })
+})
+
+describe("deep advisory checkpoints", () => {
+  it("requires plan approval before entering panel", () => {
+    const task = makeTask({ size: "deep", phase: "plan", phases: { plan: { status: "active" } } })
+    const r = canEnter(task, "panel", ctx())
+    expect(r.ok).toBe(false)
+    expect(r.ok === false && r.reason).toMatch(/junto:approve/)
+  })
+
+  it("allows an approved plan to enter panel", () => {
+    const task = makeTask({
+      size: "deep",
+      phase: "plan",
+      phases: { plan: { status: "done", approvedBy: "user" } },
+    })
+    expect(canEnter(task, "panel", ctx())).toEqual({ ok: true })
+  })
+
+  it("allows panel -> build and build -> review -> verify", () => {
+    expect(canEnter(makeTask({ size: "deep", phase: "panel" }), "build", ctx())).toEqual({ ok: true })
+    expect(canEnter(makeTask({ size: "deep", phase: "build" }), "review", ctx())).toEqual({ ok: true })
+    expect(canEnter(makeTask({ size: "deep", phase: "review" }), "verify", ctx())).toEqual({ ok: true })
+  })
+
+  it("does not let a deep task skip either checkpoint", () => {
+    expect(canEnter(makeTask({ size: "deep", phase: "plan" }), "build", ctx()).ok).toBe(false)
+    expect(canEnter(makeTask({ size: "deep", phase: "build" }), "verify", ctx()).ok).toBe(false)
   })
 })
 

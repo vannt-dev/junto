@@ -60,9 +60,19 @@ corepack pnpm --filter @junto/core add <package>
 
 ## Current status
 
-M0 and M1 are implemented on `main`: core policy/storage/gates, three MCP tools, four hooks, five commands,
-plugin bundles, CI, and boundary tests. Interactive local-plugin acceptance remains a manual step because it
-changes Claude Code state outside the repository. M2 (advisory multi-model consult/panel: Anthropic + OpenAI backends, junto__consult/junto__panel,
-roles, per-task token budget) is implemented on `feat/m2-consult-panel`. M3a (a generic CLI-spawned
-advisory backend, `cliBackends` config) is implemented on `feat/m3a-cli-backend`. M3b (the deep-task
-panel/review lifecycle phase) is not implemented.
+M0 through M3a are implemented on `main`: core policy/storage/gates, hooks and commands, advisory
+multi-model consult/panel, API and CLI-spawned backends, roles, and per-task token budgets. M3b adds
+real `panel` and `review` phases to the deep-task lifecycle and is implemented in the current worktree.
+Its source changes pass the full suite, typecheck, and committed-plugin rebuild. Interactive local-plugin
+acceptance remains a manual step because it changes Claude Code state outside the repository.
+
+Three minor review findings around `packages/core/src/backends/cli.ts` remain intentionally parked
+outside M3b:
+
+- a successful process with empty output is accepted as an empty advisory response;
+- captured process output relies on execa's default buffer limit rather than a junto-owned bound;
+- spawn/signal failures are not normalized into the stable CLI-backend error format used for exit codes and timeouts.
+
+Do not mix these into lifecycle work: each changes the backend's observable error contract and needs
+an explicit policy choice. Revisit them as one hardening change by first adding focused `cli.test.ts`
+cases, then updating `cli.ts`, running the full suite/typecheck, and rebuilding the plugin bundles.

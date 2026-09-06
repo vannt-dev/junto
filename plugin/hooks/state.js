@@ -4063,7 +4063,7 @@ function assertVersion(raw) {
   const v = raw?.schemaVersion;
   if (typeof v === "number" && v > SCHEMA_VERSION) throw new SchemaVersionError(v, SCHEMA_VERSION);
 }
-var phaseSchema = external_exports.enum(["brief", "plan", "build", "verify", "done"]);
+var phaseSchema = external_exports.enum(["brief", "plan", "panel", "build", "review", "verify", "done"]);
 var sizeSchema = external_exports.enum(["small", "standard", "deep"]);
 var gateStateSchema = external_exports.enum(["pass", "fail", "skipped"]);
 var phaseStatusSchema = external_exports.object({
@@ -4322,7 +4322,7 @@ function handleState(input) {
       current.phases.plan = { ...current.phases.plan ?? { status: "active" }, approvedBy: "user" };
     });
     return contextOutput(
-      `The user approved the plan for task "${id}". Call junto__advance with to="build" to enter the next phase.`
+      `The user approved the plan for task "${id}". Call junto__advance with to="${task.size === "deep" ? "panel" : "build"}" to enter the next phase.`
     );
   }
   return contextOutput(renderStateBlock(task));

@@ -47,6 +47,11 @@ describe("parseTask", () => {
   it("accepts an explicit consultTokensUsed", () => {
     expect(parseTask({ ...validTask, consultTokensUsed: 4200 }).consultTokensUsed).toBe(4200)
   })
+
+  it("accepts the deep lifecycle advisory phases", () => {
+    expect(parseTask({ ...validTask, size: "deep", phase: "panel" }).phase).toBe("panel")
+    expect(parseTask({ ...validTask, size: "deep", phase: "review" }).phase).toBe("review")
+  })
 })
 
 describe("parseConfig", () => {

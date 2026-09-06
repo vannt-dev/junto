@@ -14,14 +14,17 @@ export interface TransitionContext {
 }
 
 const SMALL_PHASES: Phase[] = ["build", "verify", "done"]
-const FULL_PHASES: Phase[] = ["brief", "plan", "build", "verify", "done"]
+const STANDARD_PHASES: Phase[] = ["brief", "plan", "build", "verify", "done"]
+const DEEP_PHASES: Phase[] = ["brief", "plan", "panel", "build", "review", "verify", "done"]
 
 /**
  * Required phases by task size.
- * In M1, `deep` matches `standard`; panel/review phases arrive in M3.
+ * Deep tasks add advisory checkpoints before and after implementation.
  */
 export function requiredPhases(size: Size): Phase[] {
-  return size === "small" ? [...SMALL_PHASES] : [...FULL_PHASES]
+  if (size === "small") return [...SMALL_PHASES]
+  if (size === "standard") return [...STANDARD_PHASES]
+  return [...DEEP_PHASES]
 }
 
 export function canEnter(task: Task, to: Phase, ctx: TransitionContext): TransitionCheck {
@@ -42,7 +45,7 @@ export function canEnter(task: Task, to: Phase, ctx: TransitionContext): Transit
   }
 
   // L2 - the only hard human checkpoint.
-  if (task.phase === "plan" && to === "build") {
+  if (task.phase === "plan" && (to === "build" || to === "panel")) {
     if (!ctx.planExists) return { ok: false, reason: "plan.md does not exist." }
     if (ctx.autoApprove.includes(task.size)) return { ok: true }
     if (task.phases.plan?.approvedBy !== "user") {
@@ -51,8 +54,12 @@ export function canEnter(task: Task, to: Phase, ctx: TransitionContext): Transit
     return { ok: true }
   }
 
+  // Advisory phases are lifecycle checkpoints, never hard gates.
+  if (task.phase === "panel" && to === "build") return { ok: true }
+
   // L3
-  if (task.phase === "build" && to === "verify") return { ok: true }
+  if (task.phase === "build" && (to === "review" || to === "verify")) return { ok: true }
+  if (task.phase === "review" && to === "verify") return { ok: true }
 
   // L4
   if (task.phase === "verify" && to === "done") {

@@ -19,7 +19,7 @@ function assertVersion(raw: unknown): void {
   if (typeof v === "number" && v > SCHEMA_VERSION) throw new SchemaVersionError(v, SCHEMA_VERSION)
 }
 
-export const phaseSchema = z.enum(["brief", "plan", "build", "verify", "done"])
+export const phaseSchema = z.enum(["brief", "plan", "panel", "build", "review", "verify", "done"])
 export const sizeSchema = z.enum(["small", "standard", "deep"])
 export const gateStateSchema = z.enum(["pass", "fail", "skipped"])
 

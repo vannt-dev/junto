@@ -18838,7 +18838,7 @@ function assertVersion(raw) {
   const v = raw?.schemaVersion;
   if (typeof v === "number" && v > SCHEMA_VERSION) throw new SchemaVersionError(v, SCHEMA_VERSION);
 }
-var phaseSchema = external_exports.enum(["brief", "plan", "build", "verify", "done"]);
+var phaseSchema = external_exports.enum(["brief", "plan", "panel", "build", "review", "verify", "done"]);
 var sizeSchema = external_exports.enum(["small", "standard", "deep"]);
 var gateStateSchema = external_exports.enum(["pass", "fail", "skipped"]);
 var phaseStatusSchema = external_exports.object({
@@ -19048,9 +19048,12 @@ function updateTask(root, id, update) {
 
 // packages/core/src/transitions.ts
 var SMALL_PHASES = ["build", "verify", "done"];
-var FULL_PHASES = ["brief", "plan", "build", "verify", "done"];
+var STANDARD_PHASES = ["brief", "plan", "build", "verify", "done"];
+var DEEP_PHASES = ["brief", "plan", "panel", "build", "review", "verify", "done"];
 function requiredPhases(size) {
-  return size === "small" ? [...SMALL_PHASES] : [...FULL_PHASES];
+  if (size === "small") return [...SMALL_PHASES];
+  if (size === "standard") return [...STANDARD_PHASES];
+  return [...DEEP_PHASES];
 }
 function canEnter(task, to, ctx) {
   const order = requiredPhases(task.size);
@@ -19065,7 +19068,7 @@ function canEnter(task, to, ctx) {
     if (!ctx.briefNonEmpty) return { ok: false, reason: "brief.md is missing or empty." };
     return { ok: true };
   }
-  if (task.phase === "plan" && to === "build") {
+  if (task.phase === "plan" && (to === "build" || to === "panel")) {
     if (!ctx.planExists) return { ok: false, reason: "plan.md does not exist." };
     if (ctx.autoApprove.includes(task.size)) return { ok: true };
     if (task.phases.plan?.approvedBy !== "user") {
@@ -19073,7 +19076,9 @@ function canEnter(task, to, ctx) {
     }
     return { ok: true };
   }
-  if (task.phase === "build" && to === "verify") return { ok: true };
+  if (task.phase === "panel" && to === "build") return { ok: true };
+  if (task.phase === "build" && (to === "review" || to === "verify")) return { ok: true };
+  if (task.phase === "review" && to === "verify") return { ok: true };
   if (task.phase === "verify" && to === "done") {
     const blocked = [];
     for (const [name, status] of Object.entries(task.gates)) {
@@ -26251,10 +26256,9 @@ async function advanceTool(ctx, input) {
   const previous = task.phases[task.phase];
   if (previous !== void 0) task.phases[task.phase] = { ...previous, status: "done", at: now };
   task.phases[input.to] = { ...task.phases[input.to] ?? {}, status: "active", at: now };
-  const size = task.size;
   task.phase = input.to;
   writeTask(ctx.root, task);
-  const nudge = input.to === "build" && size === "deep" ? " This is a deep task \u2014 consider running /junto:panel before you start building." : "";
+  const nudge = input.to === "panel" ? " Run /junto:panel to review the approved plan, then advance to build." : input.to === "review" ? " Run /junto:panel to review the implementation, then advance to verify." : "";
   return `Task "${id}" transitioned to phase ${input.to}.${nudge}`;
 }
 
@@ -26563,7 +26567,7 @@ var taskInput = external_exports.discriminatedUnion("action", [
   external_exports.object({ action: external_exports.literal("finish") })
 ]);
 var verifyInput = external_exports.object({ gates: external_exports.array(external_exports.string()).optional() });
-var advanceInput = external_exports.object({ to: external_exports.enum(["brief", "plan", "build", "verify", "done"]) });
+var advanceInput = external_exports.object({ to: external_exports.enum(["brief", "plan", "panel", "build", "review", "verify", "done"]) });
 var consultInput = external_exports.object({ role: external_exports.string(), question: external_exports.string() });
 var panelInput = external_exports.object({ roles: external_exports.array(external_exports.string()).optional(), question: external_exports.string() });
 var TOOLS = [
@@ -26595,7 +26599,7 @@ var TOOLS = [
     description: "Request a transition for the active task; returns a reason when prerequisites are unmet.",
     inputSchema: {
       type: "object",
-      properties: { to: { type: "string", enum: ["brief", "plan", "build", "verify", "done"] } },
+      properties: { to: { type: "string", enum: ["brief", "plan", "panel", "build", "review", "verify", "done"] } },
       required: ["to"]
     }
   },

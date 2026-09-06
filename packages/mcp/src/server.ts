@@ -19,7 +19,7 @@ const taskInput = z.discriminatedUnion("action", [
   z.object({ action: z.literal("finish") }),
 ])
 const verifyInput = z.object({ gates: z.array(z.string()).optional() })
-const advanceInput = z.object({ to: z.enum(["brief", "plan", "build", "verify", "done"]) })
+const advanceInput = z.object({ to: z.enum(["brief", "plan", "panel", "build", "review", "verify", "done"]) })
 const consultInput = z.object({ role: z.string(), question: z.string() })
 const panelInput = z.object({ roles: z.array(z.string()).optional(), question: z.string() })
 
@@ -56,7 +56,7 @@ const TOOLS = [
     description: "Request a transition for the active task; returns a reason when prerequisites are unmet.",
     inputSchema: {
       type: "object" as const,
-      properties: { to: { type: "string", enum: ["brief", "plan", "build", "verify", "done"] } },
+      properties: { to: { type: "string", enum: ["brief", "plan", "panel", "build", "review", "verify", "done"] } },
       required: ["to"],
     },
   },

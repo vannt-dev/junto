@@ -6,7 +6,8 @@ allowed-tools: mcp__junto__junto__verify, mcp__junto__junto__advance
 
 Run gates: $ARGUMENTS
 
-If the task is in `build`, first call `junto__advance` with `to: "verify"`. Then call
+If a standard or small task is in `build`, first call `junto__advance` with `to: "verify"`. A deep
+task must pass through its `review` phase first; ask the user to run `/junto:panel` there. Then call
 `junto__verify`; do not run tests through Bash because self-reported output is not evidence.
 
 - `pass`: when every required gate passes, call `junto__advance` with `to: "done"`.

@@ -122,6 +122,11 @@ describe("handleState - approval recording", () => {
     expect(handleState({ prompt: "/junto:approve", cwd: root })).toMatch(/approved/i)
   })
 
+  it("directs an approved deep task to panel", () => {
+    seed({ size: "deep" })
+    expect(handleState({ prompt: "/junto:approve", cwd: root })).toMatch(/panel/)
+  })
+
   it("does not approve from an ordinary prompt", () => {
     seed()
     handleState({ prompt: "please approve the plan", cwd: root })

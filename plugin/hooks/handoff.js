@@ -4052,7 +4052,7 @@ var NEVER = INVALID;
 
 // packages/core/src/schema.ts
 var DEFAULT_STALE_IGNORE = ["**/*.md", "docs/**", ".junto/**"];
-var phaseSchema = external_exports.enum(["brief", "plan", "build", "verify", "done"]);
+var phaseSchema = external_exports.enum(["brief", "plan", "panel", "build", "review", "verify", "done"]);
 var sizeSchema = external_exports.enum(["small", "standard", "deep"]);
 var gateStateSchema = external_exports.enum(["pass", "fail", "skipped"]);
 var phaseStatusSchema = external_exports.object({

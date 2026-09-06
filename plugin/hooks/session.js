@@ -4067,7 +4067,7 @@ function assertVersion(raw) {
   const v = raw?.schemaVersion;
   if (typeof v === "number" && v > SCHEMA_VERSION) throw new SchemaVersionError(v, SCHEMA_VERSION);
 }
-var phaseSchema = external_exports.enum(["brief", "plan", "build", "verify", "done"]);
+var phaseSchema = external_exports.enum(["brief", "plan", "panel", "build", "review", "verify", "done"]);
 var sizeSchema = external_exports.enum(["small", "standard", "deep"]);
 var gateStateSchema = external_exports.enum(["pass", "fail", "skipped"]);
 var phaseStatusSchema = external_exports.object({

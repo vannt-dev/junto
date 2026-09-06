@@ -38,6 +38,10 @@ describe("MCP bundle stdio", () => {
         "junto__task",
         "junto__verify",
       ])
+      const advance = response.tools.find(tool => tool.name === "junto__advance")
+      expect(advance?.inputSchema.properties?.to).toMatchObject({
+        enum: ["brief", "plan", "panel", "build", "review", "verify", "done"],
+      })
     } finally {
       await client.close()
     }

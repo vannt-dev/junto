@@ -53,7 +53,7 @@ export function handleState(input: { prompt?: string, cwd?: string }): string {
     })
     return contextOutput(
       `The user approved the plan for task "${id}". `
-      + "Call junto__advance with to=\"build\" to enter the next phase.",
+      + `Call junto__advance with to="${task.size === "deep" ? "panel" : "build"}" to enter the next phase.`,
     )
   }
 

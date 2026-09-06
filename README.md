@@ -20,10 +20,15 @@ No `npx`, downloaded binary, or install script is required.
 /junto:start add JWT authentication to the API
 /junto:plan
 /junto:approve          # only the user can approve; the model cannot approve its own plan
+/junto:panel [question] # deep: plan checkpoint; optional for other task sizes
+# ...implementation...
+/junto:panel [question] # deep: implementation review checkpoint
 /junto:verify
-/junto:panel [question] # optional: ask an advisory multi-model panel before finishing
 /junto:finish
 ```
+
+Small and standard tasks skip the two panel calls in this example. A deep task enters explicit
+`panel` and `review` phases; panel opinions remain advisory and never replace quality-gate evidence.
 
 `/junto:finish` only archives tasks in the `done` phase, so required gates cannot be bypassed by finishing early.
 
@@ -80,6 +85,8 @@ token accounting (`consultBudget` cannot cap their spend). Override any role's p
 M1 provides the task engine without external models. M2 adds advisory multi-model consult/panel
 (Anthropic + OpenAI). M3a adds a CLI-spawned backend (`cliBackends`) so a role can route to any
 locally installed CLI tool instead of an HTTP API. See "Advisory consult and panel" below for
-configuration. The deep-task panel/review lifecycle phase (M3b) is not implemented.
+configuration. M3b adds `panel` and `review` checkpoints to deep tasks:
+`brief -> plan -> panel -> build -> review -> verify -> done`. Both checkpoints remain advisory;
+only quality-gate command results can block completion.
 
 MIT.
