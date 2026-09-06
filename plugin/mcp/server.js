@@ -26140,16 +26140,17 @@ function openaiBackend(apiKey) {
 
 // packages/core/src/backends/cli.ts
 var DEFAULT_CLI_TIMEOUT_MS = 12e4;
-function cliBackend(argv) {
+function cliBackend(argv, root) {
   return {
     async complete({ systemPrompt, userPrompt, timeoutMs }) {
       const [cmd, ...args] = argv;
       if (cmd === void 0) throw new Error("CLI backend argv is empty.");
-      if (!resolveExecutable(cmd, process.cwd())) {
+      if (!resolveExecutable(cmd, root)) {
         throw new Error(`CLI backend command "${cmd}" does not exist or is not executable. Install it and retry.`);
       }
       const effectiveTimeoutMs = timeoutMs ?? DEFAULT_CLI_TIMEOUT_MS;
       const res = await execa(cmd, args, {
+        cwd: root,
         input: `${systemPrompt}
 
 ${userPrompt}`,
@@ -26174,25 +26175,26 @@ function resolveRoleProvider(role, config2) {
   if (configured !== void 0) return configured;
   if (isBuiltInRole(role)) return DEFAULT_ROLE_PROVIDER[role];
   throw new Error(
-    `Role "${role}" has no provider. Add roles: { "${role}": { "provider": "anthropic" | "openai" } } to .junto/config.json.`
+    `Role "${role}" has no provider. Add roles: { "${role}": { "provider": "<name>" } } to .junto/config.json, naming an entry under "backends" or "cliBackends".`
   );
 }
-function resolveBackend(name, config2) {
+function resolveBackend(name, config2, root) {
   const apiSpec = config2.backends?.[name];
   if (apiSpec !== void 0) {
+    if (name !== "anthropic" && name !== "openai") {
+      throw new Error(`"${name}" under "backends" is not a supported API vendor (only "anthropic" and "openai" are).`);
+    }
     const apiKey = process.env[apiSpec.apiKeyEnv];
     if (apiKey === void 0 || apiKey === "") {
       throw new Error(
         `Environment variable "${apiSpec.apiKeyEnv}" is not set (required by backends.${name}.apiKeyEnv in .junto/config.json).`
       );
     }
-    if (name === "anthropic") return { backend: anthropicBackend(apiKey), model: apiSpec.model, timeoutMs: apiSpec.timeoutMs };
-    if (name === "openai") return { backend: openaiBackend(apiKey), model: apiSpec.model, timeoutMs: apiSpec.timeoutMs };
-    throw new Error(`"${name}" under "backends" is not a supported API vendor (only "anthropic" and "openai" are).`);
+    return name === "anthropic" ? { backend: anthropicBackend(apiKey), model: apiSpec.model, timeoutMs: apiSpec.timeoutMs } : { backend: openaiBackend(apiKey), model: apiSpec.model, timeoutMs: apiSpec.timeoutMs };
   }
   const cliSpec = config2.cliBackends?.[name];
   if (cliSpec !== void 0) {
-    return { backend: cliBackend(cliSpec.argv), timeoutMs: cliSpec.timeoutMs };
+    return { backend: cliBackend(cliSpec.argv, root), timeoutMs: cliSpec.timeoutMs };
   }
   throw new Error(
     `No "${name}" entry under "backends" or "cliBackends" in .junto/config.json. Add one under "backends" (API vendor) or "cliBackends" (spawned CLI tool).`
@@ -26289,7 +26291,7 @@ async function runConsult(ctx, role, question) {
     }
     const prompt = resolveRolePrompt(ctx.root, role);
     const provider = resolveRoleProvider(role, config2);
-    const { backend, model, timeoutMs } = resolveBackend(provider, config2);
+    const { backend, model, timeoutMs } = resolveBackend(provider, config2, ctx.root);
     const dir = taskDir(ctx.root, id);
     const brief = readIfExists(join7(dir, "brief.md"));
     const plan = readIfExists(join7(dir, "plan.md"));
