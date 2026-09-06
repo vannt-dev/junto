@@ -111,41 +111,14 @@ frontmatter, and the command name is the only meaningful identifier available.
 
 ## 7. `packages/core/src/backends/cli.ts`
 
-```ts
-import { execa } from "execa"
-import { resolveExecutable } from "../exec.js"
-import type { CompleteInput, CompleteResult, ModelBackend } from "./types.js"
+`cliBackend(argv, root)` resolves and spawns the configured command relative to the explicit junto
+project root. It writes the joined prompts to stdin, applies the configured timeout or the 120000ms
+default, captures combined output, and returns the trimmed response with `tokensUsed: 0`.
 
-const DEFAULT_CLI_TIMEOUT_MS = 120_000
-
-export function cliBackend(argv: string[]): ModelBackend {
-  return {
-    async complete({ systemPrompt, userPrompt, timeoutMs }: CompleteInput): Promise<CompleteResult> {
-      const [cmd, ...args] = argv
-      if (cmd === undefined) throw new Error("CLI backend argv is empty.")
-      if (!resolveExecutable(cmd, process.cwd())) {
-        throw new Error(`CLI backend command "${cmd}" does not exist or is not executable. Install it and retry.`)
-      }
-
-      const effectiveTimeoutMs = timeoutMs ?? DEFAULT_CLI_TIMEOUT_MS
-      const res = await execa(cmd, args, {
-        input: `${systemPrompt}\n\n${userPrompt}`,
-        timeout: effectiveTimeoutMs,
-        reject: false,
-        all: true,
-      })
-
-      if (res.timedOut) {
-        throw new Error(`CLI backend "${cmd}" timed out after ${effectiveTimeoutMs}ms.`)
-      }
-      if (res.exitCode !== 0) {
-        throw new Error(`CLI backend "${cmd}" exited ${res.exitCode}: ${res.all ?? ""}`)
-      }
-      return { text: (res.all ?? "").trim(), tokensUsed: 0, model: cmd }
-    },
-  }
-}
-```
+The capture is bounded to 1000000 bytes per stdout/stderr stream. Empty successful responses,
+buffer overflow, spawn failures, signal termination, timeout, and non-zero exit are distinct errors
+with messages that name the configured command. `reject: false` lets junto classify execa results;
+the surrounding catch normalizes failures thrown before a result exists.
 
 ## 8. Shared PATH-resolution helper: extract, don't duplicate
 
@@ -210,6 +183,9 @@ would otherwise reintroduce silently.
 | `cliBackends.<name>.argv[0]` not resolvable on `PATH` | refuse before spawning, clear message naming the command |
 | spawned CLI process exits non-zero | error includes exit code and captured output |
 | spawned CLI process exceeds its timeout | error names the effective timeout (config value or the 120000ms default) |
+| spawned CLI process returns an empty response | clear error; no consult file or budget update |
+| stdout or stderr exceeds 1000000 bytes | terminate capture and report the junto-owned limit |
+| process cannot start or is terminated by a signal | stable error naming the CLI backend and cause |
 | a role's `provider` matches neither `backends` nor `cliBackends` | clear error naming both config sections as the place to declare it |
 | a `backends` entry's key is neither `"anthropic"` nor `"openai"` | clear error naming the unsupported vendor (no silent fallthrough) |
 

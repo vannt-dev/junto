@@ -76,9 +76,9 @@ Configure providers in `.junto/config.json`:
 
 `apiKeyEnv` names an environment variable holding the key — junto never stores the key value
 itself. A role's `provider` can also name an entry under `cliBackends` — junto spawns the listed
-command, writes the prompt to its stdin, and reads the response from stdout. CLI backends have no
-token accounting (`consultBudget` cannot cap their spend). Override any role's prompt by adding
-`.junto/roles/<role>.md`.
+command, writes the prompt to its stdin, and reads the response from stdout. Empty responses are
+rejected and output is limited to 1 MB per stream. CLI backends have no token accounting
+(`consultBudget` cannot cap their spend). Override any role's prompt by adding `.junto/roles/<role>.md`.
 
 ## Status
 

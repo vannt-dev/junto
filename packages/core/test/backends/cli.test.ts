@@ -11,13 +11,13 @@ describe("cliBackend", () => {
   })
 
   it("always reports tokensUsed as 0", async () => {
-    const backend = cliBackend(["node", "-e", "process.stdin.resume(); process.stdin.on('end', () => {})"], process.cwd())
+    const backend = cliBackend(["node", "-e", "process.stdin.resume(); process.stdin.on('end', () => console.log('ok'))"], process.cwd())
     const result = await backend.complete({ systemPrompt: "s", userPrompt: "u" })
     expect(result.tokensUsed).toBe(0)
   })
 
   it("sets model to the resolved command name", async () => {
-    const backend = cliBackend(["node", "-e", "process.stdin.resume(); process.stdin.on('end', () => {})"], process.cwd())
+    const backend = cliBackend(["node", "-e", "process.stdin.resume(); process.stdin.on('end', () => console.log('ok'))"], process.cwd())
     const result = await backend.complete({ systemPrompt: "s", userPrompt: "u" })
     expect(result.model).toBe("node")
   })
@@ -39,5 +39,30 @@ describe("cliBackend", () => {
     const backend = cliBackend(["junto-command-does-not-exist-abc123"], process.cwd())
     await expect(backend.complete({ systemPrompt: "s", userPrompt: "u" }))
       .rejects.toThrow(/does not exist or is not executable/i)
+  })
+
+  it("rejects a successful process that returns no response", async () => {
+    const backend = cliBackend(["node", "-e", "process.stdin.resume(); process.stdin.on('end', () => {})"], process.cwd())
+    await expect(backend.complete({ systemPrompt: "s", userPrompt: "u" }))
+      .rejects.toThrow(/empty response/i)
+  })
+
+  it("rejects output larger than the junto-owned buffer limit", async () => {
+    const backend = cliBackend(["node", "-e", "process.stdout.write('x'.repeat(1000001))"], process.cwd())
+    await expect(backend.complete({ systemPrompt: "s", userPrompt: "u" }))
+      .rejects.toThrow(/output exceeded 1000000 bytes/i)
+  })
+
+  it("normalizes failures that occur after executable resolution", async () => {
+    const missingRoot = `${process.cwd()}-junto-does-not-exist`
+    const backend = cliBackend(["node", "-e", "console.log('ok')"], missingRoot)
+    await expect(backend.complete({ systemPrompt: "s", userPrompt: "u" }))
+      .rejects.toThrow(/CLI backend "node" failed to start/i)
+  })
+
+  it.skipIf(process.platform === "win32")("reports signal termination without calling it a numeric exit", async () => {
+    const backend = cliBackend(["node", "-e", "process.kill(process.pid, 'SIGTERM')"], process.cwd())
+    await expect(backend.complete({ systemPrompt: "s", userPrompt: "u" }))
+      .rejects.toThrow(/terminated by signal SIGTERM/i)
   })
 })

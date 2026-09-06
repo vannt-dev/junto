@@ -66,13 +66,7 @@ real `panel` and `review` phases to the deep-task lifecycle and is implemented i
 Its source changes pass the full suite, typecheck, and committed-plugin rebuild. Interactive local-plugin
 acceptance remains a manual step because it changes Claude Code state outside the repository.
 
-Three minor review findings around `packages/core/src/backends/cli.ts` remain intentionally parked
-outside M3b:
-
-- a successful process with empty output is accepted as an empty advisory response;
-- captured process output relies on execa's default buffer limit rather than a junto-owned bound;
-- spawn/signal failures are not normalized into the stable CLI-backend error format used for exit codes and timeouts.
-
-Do not mix these into lifecycle work: each changes the backend's observable error contract and needs
-an explicit policy choice. Revisit them as one hardening change by first adding focused `cli.test.ts`
-cases, then updating `cli.ts`, running the full suite/typecheck, and rebuilding the plugin bundles.
+The three parked M3a CLI-backend findings are resolved in the current worktree: empty successful
+responses are rejected, output is bounded to 1 MB per stream, and spawn/signal failures use stable
+CLI-backend errors. The hardening has focused tests and must retain the same full-suite/typecheck and
+committed-plugin rebuild checks as other backend changes.
