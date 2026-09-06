@@ -118,11 +118,10 @@ Runtime log files are ignored by `.junto/.gitignore`; the rest can be retained a
 ## Status
 
 M1 provides the task engine without external models. M2 adds advisory multi-model consult/panel
-(Anthropic + OpenAI). M3a adds a CLI-spawned backend (`cliBackends`) so a role can route to any
-locally installed CLI tool instead of an HTTP API. See "Advisory consult and panel" below for
-configuration. M3b adds `panel` and `review` checkpoints to deep tasks:
+(Anthropic + OpenAI). M3 adds CLI-spawned backends and `panel`/`review` checkpoints to deep tasks:
 `brief -> plan -> panel -> build -> review -> verify -> done`. Both checkpoints remain advisory;
-only quality-gate command results can block completion. M0 through M3 are implemented; M4 release
-hardening is in progress.
+only quality-gate command results can block completion. M4 adds release hardening. Version 0.3 adds
+optional bounded source context and graph-aware planning/review while preserving dependency-free
+fallbacks and raw gate evidence.
 
 MIT.

@@ -60,15 +60,10 @@ corepack pnpm --filter @junto/core add <package>
 
 ## Current status
 
-M0 through M3a are implemented on `main`: core policy/storage/gates, hooks and commands, advisory
-multi-model consult/panel, API and CLI-spawned backends, roles, and per-task token budgets. M3b adds
-real `panel` and `review` phases to the deep-task lifecycle and is implemented in the current worktree.
-Its source changes pass the full suite, typecheck, and committed-plugin rebuild. Interactive local-plugin
-acceptance remains a manual step because it changes Claude Code state outside the repository.
-
-M4 repository hardening targets version `0.2.1`: public examples, release-contract tests,
-English-only CI output, changelog, and a release checklist. Tagging, GitHub release publication,
-and interactive local-plugin acceptance remain manual external actions.
+M0 through M4 are released: core policy/storage/gates, hooks and commands, advisory multi-model
+consult/panel, API and CLI-spawned backends, deep-task panel/review phases, and repository/release
+hardening. Optional bounded source context for advisory calls, code-review-graph-aware commands, and
+RTK compatibility guidance are implemented for version `0.3.0` without adding runtime dependencies.
 
 The three parked M3a CLI-backend findings are resolved in the current worktree: empty successful
 responses are rejected, output is bounded to 1 MB per stream, and spawn/signal failures use stable

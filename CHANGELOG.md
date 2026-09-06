@@ -2,13 +2,18 @@
 
 All notable changes to junto are documented in this file. The project follows Semantic Versioning.
 
-## Unreleased
+## [0.3.0] - 2026-09-06
 
 ### Added
 
 - Optional, bounded, persisted source context for advisory consults and panels.
 - Optional code-review-graph guidance for plan and deep-task review commands.
 - RTK compatibility guidance that preserves raw quality-gate evidence.
+
+### Security
+
+- Require explicit source-context egress opt-in, enforce bounded project-relative metadata, and mark
+  source-derived context as untrusted data before sending it to advisory backends.
 
 ## [0.2.1] - 2026-09-06
 
@@ -37,6 +42,7 @@ All notable changes to junto are documented in this file. The project follows Se
 
 - Initial task lifecycle, durable project-local state, hooks, MCP tools, and evidence-based gates.
 
+[0.3.0]: https://github.com/vannt-dev/junto/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/vannt-dev/junto/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/vannt-dev/junto/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/vannt-dev/junto/releases/tag/v0.1.0
