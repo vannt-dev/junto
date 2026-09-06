@@ -1,6 +1,8 @@
 import { findProjectRoot } from "@junto/core"
 
-export const RUNNER = "@junto/mcp@0.1.0"
+import { VERSION } from "./version.js"
+
+export const RUNNER = `@junto/mcp@${VERSION}`
 
 export interface ToolContext {
   root: string

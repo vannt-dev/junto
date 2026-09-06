@@ -7,6 +7,7 @@ import { consultTool } from "./tools/consult.js"
 import { panelTool } from "./tools/panel.js"
 import { taskTool } from "./tools/task.js"
 import { verifyTool } from "./tools/verify.js"
+import { VERSION } from "./version.js"
 
 const taskInput = z.discriminatedUnion("action", [
   z.object({
@@ -92,7 +93,7 @@ const TOOLS = [
 ]
 
 export function createServer(): Server {
-  const server = new Server({ name: "junto", version: "0.1.0" }, { capabilities: { tools: {} } })
+  const server = new Server({ name: "junto", version: VERSION }, { capabilities: { tools: {} } })
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }))
   server.setRequestHandler(CallToolRequestSchema, async (request) => {

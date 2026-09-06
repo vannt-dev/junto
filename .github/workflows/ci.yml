@@ -32,7 +32,7 @@ jobs:
         with: { node-version: 22.12.0, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - name: Artifact build phải khớp source
+      - name: Verify generated artifacts match source
         run: |
           git diff --exit-code -- plugin/hooks plugin/mcp \
-            || (echo "::error::Artifact trong plugin/ lệch với source. Chạy 'pnpm build' rồi commit lại." && exit 1)
+            || (echo "::error::Generated plugin artifacts are stale. Run 'pnpm build' and commit the result." && exit 1)

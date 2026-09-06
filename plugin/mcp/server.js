@@ -26224,8 +26224,11 @@ function resolveBackend(name, config2, root) {
   );
 }
 
+// packages/mcp/src/version.ts
+var VERSION = "0.2.0";
+
 // packages/mcp/src/context.ts
-var RUNNER = "@junto/mcp@0.1.0";
+var RUNNER = `@junto/mcp@${VERSION}`;
 function resolveContext(cwd) {
   const root = findProjectRoot(cwd);
   if (root === null) {
@@ -26647,7 +26650,7 @@ var TOOLS = [
   }
 ];
 function createServer() {
-  const server = new Server({ name: "junto", version: "0.1.0" }, { capabilities: { tools: {} } });
+  const server = new Server({ name: "junto", version: VERSION }, { capabilities: { tools: {} } });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     try {

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "gates": {
+    "tests": {
+      "argv": ["npm", "test"],
+      "required": true,
+      "timeoutMs": 120000
+    },
+    "typecheck": {
+      "argv": ["npm", "run", "typecheck"],
+      "required": true,
+      "timeoutMs": 120000
+    }
+  }
+}

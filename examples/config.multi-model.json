@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "gates": {},
+  "backends": {
+    "anthropic": {
+      "apiKeyEnv": "ANTHROPIC_API_KEY",
+      "timeoutMs": 60000
+    },
+    "openai": {
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "timeoutMs": 60000
+    }
+  },
+  "cliBackends": {
+    "codex": {
+      "argv": ["codex", "exec", "--color", "never", "-"],
+      "timeoutMs": 120000
+    }
+  },
+  "roles": {
+    "architect": { "provider": "anthropic" },
+    "adversary": { "provider": "codex" },
+    "pragmatist": { "provider": "openai" },
+    "reviewer": { "provider": "codex" }
+  },
+  "consultBudget": {
+    "maxTokensPerTask": 200000
+  }
+}

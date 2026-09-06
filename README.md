@@ -14,6 +14,8 @@ claude plugin install junto@junto
 
 No `npx`, downloaded binary, or install script is required.
 
+Requirements: Claude Code with plugin support and Node.js 20 or newer available on `PATH`.
+
 ## Usage
 
 ```text
@@ -60,12 +62,14 @@ Configure providers in `.junto/config.json`:
 
 ```json
 {
+  "schemaVersion": 1,
+  "gates": {},
   "backends": {
     "anthropic": { "apiKeyEnv": "ANTHROPIC_API_KEY" },
     "openai": { "apiKeyEnv": "OPENAI_API_KEY" }
   },
   "cliBackends": {
-    "codex": { "argv": ["codex", "exec", "--json"], "timeoutMs": 120000 }
+    "codex": { "argv": ["codex", "exec", "--color", "never", "-"], "timeoutMs": 120000 }
   },
   "roles": {
     "adversary": { "provider": "codex" }
@@ -80,6 +84,19 @@ command, writes the prompt to its stdin, and reads the response from stdout. Emp
 rejected and output is limited to 1 MB per stream. CLI backends have no token accounting
 (`consultBudget` cannot cap their spend). Override any role's prompt by adding `.junto/roles/<role>.md`.
 
+See [examples/config.basic.json](examples/config.basic.json) for a gate-only setup and
+[examples/config.multi-model.json](examples/config.multi-model.json) for API and CLI advisory
+backends. Copy one to `.junto/config.json` and adjust commands and environment-variable names for
+the project. The Codex example uses `-` because `codex exec` requires that positional value to read
+the prompt from stdin.
+
+## Task data
+
+Junto stores active task state under `.junto/tasks/<id>/` and archived tasks under
+`.junto/archive/<id>/`. `task.json` contains lifecycle state, `brief.md` and `plan.md` contain the
+working specification, `consults/` stores advisory responses, and `verdicts/` stores gate evidence.
+Runtime log files are ignored by `.junto/.gitignore`; the rest can be retained as project history.
+
 ## Status
 
 M1 provides the task engine without external models. M2 adds advisory multi-model consult/panel
@@ -87,6 +104,7 @@ M1 provides the task engine without external models. M2 adds advisory multi-mode
 locally installed CLI tool instead of an HTTP API. See "Advisory consult and panel" below for
 configuration. M3b adds `panel` and `review` checkpoints to deep tasks:
 `brief -> plan -> panel -> build -> review -> verify -> done`. Both checkpoints remain advisory;
-only quality-gate command results can block completion.
+only quality-gate command results can block completion. M0 through M3 are implemented; M4 release
+hardening is in progress.
 
 MIT.
