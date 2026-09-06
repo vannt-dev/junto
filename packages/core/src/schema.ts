@@ -71,8 +71,13 @@ export const backendSpecSchema = z.object({
   timeoutMs: z.number().int().positive().optional(),
 }).strict()
 
+export const cliBackendSpecSchema = z.object({
+  argv: z.array(z.string()).min(1),
+  timeoutMs: z.number().int().positive().optional(),
+}).strict()
+
 export const roleSpecSchema = z.object({
-  provider: providerSchema,
+  provider: z.string().min(1),
   model: z.string().optional(),
 }).strict()
 
@@ -86,6 +91,7 @@ export const configSchema = z.object({
   staleIgnore: z.array(z.string()).default(DEFAULT_STALE_IGNORE),
   autoApprove: z.array(sizeSchema).default([]),
   backends: z.record(z.string(), backendSpecSchema).optional(),
+  cliBackends: z.record(z.string(), cliBackendSpecSchema).optional(),
   roles: z.record(z.string(), roleSpecSchema).optional(),
   consultBudget: consultBudgetSchema.optional(),
 }).passthrough()
@@ -99,6 +105,7 @@ export type Decision = z.infer<typeof decisionSchema>
 export type Task = z.infer<typeof taskSchema>
 export type GateSpec = z.infer<typeof gateSpecSchema>
 export type BackendSpec = z.infer<typeof backendSpecSchema>
+export type CliBackendSpec = z.infer<typeof cliBackendSpecSchema>
 export type RoleSpec = z.infer<typeof roleSpecSchema>
 export type ConsultBudget = z.infer<typeof consultBudgetSchema>
 export type Config = z.infer<typeof configSchema>

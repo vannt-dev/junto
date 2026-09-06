@@ -97,11 +97,43 @@ describe("parseConfig", () => {
     })).toThrow()
   })
 
-  it("rejects an unknown provider name in a role entry", () => {
+  it("accepts any non-empty provider name in a role entry (validity is resolveBackend's job, not the schema's)", () => {
+    const cfg = parseConfig({
+      schemaVersion: 1,
+      gates: {},
+      roles: { adversary: { provider: "codex" } },
+    })
+    expect(cfg.roles?.adversary?.provider).toBe("codex")
+  })
+
+  it("rejects an empty provider name in a role entry", () => {
     expect(() => parseConfig({
       schemaVersion: 1,
       gates: {},
-      roles: { adversary: { provider: "cohere" } },
+      roles: { adversary: { provider: "" } },
+    })).toThrow()
+  })
+
+  it("accepts a cliBackends block", () => {
+    const cfg = parseConfig({
+      schemaVersion: 1,
+      gates: {},
+      cliBackends: { codex: { argv: ["codex", "exec", "--json"], timeoutMs: 120000 } },
+    })
+    expect(cfg.cliBackends?.codex?.argv).toEqual(["codex", "exec", "--json"])
+    expect(cfg.cliBackends?.codex?.timeoutMs).toBe(120000)
+  })
+
+  it("omits cliBackends cleanly when absent", () => {
+    const cfg = parseConfig({ schemaVersion: 1, gates: {} })
+    expect(cfg.cliBackends).toBeUndefined()
+  })
+
+  it("rejects a cliBackends entry with an empty argv", () => {
+    expect(() => parseConfig({
+      schemaVersion: 1,
+      gates: {},
+      cliBackends: { codex: { argv: [] } },
     })).toThrow()
   })
 })
