@@ -63,5 +63,6 @@ corepack pnpm --filter @junto/core add <package>
 M0 and M1 are implemented on `main`: core policy/storage/gates, three MCP tools, four hooks, five commands,
 plugin bundles, CI, and boundary tests. Interactive local-plugin acceptance remains a manual step because it
 changes Claude Code state outside the repository. M2 (advisory multi-model consult/panel: Anthropic + OpenAI backends, junto__consult/junto__panel,
-roles, per-task token budget) is implemented on `feat/m2-consult-panel`. M3 (CLI backends and the
-deep-task panel/review lifecycle phase) is not implemented.
+roles, per-task token budget) is implemented on `feat/m2-consult-panel`. M3a (a generic CLI-spawned
+advisory backend, `cliBackends` config) is implemented on `feat/m3a-cli-backend`. M3b (the deep-task
+panel/review lifecycle phase) is not implemented.

@@ -59,16 +59,27 @@ Configure providers in `.junto/config.json`:
     "anthropic": { "apiKeyEnv": "ANTHROPIC_API_KEY" },
     "openai": { "apiKeyEnv": "OPENAI_API_KEY" }
   },
+  "cliBackends": {
+    "codex": { "argv": ["codex", "exec", "--json"], "timeoutMs": 120000 }
+  },
+  "roles": {
+    "adversary": { "provider": "codex" }
+  },
   "consultBudget": { "maxTokensPerTask": 200000 }
 }
 ```
 
 `apiKeyEnv` names an environment variable holding the key — junto never stores the key value
-itself. Override any role's prompt by adding `.junto/roles/<role>.md`.
+itself. A role's `provider` can also name an entry under `cliBackends` — junto spawns the listed
+command, writes the prompt to its stdin, and reads the response from stdout. CLI backends have no
+token accounting (`consultBudget` cannot cap their spend). Override any role's prompt by adding
+`.junto/roles/<role>.md`.
 
 ## Status
 
 M1 provides the task engine without external models. M2 adds advisory multi-model consult/panel
-(Anthropic + OpenAI). See "Advisory consult and panel" below for configuration.
+(Anthropic + OpenAI). M3a adds a CLI-spawned backend (`cliBackends`) so a role can route to any
+locally installed CLI tool instead of an HTTP API. See "Advisory consult and panel" below for
+configuration. The deep-task panel/review lifecycle phase (M3b) is not implemented.
 
 MIT.
