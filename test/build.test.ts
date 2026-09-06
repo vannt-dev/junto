@@ -32,7 +32,7 @@ describe("artifact build", () => {
     const commands: Array<{ args?: string[] }> = Object.values(hooks.hooks)
       .flatMap(event => event as Array<{ hooks: Array<{ args?: string[] }> }>)
       .flatMap(event => event.hooks)
-    const mcp = JSON.parse(readFileSync("plugin/.mcp.json", "utf-8"))
+    const mcp = JSON.parse(readFileSync(".mcp.json", "utf-8"))
     const configured = [
       ...commands.flatMap(command => command.args ?? []),
       ...mcp.mcpServers.junto.args,

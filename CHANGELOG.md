@@ -2,6 +2,13 @@
 
 All notable changes to junto are documented in this file. The project follows Semantic Versioning.
 
+## [0.2.1] - 2026-09-06
+
+### Fixed
+
+- Move the bundled MCP configuration to the plugin root so Claude Code discovers Junto's MCP server
+  and exposes its five tools after marketplace installation.
+
 ## [0.2.0] - 2026-09-06
 
 ### Added
@@ -22,5 +29,6 @@ All notable changes to junto are documented in this file. The project follows Se
 
 - Initial task lifecycle, durable project-local state, hooks, MCP tools, and evidence-based gates.
 
+[0.2.1]: https://github.com/vannt-dev/junto/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/vannt-dev/junto/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/vannt-dev/junto/releases/tag/v0.1.0

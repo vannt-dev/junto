@@ -34,6 +34,13 @@ describe("release assets", () => {
     expect(RUNNER).toBe(`@junto/mcp@${plugin.version}`)
   })
 
+  it("places MCP configuration at the plugin root", () => {
+    const plugin = json(".claude-plugin/plugin.json") as { mcpServers?: unknown }
+    const mcp = json(".mcp.json") as { mcpServers?: Record<string, unknown> }
+    expect(plugin.mcpServers).toBeUndefined()
+    expect(mcp.mcpServers?.junto).toBeDefined()
+  })
+
   it("configures Codex CLI to read the Junto prompt from stdin", () => {
     const config = parseConfig(json("examples/config.multi-model.json"))
     expect(config.cliBackends?.codex?.argv.at(-1)).toBe("-")

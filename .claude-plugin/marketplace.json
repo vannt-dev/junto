@@ -3,14 +3,14 @@
   "owner": { "name": "vannt-dev", "url": "https://github.com/vannt-dev" },
   "metadata": {
     "description": "junto - an evidence-based workflow engine for Claude Code.",
-    "version": "0.2.0"
+    "version": "0.2.1"
   },
   "plugins": [
     {
       "name": "junto",
       "source": ".",
       "description": "Durable state, real quality gates, and no binaries. Install it, then run /junto:start.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "category": "workflow"
     }
   ]

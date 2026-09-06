@@ -26225,7 +26225,7 @@ function resolveBackend(name, config2, root) {
 }
 
 // packages/mcp/src/version.ts
-var VERSION = "0.2.0";
+var VERSION = "0.2.1";
 
 // packages/mcp/src/context.ts
 var RUNNER = `@junto/mcp@${VERSION}`;

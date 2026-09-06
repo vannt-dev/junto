@@ -66,7 +66,7 @@ real `panel` and `review` phases to the deep-task lifecycle and is implemented i
 Its source changes pass the full suite, typecheck, and committed-plugin rebuild. Interactive local-plugin
 acceptance remains a manual step because it changes Claude Code state outside the repository.
 
-M4 repository hardening targets version `0.2.0`: public examples, release-contract tests,
+M4 repository hardening targets version `0.2.1`: public examples, release-contract tests,
 English-only CI output, changelog, and a release checklist. Tagging, GitHub release publication,
 and interactive local-plugin acceptance remain manual external actions.
 
