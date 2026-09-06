@@ -58,6 +58,21 @@ project-defined role) about the active task's brief and plan; `junto__panel` (vi
 asks several roles in sequence. Both are strictly advisory: their output never blocks a phase
 transition and is never evidence for a gate.
 
+Advisory calls can optionally receive bounded source-derived context. This is disabled by default
+because API and CLI backends may send that context outside the machine. Enable it explicitly:
+
+```json
+{
+  "consultContext": { "enabled": true, "maxChars": 12000, "persist": true }
+}
+```
+
+When enabled, `/junto:plan` and `/junto:panel` use a locally configured code-review-graph MCP server
+when available, with native code inspection as a fallback. Junto does not install, start, or depend
+on that server. Context is bounded before being repeated across panel roles and, by default, stored
+under the active task's `contexts/` directory for auditability. See
+[the code-review-graph integration guide](docs/integrations/code-review-graph.md).
+
 Configure providers in `.junto/config.json`:
 
 ```json
@@ -89,6 +104,9 @@ See [examples/config.basic.json](examples/config.basic.json) for a gate-only set
 backends. Copy one to `.junto/config.json` and adjust commands and environment-variable names for
 the project. The Codex example uses `-` because `codex exec` requires that positional value to read
 the prompt from stdin.
+
+RTK can independently reduce shell output during implementation, but Junto deliberately runs gate
+commands without RTK so their stored evidence remains raw. See [the RTK integration guide](docs/integrations/rtk.md).
 
 ## Task data
 

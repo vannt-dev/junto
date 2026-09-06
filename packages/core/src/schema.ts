@@ -85,6 +85,12 @@ export const consultBudgetSchema = z.object({
   maxTokensPerTask: z.number().int().positive().optional(),
 }).strict()
 
+export const consultContextConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  maxChars: z.number().int().positive().max(50_000).default(12_000),
+  persist: z.boolean().default(true),
+}).strict()
+
 export const configSchema = z.object({
   schemaVersion: z.number().int(),
   gates: z.record(z.string(), gateSpecSchema),
@@ -94,6 +100,7 @@ export const configSchema = z.object({
   cliBackends: z.record(z.string(), cliBackendSpecSchema).optional(),
   roles: z.record(z.string(), roleSpecSchema).optional(),
   consultBudget: consultBudgetSchema.optional(),
+  consultContext: consultContextConfigSchema.optional(),
 }).passthrough()
 
 export type Phase = z.infer<typeof phaseSchema>
@@ -108,6 +115,7 @@ export type BackendSpec = z.infer<typeof backendSpecSchema>
 export type CliBackendSpec = z.infer<typeof cliBackendSpecSchema>
 export type RoleSpec = z.infer<typeof roleSpecSchema>
 export type ConsultBudget = z.infer<typeof consultBudgetSchema>
+export type ConsultContextConfig = z.infer<typeof consultContextConfigSchema>
 export type Config = z.infer<typeof configSchema>
 
 export interface VerdictFile {

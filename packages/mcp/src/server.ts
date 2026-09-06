@@ -4,6 +4,7 @@ import { z } from "zod"
 import { resolveContext } from "./context.js"
 import { advanceTool } from "./tools/advance.js"
 import { consultTool } from "./tools/consult.js"
+import { consultContextInputSchema } from "./tools/context.js"
 import { panelTool } from "./tools/panel.js"
 import { taskTool } from "./tools/task.js"
 import { verifyTool } from "./tools/verify.js"
@@ -21,8 +22,20 @@ const taskInput = z.discriminatedUnion("action", [
 ])
 const verifyInput = z.object({ gates: z.array(z.string()).optional() })
 const advanceInput = z.object({ to: z.enum(["brief", "plan", "panel", "build", "review", "verify", "done"]) })
-const consultInput = z.object({ role: z.string(), question: z.string() })
-const panelInput = z.object({ roles: z.array(z.string()).optional(), question: z.string() })
+const consultInput = z.object({ role: z.string(), question: z.string(), context: consultContextInputSchema.optional() })
+const panelInput = z.object({ roles: z.array(z.string()).optional(), question: z.string(), context: consultContextInputSchema.optional() })
+
+const contextProperty = {
+  type: "object" as const,
+  description: "Optional bounded source-derived context; requires consultContext.enabled in project config.",
+  properties: {
+    source: { type: "string", description: "Context producer, for example code-review-graph" },
+    purpose: { type: "string", enum: ["planning", "review"] },
+    summary: { type: "string", description: "Compact source context, bounded by project config" },
+    files: { type: "array", items: { type: "string" }, description: "Optional project-relative source paths" },
+  },
+  required: ["source", "purpose", "summary"],
+}
 
 const TOOLS = [
   {
@@ -72,6 +85,7 @@ const TOOLS = [
       properties: {
         role: { type: "string", description: "architect, adversary, pragmatist, reviewer, or a role defined in .junto/roles/" },
         question: { type: "string" },
+        context: contextProperty,
       },
       required: ["role", "question"],
     },
@@ -86,6 +100,7 @@ const TOOLS = [
       properties: {
         roles: { type: "array", items: { type: "string" }, description: "Omit to ask all four built-in roles" },
         question: { type: "string" },
+        context: contextProperty,
       },
       required: ["question"],
     },

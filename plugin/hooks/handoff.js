@@ -4106,6 +4106,11 @@ var roleSpecSchema = external_exports.object({
 var consultBudgetSchema = external_exports.object({
   maxTokensPerTask: external_exports.number().int().positive().optional()
 }).strict();
+var consultContextConfigSchema = external_exports.object({
+  enabled: external_exports.boolean().default(false),
+  maxChars: external_exports.number().int().positive().max(5e4).default(12e3),
+  persist: external_exports.boolean().default(true)
+}).strict();
 var configSchema = external_exports.object({
   schemaVersion: external_exports.number().int(),
   gates: external_exports.record(external_exports.string(), gateSpecSchema),
@@ -4114,7 +4119,8 @@ var configSchema = external_exports.object({
   backends: external_exports.record(external_exports.string(), backendSpecSchema).optional(),
   cliBackends: external_exports.record(external_exports.string(), cliBackendSpecSchema).optional(),
   roles: external_exports.record(external_exports.string(), roleSpecSchema).optional(),
-  consultBudget: consultBudgetSchema.optional()
+  consultBudget: consultBudgetSchema.optional(),
+  consultContext: consultContextConfigSchema.optional()
 }).passthrough();
 
 // packages/core/src/store.ts

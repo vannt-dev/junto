@@ -42,6 +42,11 @@ describe("MCP bundle stdio", () => {
       expect(advance?.inputSchema.properties?.to).toMatchObject({
         enum: ["brief", "plan", "panel", "build", "review", "verify", "done"],
       })
+      const panel = response.tools.find(tool => tool.name === "junto__panel")
+      expect(panel?.inputSchema.properties?.context).toMatchObject({
+        type: "object",
+        properties: { purpose: { enum: ["planning", "review"] } },
+      })
     } finally {
       await client.close()
     }

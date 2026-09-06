@@ -2,6 +2,14 @@
 
 All notable changes to junto are documented in this file. The project follows Semantic Versioning.
 
+## Unreleased
+
+### Added
+
+- Optional, bounded, persisted source context for advisory consults and panels.
+- Optional code-review-graph guidance for plan and deep-task review commands.
+- RTK compatibility guidance that preserves raw quality-gate evidence.
+
 ## [0.2.1] - 2026-09-06
 
 ### Fixed

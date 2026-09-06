@@ -81,10 +81,12 @@ describe("parseConfig", () => {
       },
       roles: { adversary: { provider: "openai" } },
       consultBudget: { maxTokensPerTask: 200000 },
+      consultContext: { enabled: true, maxChars: 12000, persist: true },
     })
     expect(cfg.backends?.anthropic?.apiKeyEnv).toBe("ANTHROPIC_API_KEY")
     expect(cfg.roles?.adversary?.provider).toBe("openai")
     expect(cfg.consultBudget?.maxTokensPerTask).toBe(200000)
+    expect(cfg.consultContext).toEqual({ enabled: true, maxChars: 12000, persist: true })
   })
 
   it("omits backends/roles/consultBudget cleanly when absent", () => {
@@ -92,6 +94,20 @@ describe("parseConfig", () => {
     expect(cfg.backends).toBeUndefined()
     expect(cfg.roles).toBeUndefined()
     expect(cfg.consultBudget).toBeUndefined()
+    expect(cfg.consultContext).toBeUndefined()
+  })
+
+  it("defaults omitted consultContext limits without enabling source egress", () => {
+    const cfg = parseConfig({ schemaVersion: 1, gates: {}, consultContext: {} })
+    expect(cfg.consultContext).toEqual({ enabled: false, maxChars: 12000, persist: true })
+  })
+
+  it("rejects an excessive consult context limit", () => {
+    expect(() => parseConfig({
+      schemaVersion: 1,
+      gates: {},
+      consultContext: { enabled: true, maxChars: 50001 },
+    })).toThrow()
   })
 
   it("rejects a backend spec carrying a literal key value instead of an env var name", () => {

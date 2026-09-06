@@ -25,5 +25,10 @@
   },
   "consultBudget": {
     "maxTokensPerTask": 200000
+  },
+  "consultContext": {
+    "enabled": false,
+    "maxChars": 12000,
+    "persist": true
   }
 }

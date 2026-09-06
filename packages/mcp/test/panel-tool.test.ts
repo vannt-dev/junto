@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -88,5 +88,43 @@ describe("panelTool", () => {
     const out = await panelTool(ctx(), { question: "?", roles: ["architect"] })
     expect(out).toMatch(/architect - ok/)
     expect(out).not.toMatch(/adversary/)
+  })
+
+  it("persists one bounded context snapshot for the whole panel", async () => {
+    writeConfig({
+      backends: { anthropic: { apiKeyEnv: "JUNTO_TEST_KEY" }, openai: { apiKeyEnv: "JUNTO_TEST_KEY" } },
+      consultContext: { enabled: true, maxChars: 12000, persist: true },
+    })
+    await taskTool(ctx(), { action: "start", title: "X", size: "deep" })
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        content: [{ type: "text", text: "ok" }],
+        usage: { input_tokens: 1, output_tokens: 1 },
+        model: "claude-sonnet-5",
+      }),
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const out = await panelTool(ctx(), {
+      question: "Review this implementation",
+      roles: ["architect", "reviewer"],
+      context: {
+        source: "code-review-graph",
+        purpose: "review",
+        summary: "Changed parser; callers and tests are listed.",
+        files: ["src/parser.ts", "test/parser.test.ts"],
+      },
+    })
+
+    expect(out).toMatch(/Context: contexts\/001-review\.json/)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    for (const call of fetchMock.mock.calls) {
+      const [, init] = call as [string, RequestInit]
+      const body = JSON.parse(init.body as string) as { messages: { content: string }[] }
+      expect(body.messages[0]?.content).toContain("Changed parser")
+    }
+    const id = readActiveId(root)
+    if (id === null) throw new Error("Test requires an active task")
+    expect(readdirSync(join(root, ".junto", "tasks", id, "contexts"))).toEqual(["001-review.json"])
   })
 })
