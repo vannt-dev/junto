@@ -63,7 +63,8 @@ corepack pnpm --filter @junto/core add <package>
 M0 through M4 are released: core policy/storage/gates, hooks and commands, advisory multi-model
 consult/panel, API and CLI-spawned backends, deep-task panel/review phases, and repository/release
 hardening. Optional bounded source context for advisory calls, code-review-graph-aware commands, and
-RTK compatibility guidance are implemented for version `0.3.0` without adding runtime dependencies.
+RTK compatibility guidance are implemented without adding runtime dependencies. Version `0.4.0`
+adds a read-only status tool and command backed by the same transition policy and verdict evidence.
 
 The three parked M3a CLI-backend findings are resolved in the current worktree: empty successful
 responses are rejected, output is bounded to 1 MB per stream, and spawn/signal failures use stable

@@ -124,6 +124,7 @@ M1 provides the task engine without external models. M2 adds advisory multi-mode
 `brief -> plan -> panel -> build -> review -> verify -> done`. Both checkpoints remain advisory;
 only quality-gate command results can block completion. M4 adds release hardening. Version 0.3 adds
 optional bounded source context and graph-aware planning/review while preserving dependency-free
-fallbacks and raw gate evidence.
+fallbacks and raw gate evidence. Version 0.4 adds read-only task status with policy-backed blockers,
+gate evidence state, and advisory budget visibility.
 
 MIT.
