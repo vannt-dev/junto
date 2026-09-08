@@ -19,7 +19,16 @@ No `npx`, downloaded binary, or install script is required.
 
 Requirements: Claude Code with plugin support and Node.js 20 or newer available on `PATH`.
 
-## Usage
+Verify the installed version or update an existing installation:
+
+```bash
+claude plugin details junto@junto
+claude plugin update junto@junto
+```
+
+## Quick start
+
+Run the first command inside a Git repository:
 
 ```text
 /junto:start add JWT authentication to the API
@@ -28,13 +37,20 @@ Requirements: Claude Code with plugin support and Node.js 20 or newer available 
 /junto:approve          # only the user can approve; the model cannot approve its own plan
 /junto:panel [question] # deep: plan checkpoint; optional for other task sizes
 # ...implementation...
+/junto:status
+# for a deep task, ask Claude to enter review; it calls junto__advance(to: "review")
 /junto:panel [question] # deep: implementation review checkpoint
 /junto:verify
 /junto:finish
 ```
 
+On first use, if `.junto/config.json` does not exist, `/junto:start` inspects familiar project
+scripts and proposes quality gates for you to confirm before it writes the configuration.
+
 Small and standard tasks skip the two panel calls in this example. A deep task enters explicit
-`panel` and `review` phases; panel opinions remain advisory and never replace quality-gate evidence.
+`panel` and `review` phases. After implementation, the task must enter `review` before the second
+`/junto:panel` call; the status command shows this as the next action. Panel opinions remain
+advisory and never replace quality-gate evidence.
 
 `/junto:finish` only archives tasks in the `done` phase, so required gates cannot be bypassed by finishing early.
 `/junto:status` is read-only and uses the same transition policy and verdict files as the lifecycle tools.
@@ -120,14 +136,28 @@ Junto stores active task state under `.junto/tasks/<id>/` and archived tasks und
 working specification, `consults/` stores advisory responses, and `verdicts/` stores gate evidence.
 Runtime log files are ignored by `.junto/.gitignore`; the rest can be retained as project history.
 
-## Status
+## Current capabilities
 
-M1 provides the task engine without external models. M2 adds advisory multi-model consult/panel
-(Anthropic + OpenAI). M3 adds CLI-spawned backends and `panel`/`review` checkpoints to deep tasks:
-`brief -> plan -> panel -> build -> review -> verify -> done`. Both checkpoints remain advisory;
-only quality-gate command results can block completion. M4 adds release hardening. Version 0.3 adds
-optional bounded source context and graph-aware planning/review while preserving dependency-free
-fallbacks and raw gate evidence. Version 0.4 adds read-only task status with policy-backed blockers,
-gate evidence state, and advisory budget visibility.
+- Durable small, standard, and deep task lifecycles.
+- User-approved plans and evidence-backed quality gates.
+- Read-only task status with next actions, blockers, gate state, and advisory budget usage.
+- Anthropic, OpenAI, and generic CLI advisory backends with project-defined roles.
+- Optional bounded source context and code-review-graph-aware planning and review.
+- Self-contained Claude Code plugin with Windows and Linux CI coverage.
+
+## Troubleshooting
+
+- If a newly installed or updated command is missing, restart Claude Code to load the new plugin version.
+- If Junto reports no project, run it inside a Git repository containing `.junto/config.json`, or use
+  `/junto:start` to create the initial configuration.
+- If an MCP command reports a closed connection once, start a new Claude Code session and retry. If it
+  repeats, run `claude plugin details junto@junto` and confirm the installed version.
+
+## Project links
+
+- [Website](https://vannt-dev.github.io/junto/)
+- [Releases](https://github.com/vannt-dev/junto/releases)
+- [Changelog](CHANGELOG.md)
+- [Report an issue](https://github.com/vannt-dev/junto/issues/new)
 
 MIT.

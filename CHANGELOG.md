@@ -9,6 +9,11 @@ All notable changes to junto are documented in this file. The project follows Se
 - Public GitHub Pages landing page with installation, lifecycle, status, and design-principle guidance.
 - Automatic Pages deployment from the self-contained `site/` directory.
 
+### Changed
+
+- Improve README onboarding with install verification, first-run behavior, explicit deep-task review
+  transition guidance, troubleshooting, current capabilities, and project links.
+
 ## [0.4.0] - 2026-09-08
 
 ### Added
