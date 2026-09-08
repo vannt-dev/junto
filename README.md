@@ -20,6 +20,7 @@ Requirements: Claude Code with plugin support and Node.js 20 or newer available 
 
 ```text
 /junto:start add JWT authentication to the API
+/junto:status           # show phase, next action, blockers, gates, and advisory budget
 /junto:plan
 /junto:approve          # only the user can approve; the model cannot approve its own plan
 /junto:panel [question] # deep: plan checkpoint; optional for other task sizes
@@ -33,6 +34,7 @@ Small and standard tasks skip the two panel calls in this example. A deep task e
 `panel` and `review` phases; panel opinions remain advisory and never replace quality-gate evidence.
 
 `/junto:finish` only archives tasks in the `done` phase, so required gates cannot be bypassed by finishing early.
+`/junto:status` is read-only and uses the same transition policy and verdict files as the lifecycle tools.
 
 ## Five principles
 

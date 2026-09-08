@@ -26483,6 +26483,65 @@ ${result.error}`
   return sections.join("\n\n");
 }
 
+// packages/mcp/src/tools/status.ts
+function nextAction(task) {
+  switch (task.phase) {
+    case "brief":
+      return "/junto:plan";
+    case "plan":
+      return "/junto:approve";
+    case "panel":
+      return "/junto:panel";
+    case "build":
+      return task.size === "deep" ? "advance to review, then run /junto:panel" : "/junto:verify";
+    case "review":
+      return "/junto:panel";
+    case "verify":
+      return "/junto:verify";
+    case "done":
+      return "/junto:finish";
+  }
+}
+function gateState(gate, verdictState) {
+  if (gate.verdict === null) return "not run";
+  if (gate.stale) return "stale";
+  return verdictState ?? "unreadable verdict";
+}
+function statusTool(ctx) {
+  const id = readActiveId(ctx.root);
+  if (id === null) return "No active task. Run /junto:start to create one.";
+  const task = readTask(ctx.root, id);
+  const config2 = readConfig(ctx.root);
+  const transitionContext = buildTransitionContext(ctx.root, task, config2);
+  const phases = requiredPhases(task.size);
+  const phaseIndex = phases.indexOf(task.phase);
+  const nextPhase = phaseIndex >= 0 ? phases[phaseIndex + 1] : void 0;
+  let blocker = "none";
+  if (nextPhase !== void 0) {
+    const check2 = canEnter(task, nextPhase, transitionContext);
+    if (!check2.ok) blocker = check2.reason;
+  }
+  const gates = Object.entries(task.gates).map(([name, gate]) => {
+    const requirement = gate.required ? "required" : "optional";
+    return `- ${name}: ${requirement}, ${gateState(gate, transitionContext.verdictStates[name] ?? null)}`;
+  });
+  const cap = config2.consultBudget?.maxTokensPerTask;
+  const budget = cap === void 0 ? `${task.consultTokensUsed} tokens recorded (no cap configured)` : `${task.consultTokensUsed}/${cap} tokens`;
+  return `# Junto status
+
+Task: ${task.id} \u2014 ${task.title}
+Size: ${task.size}
+Phase: ${task.phase}
+Next: ${nextAction(task)}
+Next phase: ${nextPhase ?? "none"}
+Blockers: ${blocker}
+Consult budget: ${budget}
+
+## Gates
+
+${gates.join("\n") || "(none)"}`;
+}
+
 // packages/mcp/src/tools/task.ts
 import { existsSync as existsSync9, mkdirSync as mkdirSync5, renameSync as renameSync2, writeFileSync as writeFileSync6 } from "node:fs";
 import { join as join9 } from "node:path";
@@ -26728,6 +26787,11 @@ var TOOLS = [
     }
   },
   {
+    name: "junto__status",
+    description: "Show the active task, current phase, next action, transition blockers, gate evidence states, and advisory token budget. Read-only: this tool never changes task state.",
+    inputSchema: { type: "object", properties: {} }
+  },
+  {
     name: "junto__consult",
     description: "Ask one advisory role (architect, adversary, pragmatist, reviewer, or a project-defined role in .junto/roles/) about the active task's brief and plan. Advisory only: the response never blocks a phase transition and is not evidence for a gate.",
     inputSchema: {
@@ -26771,6 +26835,9 @@ function createServer() {
           break;
         case "junto__advance":
           text = await advanceTool(ctx, advanceInput.parse(args));
+          break;
+        case "junto__status":
+          text = statusTool(ctx);
           break;
         case "junto__consult":
           text = await consultTool(ctx, consultInput.parse(args));

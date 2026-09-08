@@ -6,6 +6,7 @@ import { advanceTool } from "./tools/advance.js"
 import { consultTool } from "./tools/consult.js"
 import { consultContextInputSchema } from "./tools/context.js"
 import { panelTool } from "./tools/panel.js"
+import { statusTool } from "./tools/status.js"
 import { taskTool } from "./tools/task.js"
 import { verifyTool } from "./tools/verify.js"
 import { VERSION } from "./version.js"
@@ -75,6 +76,13 @@ const TOOLS = [
     },
   },
   {
+    name: "junto__status",
+    description:
+      "Show the active task, current phase, next action, transition blockers, gate evidence states, "
+      + "and advisory token budget. Read-only: this tool never changes task state.",
+    inputSchema: { type: "object" as const, properties: {} },
+  },
+  {
     name: "junto__consult",
     description:
       "Ask one advisory role (architect, adversary, pragmatist, reviewer, or a project-defined "
@@ -120,6 +128,7 @@ export function createServer(): Server {
         case "junto__task": text = await taskTool(ctx, taskInput.parse(args)); break
         case "junto__verify": text = await verifyTool(ctx, verifyInput.parse(args)); break
         case "junto__advance": text = await advanceTool(ctx, advanceInput.parse(args)); break
+        case "junto__status": text = statusTool(ctx); break
         case "junto__consult": text = await consultTool(ctx, consultInput.parse(args)); break
         case "junto__panel": text = await panelTool(ctx, panelInput.parse(args)); break
         default: throw new Error(`Unknown tool: ${request.params.name}`)

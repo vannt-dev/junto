@@ -2,6 +2,13 @@
 
 All notable changes to junto are documented in this file. The project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- Read-only `junto__status` tool and `/junto:status` command for task phase, next action, blockers,
+  gate evidence state, and advisory token budget.
+
 ## [0.3.0] - 2026-09-06
 
 ### Added
