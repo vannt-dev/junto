@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Junto is an evidence-based workflow engine for Claude Code with durable task state and real quality gates.">
+  <meta name="theme-color" content="#10120f">
+  <meta property="og:title" content="Junto — evidence, not promises">
+  <meta property="og:description" content="Durable task state, deterministic quality gates, and advisory multi-model review for Claude Code.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://vannt-dev.github.io/junto/">
+  <title>Junto — evidence, not promises</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="Junto home">
+      <span class="brand-mark" aria-hidden="true">J</span>
+      <span>junto</span>
+    </a>
+    <nav aria-label="Primary navigation">
+      <a href="#workflow">Workflow</a>
+      <a href="#principles">Principles</a>
+      <a href="https://github.com/vannt-dev/junto">GitHub</a>
+    </nav>
+    <span class="version" data-version>v0.4.0</span>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="pulse" aria-hidden="true"></span> Workflow engine for Claude Code</p>
+        <h1>Evidence,<br><em>not promises.</em></h1>
+        <p class="lede">Junto keeps agentic work on a durable path—from brief to verified result—with real command output as the only completion gate.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="#install">Install Junto</a>
+          <a class="button secondary" href="https://github.com/vannt-dev/junto/releases/latest">View latest release <span aria-hidden="true">↗</span></a>
+        </div>
+        <ul class="trust-row" aria-label="Project properties">
+          <li>No runtime downloads</li>
+          <li>Project-only writes</li>
+          <li>MIT licensed</li>
+        </ul>
+      </div>
+
+      <div class="terminal-wrap" aria-label="Example Junto status output">
+        <div class="terminal-glow"></div>
+        <div class="terminal">
+          <div class="terminal-bar">
+            <span></span><span></span><span></span>
+            <code>/junto:status</code>
+          </div>
+          <div class="terminal-body">
+            <p><span class="prompt">›</span> <strong>Task</strong> 2026-09-08-add-auth</p>
+            <p><span class="muted">Size</span> standard</p>
+            <p><span class="muted">Phase</span> <span class="chip amber">build</span></p>
+            <p><span class="muted">Next</span> /junto:verify</p>
+            <p><span class="muted">Blockers</span> none</p>
+            <div class="terminal-rule"></div>
+            <p><span class="check">✓</span> tests <span class="right">pass</span></p>
+            <p><span class="clock">○</span> typecheck <span class="right dim">not run</span></p>
+            <div class="cursor-line"><span class="prompt">›</span><span class="cursor" aria-hidden="true"></span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section workflow-section" id="workflow">
+      <div class="section-heading">
+        <p class="eyebrow">A lifecycle you can inspect</p>
+        <h2>Keep momentum.<br>Keep the proof.</h2>
+        <p>Junto makes the next action obvious while preserving decisions and gate evidence under your project.</p>
+      </div>
+
+      <div class="phase-track" aria-label="Deep task lifecycle">
+        <div class="phase"><span>01</span><strong>Brief</strong><small>Define the boundary</small></div>
+        <div class="connector"></div>
+        <div class="phase"><span>02</span><strong>Plan</strong><small>User approval</small></div>
+        <div class="connector"></div>
+        <div class="phase advisory"><span>03</span><strong>Panel</strong><small>Advisory review</small></div>
+        <div class="connector"></div>
+        <div class="phase active"><span>04</span><strong>Build</strong><small>Implement the work</small></div>
+        <div class="connector"></div>
+        <div class="phase advisory"><span>05</span><strong>Review</strong><small>Advisory review</small></div>
+        <div class="connector"></div>
+        <div class="phase"><span>06</span><strong>Verify</strong><small>Run real gates</small></div>
+        <div class="connector"></div>
+        <div class="phase"><span>07</span><strong>Done</strong><small>Archive evidence</small></div>
+      </div>
+    </section>
+
+    <section class="section principles" id="principles">
+      <div class="section-heading compact">
+        <p class="eyebrow">Designed to stay honest</p>
+        <h2>Policy at the center.</h2>
+      </div>
+      <div class="card-grid">
+        <article class="card featured">
+          <span class="card-number">01</span>
+          <h3>Real gates</h3>
+          <p>Tests are executed by the MCP tool. A model saying “it passed” is never accepted as evidence.</p>
+          <code>exit code → verdict → transition</code>
+        </article>
+        <article class="card">
+          <span class="card-number">02</span>
+          <h3>Durable state</h3>
+          <p>Tasks, plans, decisions, consults, and verdicts stay in <code>.junto/</code> inside your project.</p>
+        </article>
+        <article class="card">
+          <span class="card-number">03</span>
+          <h3>Human checkpoint</h3>
+          <p>Standard and deep plans require explicit user approval. The model cannot approve its own plan.</p>
+        </article>
+        <article class="card">
+          <span class="card-number">04</span>
+          <h3>Advisory models</h3>
+          <p>Anthropic, OpenAI, or CLI-backed roles can challenge a plan—but opinions never become gates.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section install" id="install">
+      <div>
+        <p class="eyebrow">Two commands. No bootstrap script.</p>
+        <h2>Add Junto to Claude Code.</h2>
+        <p>Requires Claude Code with plugin support and Node.js 20 or newer.</p>
+      </div>
+      <div class="install-box">
+        <div class="install-label"><span>Terminal</span><button type="button" data-copy aria-label="Copy install commands">Copy</button></div>
+        <pre><code data-install>claude plugin marketplace add vannt-dev/junto
+claude plugin install junto@junto</code></pre>
+      </div>
+      <div class="first-run">
+        <span>Then, inside a Git repository</span>
+        <code>/junto:start describe the work</code>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">J</span><span>junto</span></a>
+    <p>Open source under the MIT License.</p>
+    <div><a href="https://github.com/vannt-dev/junto">Source</a><a href="https://github.com/vannt-dev/junto/releases">Releases</a><a href="https://github.com/vannt-dev/junto/blob/main/README.md">Docs</a></div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

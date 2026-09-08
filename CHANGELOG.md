@@ -2,6 +2,13 @@
 
 All notable changes to junto are documented in this file. The project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- Public GitHub Pages landing page with installation, lifecycle, status, and design-principle guidance.
+- Automatic Pages deployment from the self-contained `site/` directory.
+
 ## [0.4.0] - 2026-09-08
 
 ### Added

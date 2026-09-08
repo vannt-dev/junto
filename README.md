@@ -2,8 +2,11 @@
 
 [![CI](https://github.com/vannt-dev/junto/actions/workflows/ci.yml/badge.svg)](https://github.com/vannt-dev/junto/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Website](https://img.shields.io/badge/website-vannt--dev.github.io%2Fjunto-c6f36b)](https://vannt-dev.github.io/junto/)
 
 Workflow engine for Claude Code with durable on-disk state, evidence-based quality gates, and no runtime downloads.
+
+[Explore the public site](https://vannt-dev.github.io/junto/) or install directly from the GitHub-backed marketplace below.
 
 ## Installation
 
