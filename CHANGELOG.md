@@ -6,11 +6,19 @@ All notable changes to junto are documented in this file. The project follows Se
 
 ### Added
 
+- Review gates: a gate with `"type": "review"` runs OpenCodeReview (`ocr`, `npm install -g @alibaba-group/open-code-review`) through the same verdict evidence as command gates. A missing reviewer is `skipped`, a broken or timed-out reviewer is `fail`, and findings at `failOn` severities (default critical and high) are `fail`. The requirement context is passed as a bounded `review-background.md`; raw reviewer output is redacted and stored beside the normalized result.
+- `junto__plan` MCP tool: deterministic plan from git changes, config `rules`, and the skill registry, written to `plan.resolved.json`.
+- Config `rules` (glob to skills, gates, approval) and `skills.roots`; skills declare `appliesTo` and `tags` in frontmatter or in the collection's `skillset.json`.
+- `ocr delegate preview` support for deterministic review scope without an LLM.
 - Public GitHub Pages landing page with installation, lifecycle, status, and design-principle guidance.
 - Automatic Pages deployment from the self-contained `site/` directory.
 
 ### Changed
 
+- Review verification and delegation preview cover both committed task changes and pending workspace edits; evidence retains each scope and a skipped scope never counts as a completed review.
+- Rules now enforce gates and human approval at verification and phase transitions, including small or auto-approved tasks, omitted task gates, deleted files, and missing gate definitions.
+- Changed-file resolution reports git failures instead of returning an empty list, handles paths with spaces and renames, and includes untracked files.
+- Review findings share one severity/category vocabulary with governed-agent-sdlc; reviewer infrastructure failures are provider errors, never findings.
 - Improve README onboarding with install verification, first-run behavior, explicit deep-task review
   transition guidance, troubleshooting, current capabilities, and project links.
 

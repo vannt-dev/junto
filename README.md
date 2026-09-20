@@ -72,6 +72,29 @@ When source files change, previous verdicts become stale and gates must run agai
 The `guard.js` hook blocks evidence writes through Edit/Write/MultiEdit, but it **cannot block Bash**.
 It prevents accidents and shortcuts; it is not a security boundary against a malicious actor.
 
+## OpenCodeReview gates and rules
+
+See [`examples/config.review.json`](examples/config.review.json) for a review gate and skill registry.
+Set the gate's `required` field to `true` when a completed review must block task completion.
+OpenCodeReview must be installed and configured separately; Junto uses `OPEN_CODE_REVIEW_BIN` or
+`ocr` on `PATH` and does not download a reviewer at runtime.
+
+The plan preview and verification cover the same task scope. Commits after the task's base are
+reviewed with `--from <base> --to <head-sha>`, and pending workspace edits get a separate review.
+Empty scopes are omitted unless the whole task has no changes. Each invocation uses the gate timeout.
+The normalized evidence records both scopes and their commands. Every selected scope must complete:
+a skipped review cannot satisfy a required gate, and one successful scope cannot hide another's failure.
+Since range mode reviews committed content, commit pending fixes before re-running when they resolve
+findings in the committed range. Start a new task after a rebase that removes the original task base.
+Create tasks after the repository's initial commit if you intend to make commits during the task;
+Junto refuses to guess a missing base after history has been created.
+
+Rules are re-evaluated when planning, verifying, showing status, and advancing phases. Matching gates
+are added even if the task started with a narrower gate list, and missing gate definitions block progress.
+Deleted files also trigger their rules. A rule with `approvalRequired: true` overrides `autoApprove`;
+write `plan.md` and have the user run `/junto:approve`. This also works for small tasks and rules first
+matched during implementation. Status remains read-only.
+
 ## Advisory consult and panel
 
 `junto__consult` asks one advisory role (`architect`, `adversary`, `pragmatist`, `reviewer`, or a
