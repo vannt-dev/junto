@@ -15,7 +15,7 @@ afterEach(() => {
 })
 
 describe("MCP bundle stdio", () => {
-  it("starts and exposes all six tools", async () => {
+  it("starts and exposes all seven tools", async () => {
     const root = mkdtempSync(join(tmpdir(), "junto-mcp-"))
     temporaryRoots.push(root)
     mkdirSync(join(root, ".junto"), { recursive: true })
@@ -35,6 +35,7 @@ describe("MCP bundle stdio", () => {
         "junto__advance",
         "junto__consult",
         "junto__panel",
+        "junto__plan",
         "junto__status",
         "junto__task",
         "junto__verify",

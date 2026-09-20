@@ -109,9 +109,10 @@ export async function runGate(opts: RunGateOptions): Promise<VerdictFile> {
   const cwd = root
   const startedAt = new Date().toISOString()
   const t0 = Date.now()
-  const [cmd, ...args] = spec.argv
+  const argv = spec.argv ?? []
+  const [cmd, ...args] = argv
 
-  // The schema requires argv.length >= 1, but TypeScript cannot infer that refinement.
+  // The schema requires argv.length >= 1 for command gates, but TypeScript cannot infer that refinement.
   const outcome = cmd === undefined
     ? skipOutcome(name, "empty argv")
     : resolveExecutable(cmd, cwd)
@@ -125,7 +126,7 @@ export async function runGate(opts: RunGateOptions): Promise<VerdictFile> {
   const verdict: VerdictFile = {
     schemaVersion: SCHEMA_VERSION,
     gate: name,
-    argv: spec.argv,
+    argv,
     cwd,
     exitCode: outcome.exitCode,
     state: outcome.state,

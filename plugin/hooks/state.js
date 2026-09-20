@@ -5,6 +5,10 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
+// src-hooks/state.ts
+import { existsSync as existsSync3 } from "node:fs";
+import { join as join3 } from "node:path";
+
 // node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/external.js
 var external_exports = {};
 __export(external_exports, {
@@ -4087,6 +4091,7 @@ var taskSchema = external_exports.object({
   size: sizeSchema,
   phase: phaseSchema,
   baseCommit: external_exports.string().nullable(),
+  ruleApprovalRequired: external_exports.boolean().optional(),
   createdAt: external_exports.string(),
   updatedAt: external_exports.string(),
   phases: external_exports.record(external_exports.string(), phaseStatusSchema),
@@ -4095,11 +4100,29 @@ var taskSchema = external_exports.object({
   consults: external_exports.array(external_exports.string()),
   consultTokensUsed: external_exports.number().int().min(0).default(0)
 });
+var reviewSeveritySchema = external_exports.enum(["critical", "high", "medium", "low", "info"]);
 var gateSpecSchema = external_exports.object({
-  argv: external_exports.array(external_exports.string()).min(1),
+  type: external_exports.enum(["command", "review"]).optional(),
+  argv: external_exports.array(external_exports.string()).min(1).optional(),
+  provider: external_exports.literal("open-code-review").optional(),
+  failOn: external_exports.array(reviewSeveritySchema).min(1).optional(),
   required: external_exports.boolean(),
   timeoutMs: external_exports.number().int().positive().optional()
+}).superRefine((spec, ctx) => {
+  if ((spec.type ?? "command") === "command" && spec.argv === void 0) {
+    ctx.addIssue({ code: external_exports.ZodIssueCode.custom, message: "A command gate requires argv", path: ["argv"] });
+  }
 });
+var ruleSpecSchema = external_exports.object({
+  id: external_exports.string().min(1),
+  match: external_exports.array(external_exports.string().min(1)).min(1),
+  skills: external_exports.array(external_exports.string().min(1)).optional(),
+  gates: external_exports.array(external_exports.string().min(1)).optional(),
+  approvalRequired: external_exports.boolean().optional()
+}).strict();
+var skillsConfigSchema = external_exports.object({
+  roots: external_exports.array(external_exports.string().min(1)).default([])
+}).strict();
 var providerSchema = external_exports.enum(["anthropic", "openai"]);
 var backendSpecSchema = external_exports.object({
   apiKeyEnv: external_exports.string().min(1),
@@ -4131,8 +4154,18 @@ var configSchema = external_exports.object({
   cliBackends: external_exports.record(external_exports.string(), cliBackendSpecSchema).optional(),
   roles: external_exports.record(external_exports.string(), roleSpecSchema).optional(),
   consultBudget: consultBudgetSchema.optional(),
-  consultContext: consultContextConfigSchema.optional()
-}).passthrough();
+  consultContext: consultContextConfigSchema.optional(),
+  rules: external_exports.array(ruleSpecSchema).optional(),
+  skills: skillsConfigSchema.optional()
+}).passthrough().superRefine((config, ctx) => {
+  const seen = /* @__PURE__ */ new Set();
+  for (const [index, rule] of (config.rules ?? []).entries()) {
+    if (seen.has(rule.id)) {
+      ctx.addIssue({ code: external_exports.ZodIssueCode.custom, message: `Duplicate rule id "${rule.id}"`, path: ["rules", index, "id"] });
+    }
+    seen.add(rule.id);
+  }
+});
 function parseTask(raw) {
   assertVersion(raw);
   return taskSchema.parse(raw);
@@ -4254,6 +4287,9 @@ function updateTask(root, id, update) {
   });
 }
 
+// packages/core/src/review.ts
+var MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
+
 // src-hooks/lib/io.ts
 async function readStdin() {
   const chunks = [];
@@ -4320,15 +4356,19 @@ function handleState(input) {
     return "";
   }
   if (isApproval(input.prompt ?? "")) {
-    if (task.phase !== "plan") {
+    const ruleCheckpoint = task.ruleApprovalRequired && task.phase !== "done";
+    if (task.phase !== "plan" && !ruleCheckpoint) {
       return contextOutput(`Task "${id}" is not in the plan phase (current: "${task.phase}"); there is nothing to approve.`);
     }
+    if (ruleCheckpoint && !existsSync3(join3(taskDir(root, id), "plan.md"))) {
+      return contextOutput("A matched rule requires a plan. Write plan.md before requesting /junto:approve.");
+    }
     updateTask(root, id, (current) => {
-      if (current.phase !== "plan") throw new Error("The task left the plan phase while approval was being recorded.");
-      current.phases.plan = { ...current.phases.plan ?? { status: "active" }, approvedBy: "user" };
+      if (current.phase !== task.phase) throw new Error("The task changed phase while approval was being recorded.");
+      current.phases.plan = { ...current.phases.plan ?? { status: "done" }, approvedBy: "user" };
     });
     return contextOutput(
-      `The user approved the plan for task "${id}". Call junto__advance with to="${task.size === "deep" ? "panel" : "build"}" to enter the next phase.`
+      `The user approved the plan for task "${id}". ` + (task.phase === "plan" ? `Call junto__advance with to="${task.size === "deep" ? "panel" : "build"}" to enter the next phase.` : "The rule's human approval checkpoint is satisfied. Continue the current phase.")
     );
   }
   return contextOutput(renderStateBlock(task));

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "gates": {
+    "tests": {
+      "argv": ["npm", "test"],
+      "required": true,
+      "timeoutMs": 120000
+    },
+    "typecheck": {
+      "argv": ["npm", "run", "typecheck"],
+      "required": true,
+      "timeoutMs": 120000
+    },
+    "code-review": {
+      "type": "review",
+      "provider": "open-code-review",
+      "failOn": ["critical", "high"],
+      "required": false,
+      "timeoutMs": 600000
+    }
+  },
+  "rules": [
+    { "id": "auth", "match": ["**/auth/**"], "skills": ["review-code"], "approvalRequired": true },
+    { "id": "typescript", "match": ["**/*.ts", "**/*.tsx"] }
+  ],
+  "skills": {
+    "roots": ["../ai-engineering-skills"]
+  }
+}

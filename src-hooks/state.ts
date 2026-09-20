@@ -1,4 +1,6 @@
-import { findProjectRoot, readActiveId, readTask, updateTask, type Task } from "@junto/core"
+import { existsSync } from "node:fs"
+import { join } from "node:path"
+import { findProjectRoot, readActiveId, readTask, taskDir, updateTask, type Task } from "@junto/core"
 import { runHook } from "./lib/io.js"
 import { contextOutput } from "./lib/render.js"
 
@@ -44,16 +46,22 @@ export function handleState(input: { prompt?: string, cwd?: string }): string {
   }
 
   if (isApproval(input.prompt ?? "")) {
-    if (task.phase !== "plan") {
+    const ruleCheckpoint = task.ruleApprovalRequired && task.phase !== "done"
+    if (task.phase !== "plan" && !ruleCheckpoint) {
       return contextOutput(`Task "${id}" is not in the plan phase (current: "${task.phase}"); there is nothing to approve.`)
     }
+    if (ruleCheckpoint && !existsSync(join(taskDir(root, id), "plan.md"))) {
+      return contextOutput("A matched rule requires a plan. Write plan.md before requesting /junto:approve.")
+    }
     updateTask(root, id, (current) => {
-      if (current.phase !== "plan") throw new Error("The task left the plan phase while approval was being recorded.")
-      current.phases.plan = { ...(current.phases.plan ?? { status: "active" }), approvedBy: "user" }
+      if (current.phase !== task.phase) throw new Error("The task changed phase while approval was being recorded.")
+      current.phases.plan = { ...(current.phases.plan ?? { status: "done" }), approvedBy: "user" }
     })
     return contextOutput(
       `The user approved the plan for task "${id}". `
-      + `Call junto__advance with to="${task.size === "deep" ? "panel" : "build"}" to enter the next phase.`,
+      + (task.phase === "plan"
+        ? `Call junto__advance with to="${task.size === "deep" ? "panel" : "build"}" to enter the next phase.`
+        : "The rule's human approval checkpoint is satisfied. Continue the current phase."),
     )
   }
 

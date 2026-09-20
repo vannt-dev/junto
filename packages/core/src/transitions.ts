@@ -11,6 +11,7 @@ export interface TransitionContext {
   autoApprove: Size[]
   /** Gate name to state read from its verdict file; null means no verdict. */
   verdictStates: Record<string, GateState | null>
+  unknownRuleGates?: string[]
 }
 
 const SMALL_PHASES: Phase[] = ["build", "verify", "done"]
@@ -36,6 +37,16 @@ export function canEnter(task: Task, to: Phase, ctx: TransitionContext): Transit
   if (from === -1) return { ok: false, reason: `Current phase "${task.phase}" is not part of the "${task.size}" lifecycle.` }
   if (target !== from + 1) {
     return { ok: false, reason: `Only adjacent phase transitions are allowed. Current: "${task.phase}"; requested: "${to}".` }
+  }
+
+  if (ctx.unknownRuleGates?.length) {
+    return { ok: false, reason: `Rules reference unconfigured gates: ${ctx.unknownRuleGates.join(", ")}. Fix .junto/config.json.` }
+  }
+  if (task.ruleApprovalRequired && to !== "plan") {
+    if (!ctx.planExists) return { ok: false, reason: "A matched rule requires a plan and human approval. Write plan.md, then ask the user to type /junto:approve." }
+    if (task.phases.plan?.approvedBy !== "user") {
+      return { ok: false, reason: "A matched rule requires human approval, including auto-approved task sizes. The user must type /junto:approve." }
+    }
   }
 
   // L1

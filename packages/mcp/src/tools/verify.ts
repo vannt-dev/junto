@@ -1,6 +1,10 @@
-import { readActiveId, readConfig, readTask, runGate, writeTask } from "@junto/core"
-import type { VerdictFile } from "@junto/core"
+import {
+  OpenCodeReviewProvider, ScopedReviewProvider, readActiveId, readConfig, readTask, resolveReviewScopes, runGate, runReviewGate,
+  writeReviewBackground, writeTask,
+} from "@junto/core"
+import type { GateSpec, Task, VerdictFile } from "@junto/core"
 import type { ToolContext } from "../context.js"
+import { resolveTaskPolicy } from "./policy.js"
 
 const FAIL_STREAK_HINT_AT = 3
 
@@ -26,12 +30,31 @@ function render(v: VerdictFile, streak: number): string {
     + `\`\`\`\n${v.outputTail}\n\`\`\`${hint}`
 }
 
+async function runReview(ctx: ToolContext, task: Task, name: string, spec: GateSpec): Promise<VerdictFile> {
+  const scopes = await resolveReviewScopes(ctx.root, task.baseCommit)
+  const backgroundFile = writeReviewBackground(ctx.root, task.id, task.title)
+  return runReviewGate({
+    root: ctx.root,
+    taskId: task.id,
+    name,
+    provider: new ScopedReviewProvider(new OpenCodeReviewProvider({ ...(spec.timeoutMs ? { timeoutMs: spec.timeoutMs } : {}) }), scopes),
+    context: {
+      ...(backgroundFile ? { backgroundFile } : {}),
+    },
+    ...(spec.failOn ? { failOn: spec.failOn } : {}),
+    runner: ctx.runner,
+  })
+}
+
 export async function verifyTool(ctx: ToolContext, input: { gates?: string[] }): Promise<string> {
   const id = readActiveId(ctx.root)
   if (id === null) throw new Error("No active task. Run /junto:start first.")
 
   const config = readConfig(ctx.root)
-  const task = readTask(ctx.root, id)
+  const stored = readTask(ctx.root, id)
+  const { task, unknownGates } = await resolveTaskPolicy(ctx.root, stored, config)
+  if (JSON.stringify(task) !== JSON.stringify(stored)) writeTask(ctx.root, task)
+  if (unknownGates.length) throw new Error(`Rules reference unconfigured gates: ${unknownGates.join(", ")}. Fix .junto/config.json.`)
   const names = input.gates ?? Object.keys(task.gates)
 
   const sections: string[] = []
@@ -43,7 +66,13 @@ export async function verifyTool(ctx: ToolContext, input: { gates?: string[] }):
       continue
     }
 
-    const verdict = await runGate({ root: ctx.root, taskId: id, name, spec, runner: ctx.runner })
+    // A failed scope lookup or spawn must not leave a previous passing verdict current.
+    status.stale = true
+    writeTask(ctx.root, task)
+
+    const verdict = spec.type === "review"
+      ? await runReview(ctx, task, name, spec)
+      : await runGate({ root: ctx.root, taskId: id, name, spec, runner: ctx.runner })
 
     // Build the path from the validated name rather than coupling to outputFile formatting.
     status.verdict = `verdicts/${name}.json`

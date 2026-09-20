@@ -1,8 +1,10 @@
 import { canEnter, readActiveId, readConfig, readTask, requiredPhases, type GateState, type Task } from "@junto/core"
 import type { ToolContext } from "../context.js"
 import { buildTransitionContext } from "./advance.js"
+import { resolveTaskPolicy } from "./policy.js"
 
 function nextAction(task: Task): string {
+  if (task.ruleApprovalRequired && task.phases.plan?.approvedBy !== "user") return "/junto:plan, then /junto:approve"
   switch (task.phase) {
     case "brief": return "/junto:plan"
     case "plan": return "/junto:approve"
@@ -24,13 +26,13 @@ function gateState(
 }
 
 /** Render a read-only summary using the same disk facts and policy as phase transitions. */
-export function statusTool(ctx: ToolContext): string {
+export async function statusTool(ctx: ToolContext): Promise<string> {
   const id = readActiveId(ctx.root)
   if (id === null) return "No active task. Run /junto:start to create one."
 
-  const task = readTask(ctx.root, id)
   const config = readConfig(ctx.root)
-  const transitionContext = buildTransitionContext(ctx.root, task, config)
+  const { task, unknownGates } = await resolveTaskPolicy(ctx.root, readTask(ctx.root, id), config)
+  const transitionContext = { ...buildTransitionContext(ctx.root, task, config), unknownRuleGates: unknownGates }
   const phases = requiredPhases(task.size)
   const phaseIndex = phases.indexOf(task.phase)
   const nextPhase = phaseIndex >= 0 ? phases[phaseIndex + 1] : undefined
