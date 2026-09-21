@@ -4,7 +4,7 @@ function normalize(p: string): string {
 }
 
 /** Convert a glob to regex. Supports `**`, `*`, and `?`; `*` never crosses `/`. */
-function globToRegExp(glob: string): RegExp {
+export function globToRegExp(glob: string): RegExp {
   let out = "^"
   for (let i = 0; i < glob.length; i++) {
     const c = glob[i]

@@ -6,9 +6,11 @@ import { advanceTool } from "./tools/advance.js"
 import { consultTool } from "./tools/consult.js"
 import { consultContextInputSchema } from "./tools/context.js"
 import { panelTool } from "./tools/panel.js"
+import { planTool } from "./tools/plan.js"
 import { statusTool } from "./tools/status.js"
 import { taskTool } from "./tools/task.js"
 import { verifyTool } from "./tools/verify.js"
+import { reportTool } from "./tools/report.js"
 import { VERSION } from "./version.js"
 
 const taskInput = z.discriminatedUnion("action", [
@@ -40,6 +42,11 @@ const contextProperty = {
 
 const TOOLS = [
   {
+    name: "junto__report",
+    description: "Read stored review findings, verdicts and events. Optionally export escaped static HTML under .junto/. Does not change task state.",
+    inputSchema: { type: "object" as const, properties: { html: { type: "boolean", description: "Export an HTML report under the active task" } } },
+  },
+  {
     name: "junto__task",
     description:
       "Manage the junto task lifecycle: start creates a task, switch changes the active task, "
@@ -65,6 +72,14 @@ const TOOLS = [
       type: "object" as const,
       properties: { gates: { type: "array", items: { type: "string" }, description: "Omit to run all gates" } },
     },
+  },
+  {
+    name: "junto__plan",
+    description:
+      "Deterministic plan for the active task: changed files from git, rules from .junto/config.json, "
+      + "selected skills, gates and approval requirement. Writes .junto/tasks/<id>/plan.resolved.json. "
+      + "No model is involved; use the file list it returns instead of discovering changes yourself.",
+    inputSchema: { type: "object" as const, properties: {} },
   },
   {
     name: "junto__advance",
@@ -127,8 +142,10 @@ export function createServer(): Server {
       switch (request.params.name) {
         case "junto__task": text = await taskTool(ctx, taskInput.parse(args)); break
         case "junto__verify": text = await verifyTool(ctx, verifyInput.parse(args)); break
+        case "junto__report": text = await reportTool(ctx, z.object({ html: z.boolean().optional() }).parse(args)); break
+        case "junto__plan": text = await planTool(ctx); break
         case "junto__advance": text = await advanceTool(ctx, advanceInput.parse(args)); break
-        case "junto__status": text = statusTool(ctx); break
+        case "junto__status": text = await statusTool(ctx); break
         case "junto__consult": text = await consultTool(ctx, consultInput.parse(args)); break
         case "junto__panel": text = await panelTool(ctx, panelInput.parse(args)); break
         default: throw new Error(`Unknown tool: ${request.params.name}`)

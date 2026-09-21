@@ -47,6 +47,7 @@ export const taskSchema = z.object({
   size: sizeSchema,
   phase: phaseSchema,
   baseCommit: z.string().nullable(),
+  ruleApprovalRequired: z.boolean().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   phases: z.record(z.string(), phaseStatusSchema),
@@ -56,11 +57,36 @@ export const taskSchema = z.object({
   consultTokensUsed: z.number().int().min(0).default(0),
 })
 
+export const reviewSeveritySchema = z.enum(["critical", "high", "medium", "low", "info"])
+
+/**
+ * A gate is either a command (default) or a review. Both produce the same verdict evidence and
+ * only the real result of the command or reviewer can set the state.
+ */
 export const gateSpecSchema = z.object({
-  argv: z.array(z.string()).min(1),
+  type: z.enum(["command", "review"]).optional(),
+  argv: z.array(z.string()).min(1).optional(),
+  provider: z.enum(["open-code-review", "cli"]).optional(),
+  failOn: z.array(reviewSeveritySchema).min(1).optional(),
   required: z.boolean(),
   timeoutMs: z.number().int().positive().optional(),
+}).superRefine((spec, ctx) => {
+  if ((spec.type ?? "command") === "command" && spec.argv === undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A command gate requires argv", path: ["argv"] })
+  }
 })
+
+export const ruleSpecSchema = z.object({
+  id: z.string().min(1),
+  match: z.array(z.string().min(1)).min(1),
+  skills: z.array(z.string().min(1)).optional(),
+  gates: z.array(z.string().min(1)).optional(),
+  approvalRequired: z.boolean().optional(),
+}).strict()
+
+export const skillsConfigSchema = z.object({
+  roots: z.array(z.string().min(1)).default([]),
+}).strict()
 
 export const providerSchema = z.enum(["anthropic", "openai"])
 export type Provider = z.infer<typeof providerSchema>
@@ -101,7 +127,17 @@ export const configSchema = z.object({
   roles: z.record(z.string(), roleSpecSchema).optional(),
   consultBudget: consultBudgetSchema.optional(),
   consultContext: consultContextConfigSchema.optional(),
-}).passthrough()
+  rules: z.array(ruleSpecSchema).optional(),
+  skills: skillsConfigSchema.optional(),
+}).passthrough().superRefine((config, ctx) => {
+  const seen = new Set<string>()
+  for (const [index, rule] of (config.rules ?? []).entries()) {
+    if (seen.has(rule.id)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Duplicate rule id "${rule.id}"`, path: ["rules", index, "id"] })
+    }
+    seen.add(rule.id)
+  }
+})
 
 export type Phase = z.infer<typeof phaseSchema>
 export type Size = z.infer<typeof sizeSchema>
@@ -111,6 +147,8 @@ export type GateStatus = z.infer<typeof gateStatusSchema>
 export type Decision = z.infer<typeof decisionSchema>
 export type Task = z.infer<typeof taskSchema>
 export type GateSpec = z.infer<typeof gateSpecSchema>
+export type RuleSpec = z.infer<typeof ruleSpecSchema>
+export type SkillsConfig = z.infer<typeof skillsConfigSchema>
 export type BackendSpec = z.infer<typeof backendSpecSchema>
 export type CliBackendSpec = z.infer<typeof cliBackendSpecSchema>
 export type RoleSpec = z.infer<typeof roleSpecSchema>

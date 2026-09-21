@@ -30,14 +30,14 @@ function activeId(): string {
 }
 
 describe("statusTool", () => {
-  it("reports clearly when no task is active", () => {
-    expect(statusTool(ctx())).toMatch(/no active task/i)
+  it("reports clearly when no task is active", async () => {
+    expect(await statusTool(ctx())).toMatch(/no active task/i)
   })
 
   it("shows identity, next action, gate state, budget, and a transition blocker", async () => {
     await taskTool(ctx(), { action: "start", title: "Add auth", size: "standard" })
 
-    const output = statusTool(ctx())
+    const output = await statusTool(ctx())
 
     expect(output).toMatch(/Add auth/)
     expect(output).toMatch(/standard/)
@@ -53,7 +53,7 @@ describe("statusTool", () => {
     await advanceTool(ctx(), { to: "verify" })
     await verifyTool(ctx(), {})
 
-    expect(statusTool(ctx())).toMatch(/tests: required, pass/)
+    expect(await statusTool(ctx())).toMatch(/tests: required, pass/)
 
     const id = activeId()
     const task = readTask(root, id)
@@ -62,7 +62,7 @@ describe("statusTool", () => {
     tests.stale = true
     writeTask(root, task)
 
-    const stale = statusTool(ctx())
+    const stale = await statusTool(ctx())
     expect(stale).toMatch(/tests: required, stale/)
     expect(stale).toMatch(/stale evidence/)
   })
@@ -73,7 +73,7 @@ describe("statusTool", () => {
     await verifyTool(ctx(), {})
     await advanceTool(ctx(), { to: "done" })
 
-    const output = statusTool(ctx())
+    const output = await statusTool(ctx())
     expect(output).toMatch(/Phase: done/)
     expect(output).toMatch(/Next: \/junto:finish/)
     expect(output).toMatch(/Blockers: none/)
@@ -89,6 +89,6 @@ describe("statusTool", () => {
     writeTask(root, task)
     writeFileSync(join(taskDir(root, id), "verdicts", "tests.json"), "not json")
 
-    expect(statusTool(ctx())).toMatch(/tests: required, unreadable verdict/)
+    expect(await statusTool(ctx())).toMatch(/tests: required, unreadable verdict/)
   })
 })

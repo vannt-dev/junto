@@ -143,4 +143,14 @@ describe("handleState - approval recording", () => {
     seed({ phase: "build", phases: { build: { status: "active" } } })
     expect(handleState({ prompt: "/junto:approve", cwd: root })).toMatch(/not in the plan phase/i)
   })
+
+  it("lets a human satisfy a rule checkpoint on a small task after writing its plan", () => {
+    const task = seed({ size: "small", phase: "build", phases: {}, ruleApprovalRequired: true })
+    expect(handleState({ prompt: "/junto:approve", cwd: root })).toMatch(/Write plan.md/)
+    expect(readTask(root, task.id).phases.plan?.approvedBy).toBeUndefined()
+    writeFileSync(join(taskDir(root, task.id), "plan.md"), "Check authorization.")
+    expect(handleState({ prompt: "/junto:approve", cwd: root })).toMatch(/checkpoint is satisfied/)
+    expect(readTask(root, task.id).phases.plan?.approvedBy).toBe("user")
+    expect(readTask(root, task.id).phase).toBe("build")
+  })
 })

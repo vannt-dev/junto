@@ -33,7 +33,7 @@ corepack pnpm --filter @junto/core add <package>
   Never touch `~/.claude`, user settings, or the project's root `.gitignore`.
 - **R2 - No runtime downloads.** No downloaded binaries, `chmod`, CDN bootstrap, or startup-time `npx`.
 - **R3 - Never persist secrets.** Configuration stores environment variable names, never API key values.
-- **R5 - Deterministic gates, advisory panels.** Only a real command exit code may block a phase transition.
+- **R5 - Deterministic gates, advisory panels.** Command exit codes and explicit severity policy over validated review findings may block a phase transition. Advisory consult/panel opinions cannot satisfy or block gates. Missing, incomplete or broken required reviews never pass.
 - Always spawn commands with argv arrays; never concatenate shell command strings.
 - `SCHEMA_VERSION` remains 1 until an intentional migration is designed. Reject future schema versions clearly.
 - `canEnter()` must stay pure. Pass all filesystem facts in through `TransitionContext`.

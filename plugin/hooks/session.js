@@ -4091,6 +4091,7 @@ var taskSchema = external_exports.object({
   size: sizeSchema,
   phase: phaseSchema,
   baseCommit: external_exports.string().nullable(),
+  ruleApprovalRequired: external_exports.boolean().optional(),
   createdAt: external_exports.string(),
   updatedAt: external_exports.string(),
   phases: external_exports.record(external_exports.string(), phaseStatusSchema),
@@ -4099,11 +4100,29 @@ var taskSchema = external_exports.object({
   consults: external_exports.array(external_exports.string()),
   consultTokensUsed: external_exports.number().int().min(0).default(0)
 });
+var reviewSeveritySchema = external_exports.enum(["critical", "high", "medium", "low", "info"]);
 var gateSpecSchema = external_exports.object({
-  argv: external_exports.array(external_exports.string()).min(1),
+  type: external_exports.enum(["command", "review"]).optional(),
+  argv: external_exports.array(external_exports.string()).min(1).optional(),
+  provider: external_exports.enum(["open-code-review", "cli"]).optional(),
+  failOn: external_exports.array(reviewSeveritySchema).min(1).optional(),
   required: external_exports.boolean(),
   timeoutMs: external_exports.number().int().positive().optional()
+}).superRefine((spec, ctx) => {
+  if ((spec.type ?? "command") === "command" && spec.argv === void 0) {
+    ctx.addIssue({ code: external_exports.ZodIssueCode.custom, message: "A command gate requires argv", path: ["argv"] });
+  }
 });
+var ruleSpecSchema = external_exports.object({
+  id: external_exports.string().min(1),
+  match: external_exports.array(external_exports.string().min(1)).min(1),
+  skills: external_exports.array(external_exports.string().min(1)).optional(),
+  gates: external_exports.array(external_exports.string().min(1)).optional(),
+  approvalRequired: external_exports.boolean().optional()
+}).strict();
+var skillsConfigSchema = external_exports.object({
+  roots: external_exports.array(external_exports.string().min(1)).default([])
+}).strict();
 var providerSchema = external_exports.enum(["anthropic", "openai"]);
 var backendSpecSchema = external_exports.object({
   apiKeyEnv: external_exports.string().min(1),
@@ -4135,8 +4154,18 @@ var configSchema = external_exports.object({
   cliBackends: external_exports.record(external_exports.string(), cliBackendSpecSchema).optional(),
   roles: external_exports.record(external_exports.string(), roleSpecSchema).optional(),
   consultBudget: consultBudgetSchema.optional(),
-  consultContext: consultContextConfigSchema.optional()
-}).passthrough();
+  consultContext: consultContextConfigSchema.optional(),
+  rules: external_exports.array(ruleSpecSchema).optional(),
+  skills: skillsConfigSchema.optional()
+}).passthrough().superRefine((config, ctx) => {
+  const seen = /* @__PURE__ */ new Set();
+  for (const [index, rule] of (config.rules ?? []).entries()) {
+    if (seen.has(rule.id)) {
+      ctx.addIssue({ code: external_exports.ZodIssueCode.custom, message: `Duplicate rule id "${rule.id}"`, path: ["rules", index, "id"] });
+    }
+    seen.add(rule.id);
+  }
+});
 function parseTask(raw) {
   assertVersion(raw);
   return taskSchema.parse(raw);
@@ -4196,6 +4225,12 @@ function readTask(root, id) {
   const path = join2(taskDir(root, id), "task.json");
   return parseTask(JSON.parse(readFileSync(path, "utf-8")));
 }
+
+// packages/core/src/review.ts
+var MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
+
+// packages/core/src/cli-review.ts
+var MAX_CONTEXT = 512 * 1024;
 
 // src-hooks/lib/io.ts
 async function readStdin() {

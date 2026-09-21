@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "input": {
+    "status": "complete",
+    "comments": [
+      {"path": "src\\a.py", "content": "Broken condition", "severity": "error", "category": "bug", "start_line": 4, "end_line": 5},
+      {"path": "src/b.ts", "content": "Check this", "severity": "unknown", "category": "test", "start_line": 0}
+    ]
+  },
+  "findings": [
+    {"id": "ocr-1", "source": "open-code-review", "severity": "high", "category": "correctness", "file": "src/a.py", "line": 4, "message": "Broken condition", "metadata": {"end_line": 5}},
+    {"id": "ocr-2", "source": "open-code-review", "severity": "medium", "category": "testing", "file": "src/b.ts", "line": null, "message": "Check this", "metadata": {}}
+  ]
+}

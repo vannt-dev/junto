@@ -1,6 +1,6 @@
 ---
 description: Write an implementation plan for the active junto task
-allowed-tools: Read, Glob, Grep, Write, mcp__junto__junto__advance, mcp__code-review-graph__semantic_search_nodes_tool, mcp__code-review-graph__get_review_context_tool, mcp__code-review-graph__traverse_graph_tool, mcp__code-review-graph__get_impact_radius_tool
+allowed-tools: Read, Glob, Grep, Write, mcp__junto__junto__plan, mcp__junto__junto__advance, mcp__code-review-graph__semantic_search_nodes_tool, mcp__code-review-graph__get_review_context_tool, mcp__code-review-graph__traverse_graph_tool, mcp__code-review-graph__get_impact_radius_tool
 ---
 
 Write an implementation plan for the active junto task.
@@ -11,8 +11,13 @@ Write an implementation plan for the active junto task.
    and check impact radius before falling back to Read/Glob/Grep. Follow project instructions for
    `repo_root`; do not invent one. If graph tools are unavailable or still empty after one corrected
    retry, state the fallback briefly and continue with the native tools.
-3. Write `.junto/tasks/<id>/plan.md` with numbered steps, affected files, and verification for each step.
-4. Write `.junto/tasks/<id>/context.jsonl`; each line is `{"file":"...","reason":"..."}` for files a subagent needs.
-5. Call `junto__advance` with `to: "plan"` if the task is still in `brief`.
+3. Call `junto__plan` once. It returns the changed files from git, the rules that matched, the skills
+   to apply, the gates, and whether approval is required, without involving a model. Use its file and
+   skill lists instead of discovering them yourself, and note any skill marked NOT FOUND or any gate
+   reported as missing from `.junto/config.json` in the plan. If it fails because git cannot report
+   changes, say so instead of guessing.
+4. Write `.junto/tasks/<id>/plan.md` with numbered steps, affected files, and verification for each step.
+5. Write `.junto/tasks/<id>/context.jsonl`; each line is `{"file":"...","reason":"..."}` for files a subagent needs.
+6. Call `junto__advance` with `to: "plan"` if the task is still in `brief`.
 
 Then stop. Do not transition to `build`. Ask the user to review the plan and type `/junto:approve` if they agree.

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vannt-dev/governed-agent-sdlc/contracts/v1/review-finding.schema.json",
+  "x-contract-version": 1,
+  "title": "Normalized review finding",
+  "description": "Shared contract between governed-agent-sdlc (agentkit.review) and junto (packages/core/src/review.ts). Provider-specific schemas stop at each adapter; policies and gates only see this shape.",
+  "type": "object",
+  "required": ["id", "source", "severity", "category", "file", "line", "message", "metadata"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "source": { "type": "string", "minLength": 1 },
+    "severity": { "enum": ["critical", "high", "medium", "low", "info"] },
+    "category": {
+      "enum": [
+        "security",
+        "correctness",
+        "performance",
+        "maintainability",
+        "testing",
+        "architecture",
+        "other"
+      ]
+    },
+    "file": { "type": "string", "minLength": 1 },
+    "line": { "type": ["integer", "null"], "minimum": 1 },
+    "message": { "type": "string" },
+    "metadata": { "type": "object" }
+  }
+}
