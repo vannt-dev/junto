@@ -119,6 +119,13 @@ bounded output tail and metadata. Successful tool output stays terse, while fail
 Any relevant code edit marks existing verdicts stale. `staleIgnore` defaults to Markdown, docs, and `.junto`
 paths. Three consecutive real failures prompt reconsideration of the plan; skipped runs do not affect the streak.
 
+Review gates additionally bind verdicts to a source/index/HEAD fingerprint, review configuration, task
+base and requirement context. Capture before and after the reviewer runs; recheck at status, transition,
+and archive boundaries. Shell and external edits are detected without a hook. Missing legacy review
+fingerprints require another review. Command gates retain their existing hook invalidation behavior.
+Hooks increment an optional per-gate invalidation version even while evidence is already stale.
+Verification preserves invalidations received during the run, including edits reverted before completion.
+
 ## 8. Hooks
 
 - `session.js` (`SessionStart`): restore the full brief, plan, and recorded decisions after startup/resume/compaction.

@@ -484,6 +484,7 @@ export interface RunReviewGateOptions {
   /** Severities that fail the gate. Defaults to critical and high. */
   failOn?: ReviewSeverity[]
   runner: string
+  reviewFingerprint?: string
 }
 
 export const DEFAULT_FAIL_ON: ReviewSeverity[] = ["critical", "high"]
@@ -578,6 +579,7 @@ export async function runReviewGate(opts: RunReviewGateOptions): Promise<Verdict
     outputBytes: Buffer.byteLength(logOutput, "utf-8"),
     outputFile: `verdicts/${name}.log`,
     runner,
+    ...(opts.reviewFingerprint ? { reviewFingerprint: opts.reviewFingerprint } : {}),
     ...(reason ? { reason } : {}),
   }
 

@@ -2,12 +2,13 @@ import { execFileSync } from "node:child_process"
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import { readActiveId, readTask, writeTask } from "@junto/core"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { OpenCodeReviewProvider, readActiveId, readTask, updateTask, writeTask } from "@junto/core"
 import { taskTool } from "../src/tools/task.js"
 import { verifyTool } from "../src/tools/verify.js"
 import { advanceTool } from "../src/tools/advance.js"
 import { resolvePlan } from "../src/tools/plan.js"
+import { statusTool } from "../src/tools/status.js"
 
 /**
  * A real child process stands in for `ocr`, so these tests exercise argv, environment, exit codes and
@@ -85,6 +86,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.restoreAllMocks()
   if (savedBin === undefined) delete process.env.OPEN_CODE_REVIEW_BIN
   else process.env.OPEN_CODE_REVIEW_BIN = savedBin
   rmSync(root, { recursive: true, force: true })
@@ -92,6 +94,86 @@ afterEach(() => {
 })
 
 describe("verify with a review gate and a real reviewer process", () => {
+  it.each(["source", "index", "head", "policy", "brief", "plan", "legacy"])("refuses stale %s evidence at status and completion", async change => {
+    installFakeOcr({ status: "complete", comments: [] })
+    const id = await startTask()
+    await advanceTool(ctx(), { to: "verify" })
+    await verifyTool(ctx(), {})
+    const dir = join(root, ".junto", "tasks", id)
+    if (change === "source") writeFileSync(join(root, "src/auth/login.ts"), "throw new Error('new bug')\n")
+    if (change === "index") git("add", "src/auth/login.ts")
+    if (change === "head") git("commit", "--allow-empty", "-qm", "move head")
+    if (change === "policy") {
+      const path = join(root, ".junto", "config.json")
+      const config = JSON.parse(readFileSync(path, "utf8"))
+      config.gates["code-review"].failOn = ["critical", "high", "medium"]
+      writeFileSync(path, JSON.stringify(config))
+    }
+    if (change === "brief" || change === "plan") writeFileSync(join(dir, `${change}.md`), "Changed requirement")
+    if (change === "legacy") {
+      const path = join(dir, "verdicts/code-review.json")
+      const verdict = JSON.parse(readFileSync(path, "utf8"))
+      delete verdict.reviewFingerprint
+      writeFileSync(path, JSON.stringify(verdict))
+    }
+    const stored = readFileSync(join(dir, "task.json"), "utf8")
+    expect(await statusTool(ctx())).toContain("stale")
+    expect(readFileSync(join(dir, "task.json"), "utf8")).toBe(stored)
+    await expect(advanceTool(ctx(), { to: "done" })).rejects.toThrow(/stale/)
+  })
+
+  it("requires fresh evidence when archiving and permits completion after re-review", async () => {
+    installFakeOcr({ status: "complete", comments: [] })
+    await startTask()
+    await advanceTool(ctx(), { to: "verify" })
+    await verifyTool(ctx(), {})
+    await advanceTool(ctx(), { to: "done" })
+    writeFileSync(join(root, "src/auth/login.ts"), "export const changed = true\n")
+    await expect(taskTool(ctx(), { action: "finish" })).rejects.toThrow(/stale/)
+    await verifyTool(ctx(), {})
+    expect(await taskTool(ctx(), { action: "finish" })).toContain("Archived")
+  })
+
+  it("fails when source changes while the reviewer runs", async () => {
+    await startTask()
+    vi.spyOn(OpenCodeReviewProvider.prototype, "review").mockImplementation(async () => {
+      writeFileSync(join(root, "src/auth/login.ts"), "throw new Error('changed during review')\n")
+      return { provider: "open-code-review", findings: [] }
+    })
+    expect(await verifyTool(ctx(), {})).toContain("changed during review")
+    const id = readActiveId(root)
+    expect(readTask(root, id!).gates["code-review"]?.stale).toBe(true)
+  })
+
+  it("preserves hook invalidations even when an in-flight edit is reverted", async () => {
+    const id = await startTask()
+    vi.spyOn(OpenCodeReviewProvider.prototype, "review").mockImplementation(async () => {
+      const path = join(root, "src/auth/login.ts")
+      const original = readFileSync(path)
+      writeFileSync(path, "throw new Error('temporary edit')\n")
+      updateTask(root, id, task => {
+        const gate = task.gates["code-review"]!
+        gate.invalidationVersion = (gate.invalidationVersion ?? 0) + 1
+        gate.stale = true
+      })
+      writeFileSync(path, original)
+      return { provider: "open-code-review", findings: [] }
+    })
+    expect(await verifyTool(ctx(), {})).toContain("changed during review")
+    expect(readTask(root, id).gates["code-review"]?.stale).toBe(true)
+  })
+
+  it("does not archive an old review after changing its configured gate type", async () => {
+    installFakeOcr({ status: "complete", comments: [] })
+    await startTask()
+    await advanceTool(ctx(), { to: "verify" })
+    await verifyTool(ctx(), {})
+    await advanceTool(ctx(), { to: "done" })
+    writeFileSync(join(root, ".junto/config.json"), JSON.stringify({ schemaVersion: 1,
+      gates: { "code-review": { type: "command", argv: ["node", "-e", "process.exit(0)"], required: true } } }))
+    await expect(taskTool(ctx(), { action: "finish" })).rejects.toThrow(/stale/)
+  })
+
   it("passes on a clean review and hands the reviewer the requirement background", async () => {
     installFakeOcr({ status: "complete", comments: null })
     const id = await startTask()

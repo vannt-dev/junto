@@ -35,6 +35,7 @@ export const gateStatusSchema = z.object({
   required: z.boolean(),
   verdict: z.string().nullable(),
   stale: z.boolean(),
+  invalidationVersion: z.number().int().min(0).optional(),
   failStreak: z.number().int().min(0),
 })
 
@@ -170,6 +171,8 @@ export interface VerdictFile {
   outputFile: string
   runner: string
   reason?: string
+  /** Present on source-bound reviews; legacy reviews must be rerun. */
+  reviewFingerprint?: string
 }
 
 export function parseTask(raw: unknown): Task {

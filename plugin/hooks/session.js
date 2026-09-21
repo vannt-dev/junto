@@ -4081,6 +4081,7 @@ var gateStatusSchema = external_exports.object({
   required: external_exports.boolean(),
   verdict: external_exports.string().nullable(),
   stale: external_exports.boolean(),
+  invalidationVersion: external_exports.number().int().min(0).optional(),
   failStreak: external_exports.number().int().min(0)
 });
 var decisionSchema = external_exports.object({ at: external_exports.string(), what: external_exports.string(), why: external_exports.string() });
@@ -4232,10 +4233,11 @@ var MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 // packages/core/src/cli-review.ts
 var MAX_CONTEXT = 512 * 1024;
 
-// src-hooks/lib/io.ts
+// src-hooks/lib/io.js
 async function readStdin() {
   const chunks = [];
-  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
+  for await (const chunk of process.stdin)
+    chunks.push(Buffer.from(chunk));
   return Buffer.concat(chunks).toString("utf-8");
 }
 function readHookInput(raw) {
@@ -4249,7 +4251,8 @@ function readHookInput(raw) {
 async function runHook(fn) {
   try {
     const output = await fn(readHookInput(await readStdin()));
-    if (output !== "") process.stdout.write(output);
+    if (output !== "")
+      process.stdout.write(output);
   } catch {
   }
   process.exit(0);

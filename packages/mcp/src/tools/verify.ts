@@ -1,8 +1,8 @@
 import {
-  CliReviewProvider, OpenCodeReviewProvider, ScopedReviewProvider, readActiveId, readConfig, readTask, resolveReviewScopes, runGate, runReviewGate,
+  captureReviewFingerprint, CliReviewProvider, OpenCodeReviewProvider, ScopedReviewProvider, readActiveId, readConfig, readTask, resolveReviewScopes, runGate, runReviewGate, updateTask,
   writeReviewBackground, writeTask,
 } from "@junto/core"
-import type { GateSpec, Task, VerdictFile } from "@junto/core"
+import type { Config, GateSpec, Task, VerdictFile } from "@junto/core"
 import type { ToolContext } from "../context.js"
 import { resolveTaskPolicy } from "./policy.js"
 
@@ -30,15 +30,26 @@ function render(v: VerdictFile, streak: number): string {
     + `\`\`\`\n${v.outputTail}\n\`\`\`${hint}`
 }
 
-async function runReview(ctx: ToolContext, task: Task, name: string, spec: GateSpec): Promise<VerdictFile> {
-  const scopes = await resolveReviewScopes(ctx.root, task.baseCommit)
+async function runReview(ctx: ToolContext, task: Task, name: string, spec: GateSpec, config: Config): Promise<VerdictFile> {
   const backgroundFile = writeReviewBackground(ctx.root, task.id, task.title)
+  const fingerprint = captureReviewFingerprint(ctx.root, task, config)
+  const scopes = await resolveReviewScopes(ctx.root, task.baseCommit)
+  const provider = new ScopedReviewProvider(spec.provider === "cli" ? new CliReviewProvider(spec.timeoutMs)
+    : new OpenCodeReviewProvider({ ...(spec.timeoutMs ? { timeoutMs: spec.timeoutMs } : {}) }), scopes)
   return runReviewGate({
     root: ctx.root,
     taskId: task.id,
     name,
-    provider: new ScopedReviewProvider(spec.provider === "cli" ? new CliReviewProvider(spec.timeoutMs)
-      : new OpenCodeReviewProvider({ ...(spec.timeoutMs ? { timeoutMs: spec.timeoutMs } : {}) }), scopes),
+    reviewFingerprint: fingerprint,
+    provider: { async review(context) {
+      const result = await provider.review(context)
+      const current = readTask(ctx.root, task.id)
+      if (captureReviewFingerprint(ctx.root, current, readConfig(ctx.root)) !== fingerprint
+        || (current.gates[name]?.invalidationVersion ?? 0) !== (task.gates[name]?.invalidationVersion ?? 0)) {
+        result.error = { kind: "incomplete", message: "Source, policy or requirement context changed during review; rerun the review." }
+      }
+      return result
+    } },
     context: {
       ...(backgroundFile ? { backgroundFile } : {}),
     },
@@ -68,11 +79,11 @@ export async function verifyTool(ctx: ToolContext, input: { gates?: string[] }):
     }
 
     // A failed scope lookup or spawn must not leave a previous passing verdict current.
-    status.stale = true
-    writeTask(ctx.root, task)
+    const started = updateTask(ctx.root, id, current => { const gate = current.gates[name]; if (gate) gate.stale = true })
+    status.invalidationVersion = started.gates[name]?.invalidationVersion ?? 0
 
     const verdict = spec.type === "review"
-      ? await runReview(ctx, task, name, spec)
+      ? await runReview(ctx, task, name, spec, config)
       : await runGate({ root: ctx.root, taskId: id, name, spec, runner: ctx.runner })
 
     // Build the path from the validated name rather than coupling to outputFile formatting.
@@ -84,7 +95,13 @@ export async function verifyTool(ctx: ToolContext, input: { gates?: string[] }):
     sections.push(render(verdict, status.failStreak))
 
     // Persist after every gate so a later failure cannot discard completed evidence.
-    writeTask(ctx.root, task)
+    updateTask(ctx.root, id, current => {
+      const version = current.gates[name]?.invalidationVersion ?? 0
+      current.gates[name] = { ...status, invalidationVersion: version, stale: version !== status.invalidationVersion }
+      if (verdict.reviewFingerprint) {
+        current.gates[name].stale ||= captureReviewFingerprint(ctx.root, current, readConfig(ctx.root)) !== verdict.reviewFingerprint
+      }
+    })
   }
 
   return sections.join("\n\n")
