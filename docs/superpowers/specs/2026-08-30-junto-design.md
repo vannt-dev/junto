@@ -32,8 +32,11 @@ binary, runs `chmod`, contacts a CDN, or invokes `npx`.
 
 **R4 - No bypass mechanism.** No skill or hook edits transcripts, configuration, or model refusals.
 
-**R5 - Deterministic gates, advisory models.** Only the exit code of an executable command can block a
-phase transition. Model opinions never become gates.
+**R5 - Deterministic gates, advisory panels.** Command gates use executable exit codes. Review gates
+apply the configured `failOn` severity policy to validated findings from an explicitly selected review
+provider. Missing, incomplete or failed reviews never satisfy a required gate. Consult and panel
+opinions remain advisory and cannot satisfy or block gates. The policy mapping is deterministic;
+semantic findings themselves depend on the reviewer and are not a correctness proof.
 
 ## 3. Architecture
 

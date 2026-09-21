@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs"
+import { mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { execa } from "execa"
 import { resolveExecutable } from "./exec.js"
@@ -6,6 +6,8 @@ import { OUTPUT_TAIL_BYTES } from "./gates.js"
 import { taskDir } from "./paths.js"
 import { SCHEMA_VERSION, type GateState, type VerdictFile } from "./schema.js"
 import type { ReviewScope } from "./review-scope.js"
+import { appendReviewEvent } from "./review-report.js"
+import { validReviewFinding } from "./finding-contract.js"
 
 /**
  * Review findings share one vocabulary with governed-agent-sdlc (`agentkit.review`) so a
@@ -21,8 +23,10 @@ export type ReviewCategory = typeof REVIEW_CATEGORIES[number]
 
 export interface ReviewFinding {
   id: string
+  source?: string
+  metadata?: Record<string, unknown>
   file: string
-  line?: number
+  line?: number | null
   severity: ReviewSeverity
   category: ReviewCategory
   message: string
@@ -71,9 +75,9 @@ const SEVERITY_MAP: Record<string, ReviewSeverity> = {
 }
 
 const CATEGORY_MAP: Record<string, ReviewCategory> = {
-  security: "security", vuln: "security", vulnerability: "security", auth: "security", injection: "security",
-  correctness: "correctness", bug: "correctness", logic: "correctness", fault: "correctness",
-  performance: "performance", perf: "performance",
+  security: "security", vuln: "security", vulnerability: "security", auth: "security", injection: "security", cwe: "security", owasp: "security",
+  correctness: "correctness", bug: "correctness", logic: "correctness", fault: "correctness", error: "correctness",
+  performance: "performance", perf: "performance", memory: "performance", speed: "performance",
   maintainability: "maintainability", readability: "maintainability", complexity: "maintainability",
   style: "maintainability", documentation: "maintainability",
   testing: "testing", test: "testing", coverage: "testing",
@@ -106,6 +110,18 @@ export function redactSecrets(text: string): string {
   return out
 }
 
+/** Redact string values before JSON encoding so escaped quotes cannot corrupt evidence. */
+function redactedJson(value: unknown): string {
+  return JSON.stringify(value, (key, item: unknown) => {
+    if (typeof item !== "string") return item
+    return /(?:api[_-]?key|secret|token|password)$/i.test(key) ? "[REDACTED]" : redactSecrets(item)
+  }, 2)
+}
+
+function redactEvidence(text: string): string {
+  try { return redactedJson(JSON.parse(text)) } catch { return redactSecrets(text) }
+}
+
 export class MockReviewProvider implements ReviewProvider {
   constructor(
     public readonly name: string = "mock",
@@ -125,7 +141,7 @@ export class MockReviewProvider implements ReviewProvider {
 
 export class OcrParseError extends Error {
   constructor(public readonly kind: "parse" | "schema" | "exit", message: string) {
-    super(message)
+    super(redactSecrets(message))
     this.name = "OcrParseError"
   }
 }
@@ -162,7 +178,7 @@ export function parseOcrOutput(stdout: string): ParsedOcrOutput {
   }
   const doc = parsed as Record<string, unknown>
   const status = doc.status
-  const message = typeof doc.message === "string" ? doc.message : "no message"
+  const message = typeof doc.message === "string" ? redactSecrets(doc.message) : "no message"
   if (status === "failed") {
     throw new OcrParseError("exit", `OpenCodeReview reported status "failed": ${message}`)
   }
@@ -191,8 +207,10 @@ export function parseOcrOutput(stdout: string): ParsedOcrOutput {
       : undefined
     findings.push({
       id: `ocr-${index + 1}`,
+      source: "open-code-review",
+      metadata: typeof c.end_line === "number" && Number.isInteger(c.end_line) && c.end_line > 0 ? { end_line: c.end_line } : {},
       file: c.path.replace(/\\/g, "/"),
-      ...(line === undefined ? {} : { line }),
+      line: line ?? null,
       severity: normalizeSeverity(c.severity),
       category: normalizeCategory(c.category),
       message: redactSecrets(c.content.trim()),
@@ -216,7 +234,31 @@ export interface DelegatePreview {
   excluded: DelegatePreviewFile[]
 }
 
+export interface DelegateRules {
+  schema_version: "1"
+  groups: Array<{ group_id: number; source: string; pattern: string; files: string[]; rule: string }>
+}
+
+export function parseDelegateRules(stdout: string, paths: string[]): DelegateRules {
+  let doc: unknown
+  try { doc = JSON.parse(stdout) } catch { throw new OcrParseError("parse", "Delegate rules are not JSON") }
+  if (!doc || typeof doc !== "object" || !("schema_version" in doc) || doc.schema_version !== "1"
+    || !("groups" in doc) || !Array.isArray(doc.groups)) throw new OcrParseError("schema", "Unsupported delegate rule schema")
+  const covered = new Set<string>()
+  for (const group of doc.groups) {
+    if (!group || typeof group !== "object" || !Number.isInteger(group.group_id) || group.group_id < 1
+      || [group.source, group.pattern, group.rule].some(v => typeof v !== "string")
+      || !Array.isArray(group.files) || group.files.some((p: unknown) => typeof p !== "string" || !paths.includes(p))) {
+      throw new OcrParseError("schema", "Invalid delegate rule group")
+    }
+    for (const path of group.files as string[]) covered.add(path)
+  }
+  if (paths.some(p => !covered.has(p))) throw new OcrParseError("schema", "Delegate rules do not cover every requested file")
+  return doc as DelegateRules
+}
+
 function previewFiles(raw: unknown, field: string): DelegatePreviewFile[] {
+  if (raw === null) return [] // Go's nil slice is serialized as null.
   if (!Array.isArray(raw)) throw new OcrParseError("schema", `delegate preview is missing ${field}`)
   return raw.map((item, index) => {
     const f = item as Record<string, unknown> | null
@@ -280,7 +322,7 @@ export function filterEnv(env: NodeJS.ProcessEnv, extra: string[] = []): Record<
   const out: Record<string, string> = {}
   for (const [key, value] of Object.entries(env)) {
     if (value === undefined) continue
-    if (ENV_ALLOWLIST.includes(key) || extra.includes(key) || ENV_PREFIXES.some(p => key.startsWith(p))) {
+    if (ENV_ALLOWLIST.some(k => k.toUpperCase() === key.toUpperCase()) || extra.includes(key) || ENV_PREFIXES.some(p => key.startsWith(p))) {
       out[key] = value
     }
   }
@@ -374,7 +416,7 @@ export class OpenCodeReviewProvider implements ReviewProvider {
       return { provider, findings: [], command, error: { kind: "exit", message: redactSecrets(`Failed to run OpenCodeReview: ${message}`) } }
     }
 
-    const rawEvidence = redactSecrets(res.stdout)
+    const rawEvidence = redactEvidence(res.stdout)
     const fail = (kind: ReviewErrorKind, message: string): ReviewResult => ({
       provider, findings: [], command, rawEvidence, error: { kind, message },
     })
@@ -413,10 +455,23 @@ export class OpenCodeReviewProvider implements ReviewProvider {
       cwd: context.root, timeoutMs: this.timeoutMs, maxBuffer: MAX_OUTPUT_BYTES, env: this.env(),
     })
     if (res.timedOut) throw new OcrParseError("exit", "OpenCodeReview delegate preview timed out")
+    if (res.isMaxBuffer) throw new OcrParseError("exit", "OpenCodeReview delegate preview exceeded its output limit")
     if (res.exitCode !== 0) {
       throw new OcrParseError("exit", `OpenCodeReview delegate preview exited with code ${res.exitCode ?? "unknown"}`)
     }
     return parseDelegatePreview(res.stdout)
+  }
+
+  async delegateRules(context: ReviewContext, paths: string[]): Promise<DelegateRules> {
+    if (!paths.length) return { schema_version: "1", groups: [] }
+    const args = ["delegate", "rule", "--repo", context.root, "--format", "json", ...this.diffArgs(context)]
+    if (context.backgroundFile) args.push("--background-file", context.backgroundFile)
+    args.push("--", ...paths)
+    const res = await this.exec(this.executable, args, {
+      cwd: context.root, timeoutMs: this.timeoutMs, maxBuffer: MAX_OUTPUT_BYTES, env: this.env(),
+    })
+    if (res.timedOut || res.isMaxBuffer || res.exitCode !== 0) throw new OcrParseError("exit", "OpenCodeReview delegate rule failed or exceeded its limits")
+    return parseDelegateRules(res.stdout, paths)
   }
 }
 
@@ -449,7 +504,17 @@ export async function runReviewGate(opts: RunReviewGateOptions): Promise<Verdict
   const startedAt = new Date().toISOString()
   const t0 = Date.now()
 
-  const result = await provider.review({ ...opts.context, root })
+  appendReviewEvent(root, taskId, { gate: name, type: "review.started" })
+  let result: ReviewResult
+  try { result = await provider.review({ ...opts.context, root }) }
+  catch (error) {
+    appendReviewEvent(root, taskId, { gate: name, type: "review.failed", state: "fail" })
+    throw error
+  }
+  result.findings = result.findings.map(f => ({ ...f, source: f.source ?? result.provider, line: f.line ?? null, metadata: f.metadata ?? {} }))
+  if (result.findings.some(f => !validReviewFinding(f))) {
+    result.error = { kind: "schema", message: "Review findings do not satisfy the shared version-1 contract" }
+  }
   const blocking = result.findings.filter(f => failOn.includes(f.severity))
 
   let state: GateState
@@ -491,15 +556,19 @@ export async function runReviewGate(opts: RunReviewGateOptions): Promise<Verdict
 
   const dir = join(taskDir(root, taskId), "verdicts")
   mkdirSync(dir, { recursive: true })
+  logOutput = redactSecrets(logOutput)
+  if (reason) reason = redactSecrets(reason)
   writeFileSync(join(dir, `${name}.log`), logOutput, "utf-8")
   // The normalized result is evidence; the raw provider output is kept beside it, never merged into it.
-  writeFileSync(join(dir, `${name}.review.json`), JSON.stringify({ ...result, rawEvidence: undefined }, null, 2), "utf-8")
-  if (result.rawEvidence) writeFileSync(join(dir, `${name}.raw.json`), result.rawEvidence, "utf-8")
+  writeFileSync(join(dir, `${name}.review.json`), redactedJson({ ...result, rawEvidence: undefined }), "utf-8")
+  const rawPath = join(dir, `${name}.raw.json`)
+  if (result.rawEvidence) writeFileSync(rawPath, redactEvidence(result.rawEvidence), "utf-8")
+  else rmSync(rawPath, { force: true })
 
   const verdict: VerdictFile = {
     schemaVersion: SCHEMA_VERSION,
     gate: name,
-    argv: result.command ?? [result.provider, "review"],
+    argv: (result.command ?? [result.provider, "review"]).map(redactSecrets),
     cwd: root,
     exitCode,
     state,
@@ -513,5 +582,6 @@ export async function runReviewGate(opts: RunReviewGateOptions): Promise<Verdict
   }
 
   writeFileSync(join(dir, `${name}.json`), `${JSON.stringify(verdict, null, 2)}\n`, "utf-8")
+  appendReviewEvent(root, taskId, { gate: name, type: result.error ? "review.failed" : "review.completed", state })
   return verdict
 }

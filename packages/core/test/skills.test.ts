@@ -83,6 +83,18 @@ describe("SkillResolver", () => {
     expect(new SkillResolver([tmpRoot]).resolve(["typescript-engineering"])[0]?.found).toBe(true)
   })
 
+  it("does not mix metadata from a shadowed skill in another root", () => {
+    const other = join(tmpRoot, "other-root")
+    mkdirSync(join(other, "skills", "typescript-engineering"), { recursive: true })
+    writeFileSync(join(other, "skills", "typescript-engineering", "SKILL.md"), "Shadowed guidance")
+    writeFileSync(join(other, "skillset.json"), JSON.stringify({ skills: [
+      { name: "typescript-engineering", appliesTo: ["**/*.py"], tags: ["shadowed"] },
+    ] }))
+    const resolver = new SkillResolver([tmpRoot, other])
+    expect(resolver.resolve(["typescript-engineering"])[0]?.tags).toEqual([])
+    expect(resolver.resolveForFiles(["app.py"])).toEqual([])
+  })
+
   it("lists skills present under the roots", () => {
     expect(new SkillResolver([tmpRoot]).list()).toEqual(["security-review", "typescript-engineering"])
   })

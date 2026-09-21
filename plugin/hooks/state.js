@@ -4104,7 +4104,7 @@ var reviewSeveritySchema = external_exports.enum(["critical", "high", "medium", 
 var gateSpecSchema = external_exports.object({
   type: external_exports.enum(["command", "review"]).optional(),
   argv: external_exports.array(external_exports.string()).min(1).optional(),
-  provider: external_exports.literal("open-code-review").optional(),
+  provider: external_exports.enum(["open-code-review", "cli"]).optional(),
   failOn: external_exports.array(reviewSeveritySchema).min(1).optional(),
   required: external_exports.boolean(),
   timeoutMs: external_exports.number().int().positive().optional()
@@ -4289,6 +4289,9 @@ function updateTask(root, id, update) {
 
 // packages/core/src/review.ts
 var MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
+
+// packages/core/src/cli-review.ts
+var MAX_CONTEXT = 512 * 1024;
 
 // src-hooks/lib/io.ts
 async function readStdin() {

@@ -1,5 +1,5 @@
 import {
-  OpenCodeReviewProvider, ScopedReviewProvider, readActiveId, readConfig, readTask, resolveReviewScopes, runGate, runReviewGate,
+  CliReviewProvider, OpenCodeReviewProvider, ScopedReviewProvider, readActiveId, readConfig, readTask, resolveReviewScopes, runGate, runReviewGate,
   writeReviewBackground, writeTask,
 } from "@junto/core"
 import type { GateSpec, Task, VerdictFile } from "@junto/core"
@@ -37,7 +37,8 @@ async function runReview(ctx: ToolContext, task: Task, name: string, spec: GateS
     root: ctx.root,
     taskId: task.id,
     name,
-    provider: new ScopedReviewProvider(new OpenCodeReviewProvider({ ...(spec.timeoutMs ? { timeoutMs: spec.timeoutMs } : {}) }), scopes),
+    provider: new ScopedReviewProvider(spec.provider === "cli" ? new CliReviewProvider(spec.timeoutMs)
+      : new OpenCodeReviewProvider({ ...(spec.timeoutMs ? { timeoutMs: spec.timeoutMs } : {}) }), scopes),
     context: {
       ...(backgroundFile ? { backgroundFile } : {}),
     },

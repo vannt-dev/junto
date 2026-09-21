@@ -27,8 +27,12 @@ async function taskHead(root: string, baseCommit: string | null): Promise<string
 
 /** Plans and rules use the same validated task base as the reviewer. */
 export async function resolveTaskChanges(root: string, baseCommit: string | null): Promise<ChangedFile[]> {
-  await taskHead(root, baseCommit)
-  return new ChangedFileResolver().resolve(root, baseCommit ? { base: baseCommit } : {})
+  const to = await taskHead(root, baseCommit)
+  const resolver = new ChangedFileResolver()
+  const committed = baseCommit && to ? await resolver.resolve(root, { base: baseCommit, head: to }) : []
+  const pending = await resolver.resolve(root)
+  // A pending reversal of a committed edit still belongs to the two reviewed scopes.
+  return [...new Map([...committed, ...pending].map(change => [change.path, change])).values()]
 }
 
 /** OCR range mode reads committed content; workspace mode reads pending edits. Both are needed. */

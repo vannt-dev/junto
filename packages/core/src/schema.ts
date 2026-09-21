@@ -66,7 +66,7 @@ export const reviewSeveritySchema = z.enum(["critical", "high", "medium", "low",
 export const gateSpecSchema = z.object({
   type: z.enum(["command", "review"]).optional(),
   argv: z.array(z.string()).min(1).optional(),
-  provider: z.literal("open-code-review").optional(),
+  provider: z.enum(["open-code-review", "cli"]).optional(),
   failOn: z.array(reviewSeveritySchema).min(1).optional(),
   required: z.boolean(),
   timeoutMs: z.number().int().positive().optional(),

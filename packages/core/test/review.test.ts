@@ -59,6 +59,11 @@ describe("normalization", () => {
     expect(redactSecrets("nothing secret here")).toBe("nothing secret here")
   })
 
+  it("preserves Windows environment keys regardless of casing", () => {
+    expect(filterEnv({ pAtH: "/bin", systemroot: "C:/Windows", GITHUB_TOKEN: "hidden" }))
+      .toEqual({ pAtH: "/bin", systemroot: "C:/Windows" })
+  })
+
   it("filterEnv keeps only what OCR needs", () => {
     const env = filterEnv({ PATH: "/bin", GITHUB_TOKEN: "x", OCR_HOME: "/o", ANTHROPIC_API_KEY: "k", NPM_TOKEN: "y" })
     expect(Object.keys(env).sort()).toEqual(["ANTHROPIC_API_KEY", "OCR_HOME", "PATH"])
@@ -66,6 +71,14 @@ describe("normalization", () => {
 })
 
 describe("parseOcrOutput", () => {
+  it.each(["failed", "partial"])("redacts %s status messages", status => {
+    const output = JSON.stringify({ status, message: "token=abcdefghijklmno", comments: [] })
+    if (status === "failed") {
+      expect(() => parseOcrOutput(output)).toThrow(/\[REDACTED\]/)
+    } else {
+      expect(parseOcrOutput(output).message).not.toContain("abcdefghijklmno")
+    }
+  })
   it("parses comments into normalized, redacted findings", () => {
     const { findings, nothingToReview } = parseOcrOutput(OCR_SUCCESS)
     expect(nothingToReview).toBe(false)
@@ -74,7 +87,7 @@ describe("parseOcrOutput", () => {
     expect(findings[0]?.message).not.toContain("sk-abcdef")
     // Missing severity stays visible; a zero line means "no line".
     expect(findings[1]).toMatchObject({ severity: "medium", category: "maintainability" })
-    expect(findings[1]?.line).toBeUndefined()
+    expect(findings[1]?.line).toBeNull()
   })
 
   it("treats status skipped as nothing to review", () => {
@@ -126,6 +139,12 @@ describe("parseDelegatePreview", () => {
 })
 
 describe("OpenCodeReviewProvider", () => {
+  it("rejects truncated delegation output even if the retained JSON is valid", async () => {
+    const provider = new OpenCodeReviewProvider({ exec: fakeExec({
+      stdout: JSON.stringify({ reviewable_files: [] }), isMaxBuffer: true,
+    }) })
+    await expect(provider.delegatePreview({ root: "/repo" })).rejects.toThrow(/output limit/)
+  })
   it("uses the real ocr CLI flags and never --files/--context", async () => {
     const calls: string[][] = []
     const provider = new OpenCodeReviewProvider({ executable: "ocr", exec: fakeExec({ stdout: OCR_SUCCESS }, calls) })
@@ -223,6 +242,23 @@ describe("runReviewGate", () => {
     expect(existsSync(join(dir, "code-review.raw.json"))).toBe(true)
     expect(readFileSync(join(dir, "code-review.raw.json"), "utf-8")).not.toContain("sk-abcdef")
     expect(readFileSync(join(dir, "code-review.review.json"), "utf-8")).not.toContain("rawEvidence")
+  })
+
+  it("removes obsolete raw evidence when the next reviewer cannot run", async () => {
+    await run(new MockReviewProvider("mock"))
+    const raw = join(tmpRoot, ".junto", "tasks", "task-1", "verdicts", "code-review.raw.json")
+    expect(existsSync(raw)).toBe(true)
+    await run(new OpenCodeReviewProvider({ executable: "missing-reviewer-999" }))
+    expect(existsSync(raw)).toBe(false)
+  })
+
+  it("redacts evidence from every provider, including normalized error messages", async () => {
+    await run(new MockReviewProvider("mock", [], { kind: "exit", message: 'token="abcdefghijklmno"' }))
+    const dir = join(tmpRoot, ".junto", "tasks", "task-1", "verdicts")
+    for (const suffix of ["json", "log", "review.json", "raw.json"]) {
+      expect(readFileSync(join(dir, `code-review.${suffix}`), "utf-8")).not.toContain("abcdefghijklmno")
+      if (suffix.endsWith("json")) JSON.parse(readFileSync(join(dir, `code-review.${suffix}`), "utf-8"))
+    }
   })
 
   it("rejects gate names that could escape verdicts/", async () => {

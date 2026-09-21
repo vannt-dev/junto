@@ -10,6 +10,7 @@ import { planTool } from "./tools/plan.js"
 import { statusTool } from "./tools/status.js"
 import { taskTool } from "./tools/task.js"
 import { verifyTool } from "./tools/verify.js"
+import { reportTool } from "./tools/report.js"
 import { VERSION } from "./version.js"
 
 const taskInput = z.discriminatedUnion("action", [
@@ -40,6 +41,11 @@ const contextProperty = {
 }
 
 const TOOLS = [
+  {
+    name: "junto__report",
+    description: "Read stored review findings, verdicts and events. Optionally export escaped static HTML under .junto/. Does not change task state.",
+    inputSchema: { type: "object" as const, properties: { html: { type: "boolean", description: "Export an HTML report under the active task" } } },
+  },
   {
     name: "junto__task",
     description:
@@ -136,6 +142,7 @@ export function createServer(): Server {
       switch (request.params.name) {
         case "junto__task": text = await taskTool(ctx, taskInput.parse(args)); break
         case "junto__verify": text = await verifyTool(ctx, verifyInput.parse(args)); break
+        case "junto__report": text = await reportTool(ctx, z.object({ html: z.boolean().optional() }).parse(args)); break
         case "junto__plan": text = await planTool(ctx); break
         case "junto__advance": text = await advanceTool(ctx, advanceInput.parse(args)); break
         case "junto__status": text = await statusTool(ctx); break

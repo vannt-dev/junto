@@ -4,7 +4,13 @@ All notable changes to junto are documented in this file. The project follows Se
 
 ## [Unreleased]
 
+- Keep selected CLI review filenames literal in Git diff, including paths with brackets, so excluded files cannot leak into review input.
+
 ### Added
+
+- Host CLI review gates (`provider: "cli"`) using installed OCR delegation rules and bounded stdin context; opt-in live semantic evaluation.
+- Shared version-1 finding schema/fixtures including source, nullable line and metadata.
+- Review event log and `junto__report` with escaped static HTML export under `.junto/`.
 
 - Review gates: a gate with `"type": "review"` runs OpenCodeReview (`ocr`, `npm install -g @alibaba-group/open-code-review`) through the same verdict evidence as command gates. A missing reviewer is `skipped`, a broken or timed-out reviewer is `fail`, and findings at `failOn` severities (default critical and high) are `fail`. The requirement context is passed as a bounded `review-background.md`; raw reviewer output is redacted and stored beside the normalized result.
 - `junto__plan` MCP tool: deterministic plan from git changes, config `rules`, and the skill registry, written to `plan.resolved.json`.
@@ -15,6 +21,9 @@ All notable changes to junto are documented in this file. The project follows Se
 
 ### Changed
 
+- Review rules retain rename source paths and committed changes reversed by pending edits. Skill metadata follows the selected search root instead of merging shadowed definitions.
+- Review evidence redacts error messages and escaped JSON values without corrupting JSON, removes stale raw output after an unavailable reviewer, and rejects truncated delegation previews.
+- Added an opt-in real OCR preview smoke test (`OCR_SMOKE_BIN` points to an installed binary); no LLM or runtime download is required.
 - Review verification and delegation preview cover both committed task changes and pending workspace edits; evidence retains each scope and a skipped scope never counts as a completed review.
 - Rules now enforce gates and human approval at verification and phase transitions, including small or auto-approved tasks, omitted task gates, deleted files, and missing gate definitions.
 - Changed-file resolution reports git failures instead of returning an empty list, handles paths with spaces and renames, and includes untracked files.

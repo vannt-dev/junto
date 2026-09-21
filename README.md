@@ -76,6 +76,11 @@ It prevents accidents and shortcuts; it is not a security boundary against a mal
 
 See [`examples/config.review.json`](examples/config.review.json) for a review gate and skill registry.
 Set the gate's `required` field to `true` when a completed review must block task completion.
+
+For a real CLI integration smoke test, set `OCR_SMOKE_BIN` to an installed OCR executable and run
+`corepack pnpm test`. It checks delegation preview in a temporary Git repository without an LLM;
+the test is skipped when the variable is unset. Full semantic reviews still require OCR LLM configuration.
+
 OpenCodeReview must be installed and configured separately; Junto uses `OPEN_CODE_REVIEW_BIN` or
 `ocr` on `PATH` and does not download a reviewer at runtime.
 
@@ -96,6 +101,30 @@ write `plan.md` and have the user run `/junto:approve`. This also works for smal
 matched during implementation. Status remains read-only.
 
 ## Advisory consult and panel
+
+For review gates, `"provider": "cli"` selects a logged-in host CLI. Set `JUNTO_REVIEW_COMMAND`
+in the launching environment to a JSON argv array, for example
+`["codex","exec","--sandbox","read-only","--ephemeral","--color","never","-"]`.
+Use `OPEN_CODE_REVIEW_BIN` for a locally installed OCR binary when it is not on PATH. OCR selects
+files and version-1 delegation rules; the host receives the diff, new files, rules and background
+on stdin and returns OCR-shaped JSON (`status`, `comments`). Claude and other CLIs can use the same
+contract; for Claude use `--safe-mode --print --tools= --no-session-persistence --output-format text`.
+On Windows, use `node` plus the installed CLI's absolute JavaScript entry point if only an npm shim
+is available. Repository configuration cannot select the host executable; nothing is downloaded.
+Choose read-only/tool-disabled commands: arbitrary host CLIs are not sandboxed by Junto itself.
+Input is limited to 512 KiB, output to 8 MiB per stream and calls to the gate timeout. CLI billing
+cannot be measured by the harness. Missing, incomplete or out-of-scope output never passes.
+
+`junto__report` reads the active task's review findings, verdicts and append-only review events.
+Pass `{"html":true}` to export an escaped static report to
+`.junto/tasks/<id>/review-report.html`. Reports show stored evidence; use `junto__status` for current
+transition eligibility. Review findings use the version-1 contract in `packages/core/contracts/`,
+mirrored from governed-agent-sdlc with shared behavioral fixtures.
+
+To evaluate a real host CLI, set `REVIEW_LIVE=1`, `JUNTO_REVIEW_COMMAND` and `OPEN_CODE_REVIEW_BIN`,
+then run `corepack pnpm vitest run packages/core/test/cli-review.test.ts`. Two calls (120 seconds
+each) check a known division-by-zero defect and zero high/critical false positives on a clean
+control. Regular CI uses deterministic fixtures and does not call an LLM.
 
 `junto__consult` asks one advisory role (`architect`, `adversary`, `pragmatist`, `reviewer`, or a
 project-defined role) about the active task's brief and plan; `junto__panel` (via `/junto:panel`)

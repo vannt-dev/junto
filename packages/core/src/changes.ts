@@ -83,6 +83,10 @@ export class ChangedFileResolver {
       // For renames (R100 old new) the new path is the last field.
       const path = paths[paths.length - 1]
       if (statusCode === undefined || path === undefined) continue
+      // Moving a file out of a protected directory still changes that directory.
+      if (statusCode.startsWith("R") && paths.length > 1 && paths[0]) {
+        entries.push({ path: paths[0], status: "deleted" })
+      }
       entries.push({ path, status: parseStatus(statusCode) })
     }
     return this.collect(entries, ignorePatterns)
@@ -97,6 +101,8 @@ export class ChangedFileResolver {
       if (code === undefined || code === "") { i += 1; continue }
       const pathCount = /^[RC]/.test(code) ? 2 : 1
       const path = tokens[i + pathCount]
+      const oldPath = tokens[i + 1]
+      if (code.startsWith("R") && oldPath) entries.push({ path: oldPath, status: "deleted" })
       if (path !== undefined && path !== "") entries.push({ path, status: parseStatus(code) })
       i += 1 + pathCount
     }

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { ChangedFileResolver, ChangedFilesError } from "../src/changes.js"
+import { resolveTaskChanges } from "../src/review-scope.js"
 
 describe("ChangedFileResolver parsing", () => {
   const resolver = new ChangedFileResolver()
@@ -19,6 +20,7 @@ R100\told/path.ts\tnew/path.ts
       { path: "src/auth/service.ts", status: "modified" },
       { path: "src/auth/token.ts", status: "added" },
       { path: "src/legacy.ts", status: "deleted" },
+      { path: "old/path.ts", status: "deleted" },
       { path: "new/path.ts", status: "renamed" },
     ])
   })
@@ -28,6 +30,7 @@ R100\told/path.ts\tnew/path.ts
     expect(resolver.parseNameStatusZ("M\0src/my file.ts\0R087\0old name.ts\0new name.ts\0"))
       .toEqual([
         { path: "src/my file.ts", status: "modified" },
+        { path: "old name.ts", status: "deleted" },
         { path: "new name.ts", status: "renamed" },
       ])
   })
@@ -83,6 +86,7 @@ describe("ChangedFileResolver against a real repository", () => {
     expect(byPath).toEqual({
       "src/keep.ts": "modified",
       "src/gone.ts": "deleted",
+      "src/old name.ts": "deleted",
       "src/new name.ts": "renamed",
       "src/fresh file.ts": "added",
     })
@@ -95,6 +99,16 @@ describe("ChangedFileResolver against a real repository", () => {
     git("commit", "-q", "-m", "later")
     const files = await new ChangedFileResolver().resolve(repo, { base })
     expect(files).toEqual([{ path: "src/later.ts", status: "added" }])
+  })
+
+  it("keeps committed edits in policy scope when workspace edits reverse them", async () => {
+    const base = git("rev-parse", "HEAD").toString().trim()
+    write("src/keep.ts", "committed edit\n")
+    git("add", ".")
+    git("commit", "-q", "-m", "change")
+    write("src/keep.ts", "x\n")
+    expect(await new ChangedFileResolver().resolve(repo, { base })).toEqual([])
+    expect(await resolveTaskChanges(repo, base)).toContainEqual({ path: "src/keep.ts", status: "modified" })
   })
 
   it("throws instead of returning an empty list when git fails", async () => {

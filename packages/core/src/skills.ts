@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import { globToRegExp } from "./stale.js"
 
 export interface EngineeringSkill {
@@ -98,8 +98,9 @@ export class SkillResolver {
       for (const item of skills) {
         const skill = item as { name?: unknown; appliesTo?: unknown; tags?: unknown } | null
         if (typeof skill?.name !== "string" || !VALID_SKILL_NAME.test(skill.name)) continue
-        const previous = entries.get(skill.name)
-        entries.set(skill.name, {
+        const key = `${resolve(root)}\0${skill.name}`
+        const previous = entries.get(key)
+        entries.set(key, {
           appliesTo: union(previous?.appliesTo ?? [], stringList(skill.appliesTo)),
           tags: union(previous?.tags ?? [], stringList(skill.tags)),
         })
@@ -121,7 +122,7 @@ export class SkillResolver {
 
   private load(name: string, path: string): EngineeringSkill {
     const { description, appliesTo, tags, body } = parseFrontmatter(readFileSync(path, "utf-8"))
-    const registered = this.registry().get(name)
+    const registered = this.registered(name, path)
     return {
       name,
       description,
@@ -131,6 +132,13 @@ export class SkillResolver {
       appliesTo: union(appliesTo, registered?.appliesTo ?? []),
       tags: union(tags, registered?.tags ?? []),
     }
+  }
+
+  private registered(name: string, path: string): RegistryEntry | undefined {
+    // Metadata must come from the root that supplied the selected skill, not shadowed copies.
+    const root = this.searchRoots.find(r =>
+      path === join(r, "skills", name, "SKILL.md") || path === join(r, name, "SKILL.md"))
+    return root === undefined ? undefined : this.registry().get(`${resolve(root)}\0${name}`)
   }
 
   private missing(name: string): EngineeringSkill {
@@ -190,7 +198,7 @@ export class SkillResolver {
       if (path === undefined) continue
       const appliesTo = union(
         parseFrontmatter(readFileSync(path, "utf-8")).appliesTo,
-        this.registry().get(name)?.appliesTo ?? [],
+        this.registered(name, path)?.appliesTo ?? [],
       )
       const regexes = appliesTo.map(p => globToRegExp(p.replace(/\\/g, "/").replace(/^\.\//, "")))
       if (regexes.length > 0 && normalized.some(f => regexes.some(r => r.test(f)))) names.push(name)
