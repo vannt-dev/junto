@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
   canEnter,
+  captureReviewFingerprint,
   gateStateSchema,
   readActiveId,
   readConfig,
@@ -21,20 +22,34 @@ import { resolveTaskPolicy } from "./policy.js"
 export function buildTransitionContext(root: string, task: Task, config: Config): TransitionContext {
   const dir = taskDir(root, task.id)
 
-  const readState = (rel: string | null): GateState | null => {
+  let fingerprint: string | undefined
+  const readState = (name: string, rel: string | null): GateState | null => {
     if (rel === null) return null
     const path = join(dir, rel)
     if (!existsSync(path)) return null
     try {
-      return gateStateSchema.parse(JSON.parse(readFileSync(path, "utf-8")).state)
+      const verdict = JSON.parse(readFileSync(path, "utf-8"))
+      if (config.gates[name]?.type === "review" || verdict.reviewFingerprint !== undefined) {
+        fingerprint ??= captureReviewFingerprint(root, task, config)
+        if (verdict.reviewFingerprint !== fingerprint) {
+          const gate = task.gates[name]
+          if (gate) gate.stale = true
+          return null
+        }
+      }
+      return gateStateSchema.parse(verdict.state)
     } catch {
+      if (config.gates[name]?.type === "review") {
+        const gate = task.gates[name]
+        if (gate) gate.stale = true
+      }
       return null
     }
   }
 
   const verdictStates: Record<string, GateState | null> = {}
   for (const [name, status] of Object.entries(task.gates)) {
-    verdictStates[name] = readState(status.verdict)
+    verdictStates[name] = readState(name, status.verdict)
   }
 
   const brief = join(dir, "brief.md")

@@ -79,6 +79,12 @@ describe("PreToolUse", () => {
 })
 
 describe("PostToolUse", () => {
+  it("records repeated invalidations while a gate is already stale", () => {
+    post(join(root, "src", "app.ts"))
+    post(join(root, "src", "app.ts"))
+    expect(readTask(root, "t").gates.tests?.invalidationVersion).toBe(2)
+  })
+
   it("marks every gate stale after a source-file edit", () => {
     post(join(root, "src", "app.ts"))
     const task = readTask(root, "t")

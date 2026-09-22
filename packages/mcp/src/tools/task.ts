@@ -3,10 +3,11 @@ import { join } from "node:path"
 import { execa } from "execa"
 import {
   juntoDir, readActiveId, readConfig, readTask, requiredPhases, setActiveId, taskDir, writeTask,
-  SCHEMA_VERSION,
+  SCHEMA_VERSION, canEnter,
   type GateStatus, type Size, type Task,
 } from "@junto/core"
 import type { ToolContext } from "../context.js"
+import { buildTransitionContext } from "./advance.js"
 
 export type TaskToolInput =
   | { action: "start", title: string, size: Size, gates?: string[] }
@@ -128,6 +129,12 @@ function finish(ctx: ToolContext): string {
     )
   }
   const from = taskDir(ctx.root, id)
+  const config = readConfig(ctx.root)
+  const transition = buildTransitionContext(ctx.root, task, config)
+  if (Object.keys(task.gates).some(name => config.gates[name]?.type === "review" || task.gates[name]?.stale)) {
+    const check = canEnter({ ...task, phase: "verify" }, "done", transition)
+    if (!check.ok) throw new Error(`Cannot archive task. ${check.reason}`)
+  }
   const to = join(juntoDir(ctx.root), "archive", id)
 
   // Safety net for an archive directory created manually between start and finish.

@@ -4081,6 +4081,7 @@ var gateStatusSchema = external_exports.object({
   required: external_exports.boolean(),
   verdict: external_exports.string().nullable(),
   stale: external_exports.boolean(),
+  invalidationVersion: external_exports.number().int().min(0).optional(),
   failStreak: external_exports.number().int().min(0)
 });
 var decisionSchema = external_exports.object({ at: external_exports.string(), what: external_exports.string(), why: external_exports.string() });

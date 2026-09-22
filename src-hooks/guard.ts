@@ -72,9 +72,10 @@ export function handleGuard(input: HookInput): string {
     updateTask(root, id, (task) => {
       let changed = false
       for (const gate of Object.values(task.gates)) {
+        gate.invalidationVersion = (gate.invalidationVersion ?? 0) + 1
+        changed = true
         if (gate.verdict !== null && !gate.stale) {
           gate.stale = true
-          changed = true
         }
       }
       return changed

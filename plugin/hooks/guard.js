@@ -4080,6 +4080,7 @@ var gateStatusSchema = external_exports.object({
   required: external_exports.boolean(),
   verdict: external_exports.string().nullable(),
   stale: external_exports.boolean(),
+  invalidationVersion: external_exports.number().int().min(0).optional(),
   failStreak: external_exports.number().int().min(0)
 });
 var decisionSchema = external_exports.object({ at: external_exports.string(), what: external_exports.string(), why: external_exports.string() });
@@ -4415,9 +4416,10 @@ function handleGuard(input) {
     updateTask(root, id, (task) => {
       let changed = false;
       for (const gate of Object.values(task.gates)) {
+        gate.invalidationVersion = (gate.invalidationVersion ?? 0) + 1;
+        changed = true;
         if (gate.verdict !== null && !gate.stale) {
           gate.stale = true;
-          changed = true;
         }
       }
       return changed;
