@@ -27470,7 +27470,7 @@ function captureReviewFingerprint(root, task, config2) {
 }
 
 // packages/mcp/src/version.ts
-var VERSION = "0.4.0";
+var VERSION = "0.5.0";
 
 // packages/mcp/src/context.ts
 var RUNNER = `@junto/mcp@${VERSION}`;
