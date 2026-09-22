@@ -21,11 +21,12 @@ function fileDigest(path: string): string {
 
 /** Bind review evidence to source and policy without storing source text or reading environment files. */
 export function captureReviewFingerprint(root: string, task: Task, config: Config): string {
-  const canonicalRoot = realpathSync(root)
+  // Native resolution expands Windows 8.3 aliases used by runner temporary directories.
+  const canonicalRoot = realpathSync.native(root)
   const git = (...args: string[]): Buffer => execFileSync("git", args, {
     cwd: root, timeout: 30_000, maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"], windowsHide: true,
   })
-  if (realpathSync(git("rev-parse", "--show-toplevel").toString().trim()) !== canonicalRoot) {
+  if (relative(canonicalRoot, realpathSync.native(git("rev-parse", "--show-toplevel").toString().trim())) !== "") {
     throw new Error("Review root must be the Git repository root")
   }
   let head: string | null = null
@@ -50,7 +51,7 @@ export function captureReviewFingerprint(root: string, task: Task, config: Confi
     }
     if (stat.isSymbolicLink()) files.push([path, stat.mode, digest(readlinkSync(full))])
     else if (stat.isFile()) {
-      const target = relative(canonicalRoot, realpathSync(full))
+      const target = relative(canonicalRoot, realpathSync.native(full))
       if (target === ".." || target.startsWith("../") || target.startsWith("..\\") || isAbsolute(target)) throw new Error("Source path escapes review root")
       files.push([path, stat.mode, fileDigest(full)])
     } else throw new Error("Review fingerprints do not support source directories or submodules")

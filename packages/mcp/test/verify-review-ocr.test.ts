@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process"
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { OpenCodeReviewProvider, readActiveId, readTask, updateTask, writeTask } from "@junto/core"
+import { captureReviewFingerprint, OpenCodeReviewProvider, readActiveId, readConfig, readTask, updateTask, writeTask } from "@junto/core"
 import { taskTool } from "../src/tools/task.js"
 import { verifyTool } from "../src/tools/verify.js"
 import { advanceTool } from "../src/tools/advance.js"
@@ -94,6 +94,19 @@ afterEach(() => {
 })
 
 describe("verify with a review gate and a real reviewer process", () => {
+  it("accepts filesystem aliases of the repository but rejects a nested root", async () => {
+    const id = await startTask()
+    const task = readTask(root, id)
+    const config = readConfig(root)
+    const alias = join(bin, "repository-alias")
+    symlinkSync(root, alias, process.platform === "win32" ? "junction" : "dir")
+    expect(captureReviewFingerprint(alias, task, config)).toBe(captureReviewFingerprint(root, task, config))
+    if (process.platform === "win32") {
+      expect(captureReviewFingerprint(root.toUpperCase(), task, config)).toBe(captureReviewFingerprint(root, task, config))
+    }
+    expect(() => captureReviewFingerprint(join(root, "src"), task, config)).toThrow(/repository root/)
+  })
+
   it.each(["source", "index", "head", "policy", "brief", "plan", "legacy"])("refuses stale %s evidence at status and completion", async change => {
     installFakeOcr({ status: "complete", comments: [] })
     const id = await startTask()

@@ -27411,7 +27411,7 @@ function fileDigest(path6) {
   }
 }
 function captureReviewFingerprint(root, task, config2) {
-  const canonicalRoot = realpathSync2(root);
+  const canonicalRoot = realpathSync2.native(root);
   const git = (...args) => execFileSync("git", args, {
     cwd: root,
     timeout: 3e4,
@@ -27419,7 +27419,7 @@ function captureReviewFingerprint(root, task, config2) {
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true
   });
-  if (realpathSync2(git("rev-parse", "--show-toplevel").toString().trim()) !== canonicalRoot) {
+  if (relative2(canonicalRoot, realpathSync2.native(git("rev-parse", "--show-toplevel").toString().trim())) !== "") {
     throw new Error("Review root must be the Git repository root");
   }
   let head = null;
@@ -27448,7 +27448,7 @@ function captureReviewFingerprint(root, task, config2) {
     }
     if (stat.isSymbolicLink()) files.push([path6, stat.mode, digest(readlinkSync(full))]);
     else if (stat.isFile()) {
-      const target = relative2(canonicalRoot, realpathSync2(full));
+      const target = relative2(canonicalRoot, realpathSync2.native(full));
       if (target === ".." || target.startsWith("../") || target.startsWith("..\\") || isAbsolute3(target)) throw new Error("Source path escapes review root");
       files.push([path6, stat.mode, fileDigest(full)]);
     } else throw new Error("Review fingerprints do not support source directories or submodules");
