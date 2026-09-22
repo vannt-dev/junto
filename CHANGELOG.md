@@ -2,7 +2,12 @@
 
 All notable changes to junto are documented in this file. The project follows Semantic Versioning.
 
-## [Unreleased]
+## [0.5.0] - 2026-09-22
+
+### Fixed
+
+- Bind review verdicts to source, index, HEAD, configuration, and task context; refuse stale evidence at status, transition, and archive boundaries.
+- Preserve review invalidation during in-flight edits and canonicalize Windows repository aliases.
 
 - Keep selected CLI review filenames literal in Git diff, including paths with brackets, so excluded files cannot leak into review input.
 

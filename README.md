@@ -26,6 +26,11 @@ claude plugin details junto@junto
 claude plugin update junto@junto
 ```
 
+This release is **0.5.0**. After updating, restart Claude Code and confirm the version with
+`claude plugin details junto@junto`. Existing review verdicts without source fingerprints are
+unverified: rerun required reviews before advancing or finishing a task. A source, Git, policy,
+or requirement change invalidates the affected evidence. See [release notes](CHANGELOG.md).
+
 ## Quick start
 
 Run the first command inside a Git repository:
