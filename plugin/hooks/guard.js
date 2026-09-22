@@ -4351,11 +4351,10 @@ var MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 // packages/core/src/cli-review.ts
 var MAX_CONTEXT = 512 * 1024;
 
-// src-hooks/lib/io.js
+// src-hooks/lib/io.ts
 async function readStdin() {
   const chunks = [];
-  for await (const chunk of process.stdin)
-    chunks.push(Buffer.from(chunk));
+  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
   return Buffer.concat(chunks).toString("utf-8");
 }
 function readHookInput(raw) {
@@ -4369,8 +4368,7 @@ function readHookInput(raw) {
 async function runHook(fn) {
   try {
     const output = await fn(readHookInput(await readStdin()));
-    if (output !== "")
-      process.stdout.write(output);
+    if (output !== "") process.stdout.write(output);
   } catch {
   }
   process.exit(0);
