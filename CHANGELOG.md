@@ -6,7 +6,7 @@ All notable changes to junto are documented in this file. The project follows Se
 
 ### Changed
 
-- Update `execa` to 10 and the build/test toolchain to esbuild 0.28 and Vitest 5. `zod` stays on 3.x: zod 4 made each bundled hook about 5x larger and added 10-20 ms to every hook start.
+- Update `execa` to 10 and the build/test toolchain to esbuild 0.28, Vitest 5 and TypeScript 7. `zod` stays on 3.x: zod 4 made each bundled hook about 5x larger and added 10-20 ms to every hook start.
 
 ## [0.6.0] - 2026-09-24
 
