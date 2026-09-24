@@ -2,11 +2,11 @@ import { mkdirSync, writeFileSync } from "node:fs"
 import { isAbsolute, join, resolve } from "node:path"
 import {
   OpenCodeReviewProvider, RuleMatcher, SkillResolver, buildPlan,
-  readActiveId, readConfig, readTask, resolveReviewScopes, resolveTaskChanges, taskDir, writeTask,
+  readActiveId, readConfig, readTask, resolveReviewScopes, resolveTaskChanges, taskDir,
   type DelegatePreview, type JuntoPlan, type ReviewScope,
 } from "@junto/core"
 import type { ToolContext } from "../context.js"
-import { configRules, resolveTaskPolicy } from "./policy.js"
+import { configRules, persistTaskPolicy, resolveTaskPolicy } from "./policy.js"
 
 export interface ResolvedPlan extends JuntoPlan {
   base: string | null
@@ -31,7 +31,7 @@ export async function resolvePlan(ctx: ToolContext): Promise<ResolvedPlan> {
   const files = changes.filter(c => c.status !== "deleted").map(c => c.path)
 
   const { task, unknownGates } = await resolveTaskPolicy(ctx.root, stored, config, changes)
-  if (JSON.stringify(task) !== JSON.stringify(stored)) writeTask(ctx.root, task)
+  persistTaskPolicy(ctx.root, stored, task)
   const rules = configRules(config)
 
   const plan = buildPlan(task.title, files, new RuleMatcher(rules), {

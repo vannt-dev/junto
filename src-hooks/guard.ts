@@ -1,4 +1,5 @@
-import { isAbsolute, relative, resolve } from "node:path"
+import { existsSync, realpathSync } from "node:fs"
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path"
 import {
   findProjectRoot,
   PROTECTED_GLOBS,
@@ -23,7 +24,25 @@ function toRegExp(glob: string): RegExp {
       ? ".*"
       : segment.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*"))
     .join("/")
-  return new RegExp(`^${body}$`)
+  // Case-insensitive: Windows and macOS resolve other spellings to the same evidence files.
+  return new RegExp(`^${body}$`, "i")
+}
+
+/**
+ * Resolve the path the file system will actually write. The existing prefix is canonicalized
+ * (case, 8.3 short names, symlinks); Windows also drops trailing dots and spaces from new segments.
+ */
+function canonicalPath(path: string): string {
+  const tail: string[] = []
+  let existing = path
+  while (!existsSync(existing)) {
+    const parent = dirname(existing)
+    if (parent === existing) return path
+    tail.unshift(basename(existing))
+    existing = parent
+  }
+  const segments = process.platform === "win32" ? tail.map(segment => segment.replace(/[. ]+$/, "")) : tail
+  return join(realpathSync.native(existing), ...segments)
 }
 
 export function isProtected(relPath: string): boolean {
@@ -50,7 +69,7 @@ export function handleGuard(input: HookInput): string {
   if (root === null) return ""
 
   const absolutePath = isAbsolute(filePath) ? filePath : resolve(cwd, filePath)
-  const rel = relative(root, absolutePath).replace(/\\/g, "/")
+  const rel = relative(realpathSync.native(root), canonicalPath(absolutePath)).replace(/\\/g, "/")
   if (rel === ".." || rel.startsWith("../")) return ""
 
   if (input.hook_event_name === "PreToolUse") {

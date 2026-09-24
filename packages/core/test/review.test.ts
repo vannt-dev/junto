@@ -265,4 +265,9 @@ describe("runReviewGate", () => {
     await expect(runReviewGate({ root: tmpRoot, taskId: "t", name: "../x", provider: new MockReviewProvider(), context: {}, runner: "t" }))
       .rejects.toThrow(/Invalid gate name/)
   })
+
+  it.each(["nul", "CON", "com1.log"])("rejects reserved Windows device gate names like command gates do: %s", async (name) => {
+    await expect(runReviewGate({ root: tmpRoot, taskId: "t", name, provider: new MockReviewProvider(), context: {}, runner: "t" }))
+      .rejects.toThrow(/Invalid gate name/)
+  })
 })

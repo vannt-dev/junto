@@ -26094,6 +26094,7 @@ async function runGate(opts) {
     outputBytes: Buffer.byteLength(outcome.output, "utf-8"),
     outputFile: `verdicts/${name}.log`,
     runner,
+    ...opts.sourceFingerprint ? { sourceFingerprint: opts.sourceFingerprint } : {},
     ...outcome.reason ? { reason: outcome.reason } : {}
   };
   writeFileSync3(join4(dir, `${name}.json`), `${JSON.stringify(verdict, null, 2)}
@@ -27120,11 +27121,12 @@ var OpenCodeReviewProvider = class {
   }
 };
 var DEFAULT_FAIL_ON = ["critical", "high"];
-var VALID_GATE_NAME2 = /^[A-Za-z0-9._-]+$/;
 async function runReviewGate(opts) {
   const { root, taskId, name, provider, runner } = opts;
-  if (!VALID_GATE_NAME2.test(name) || name === "." || name === "..") {
-    throw new Error(`Invalid gate name "${name}". Use only letters, digits, ".", "_", and "-".`);
+  if (!validGateName(name)) {
+    throw new Error(
+      `Invalid gate name "${name}". Use only letters, digits, ".", "_", and "-", and do not use a reserved Windows device name.`
+    );
   }
   const failOn = opts.failOn ?? DEFAULT_FAIL_ON;
   const startedAt = (/* @__PURE__ */ new Date()).toISOString();
@@ -27410,7 +27412,7 @@ function fileDigest(path6) {
     closeSync2(fd);
   }
 }
-function captureReviewFingerprint(root, task, config2) {
+function sourceState(root, include = () => true) {
   const canonicalRoot = realpathSync2.native(root);
   const git = (...args) => execFileSync("git", args, {
     cwd: root,
@@ -27433,7 +27435,7 @@ function captureReviewFingerprint(root, task, config2) {
   const files = [];
   for (const path6 of [...paths].sort()) {
     const parts = path6.split("/");
-    if (parts[0] === ".junto" || basename2(path6) === ".env" || basename2(path6).startsWith(".env.")) continue;
+    if (parts[0] === ".junto" || basename2(path6) === ".env" || basename2(path6).startsWith(".env.") || !include(path6)) continue;
     if (!tracked.has(path6) && parts.some((part) => IGNORED_UNTRACKED.has(part))) continue;
     const full = resolve3(canonicalRoot, path6);
     const rel = relative2(canonicalRoot, full);
@@ -27453,6 +27455,10 @@ function captureReviewFingerprint(root, task, config2) {
       files.push([path6, stat.mode, fileDigest(full)]);
     } else throw new Error("Review fingerprints do not support source directories or submodules");
   }
+  return { head, index, files };
+}
+function captureReviewFingerprint(root, task, config2) {
+  const { head, index, files } = sourceState(root);
   const context = ["brief.md", "plan.md", "review-background.md"].map((name) => {
     const path6 = join10(taskDir(root, task.id), name);
     return existsSync9(path6) ? digest(readFileSync9(path6)) : null;
@@ -27467,6 +27473,15 @@ function captureReviewFingerprint(root, task, config2) {
     context,
     config: config2
   }));
+}
+function captureSourceFingerprint(root, config2, spec) {
+  let files;
+  try {
+    ({ files } = sourceState(root, (path6) => shouldStale(path6, config2.staleIgnore)));
+  } catch {
+    return null;
+  }
+  return digest(JSON.stringify({ version: 1, kind: "command-gate", files, spec }));
 }
 
 // packages/mcp/src/version.ts
@@ -27518,6 +27533,17 @@ async function resolveTaskPolicy(root, task, config2, changes) {
     unknownGates
   };
 }
+function persistTaskPolicy(root, stored, resolved) {
+  if (JSON.stringify(resolved) === JSON.stringify(stored)) return;
+  updateTask(root, resolved.id, (current) => {
+    for (const [name, gate] of Object.entries(resolved.gates)) {
+      const existing = current.gates[name];
+      if (existing === void 0) current.gates[name] = { ...gate };
+      else existing.required ||= gate.required;
+    }
+    if (resolved.ruleApprovalRequired) current.ruleApprovalRequired = true;
+  });
+}
 
 // packages/mcp/src/tools/advance.ts
 function buildTransitionContext(root, task, config2) {
@@ -27532,6 +27558,14 @@ function buildTransitionContext(root, task, config2) {
       if (config2.gates[name]?.type === "review" || verdict.reviewFingerprint !== void 0) {
         fingerprint ??= captureReviewFingerprint(root, task, config2);
         if (verdict.reviewFingerprint !== fingerprint) {
+          const gate = task.gates[name];
+          if (gate) gate.stale = true;
+          return null;
+        }
+      }
+      if (verdict.sourceFingerprint !== void 0) {
+        const spec = config2.gates[name];
+        if (spec === void 0 || captureSourceFingerprint(root, config2, spec) !== verdict.sourceFingerprint) {
           const gate = task.gates[name];
           if (gate) gate.stale = true;
           return null;
@@ -27564,15 +27598,20 @@ async function advanceTool(ctx, input) {
   const config2 = readConfig(ctx.root);
   const stored = readTask(ctx.root, id);
   const { task, unknownGates } = await resolveTaskPolicy(ctx.root, stored, config2);
-  if (JSON.stringify(task) !== JSON.stringify(stored)) writeTask(ctx.root, task);
+  persistTaskPolicy(ctx.root, stored, task);
   const check2 = canEnter(task, input.to, { ...buildTransitionContext(ctx.root, task, config2), unknownRuleGates: unknownGates });
   if (!check2.ok) throw new Error(`Cannot transition to "${input.to}". ${check2.reason}`);
   const now = (/* @__PURE__ */ new Date()).toISOString();
-  const previous = task.phases[task.phase];
-  if (previous !== void 0) task.phases[task.phase] = { ...previous, status: "done", at: now };
-  task.phases[input.to] = { ...task.phases[input.to] ?? {}, status: "active", at: now };
-  task.phase = input.to;
-  writeTask(ctx.root, task);
+  updateTask(ctx.root, id, (current) => {
+    const invalidated = Object.entries(current.gates).some(([name, gate]) => gate.required && (gate.stale || (gate.invalidationVersion ?? 0) !== (task.gates[name]?.invalidationVersion ?? 0)));
+    if (current.phase !== task.phase || input.to === "done" && invalidated) {
+      throw new Error(`Cannot transition to "${input.to}". The task changed during the transition; retry.`);
+    }
+    const previous = current.phases[current.phase];
+    if (previous !== void 0) current.phases[current.phase] = { ...previous, status: "done", at: now };
+    current.phases[input.to] = { ...current.phases[input.to] ?? {}, status: "active", at: now };
+    current.phase = input.to;
+  });
   const nudge = input.to === "panel" ? " Run /junto:panel to review the approved plan, then advance to build." : input.to === "review" ? " Run /junto:panel to review the implementation, then advance to verify." : "";
   return `Task "${id}" transitioned to phase ${input.to}.${nudge}`;
 }
@@ -27782,7 +27821,7 @@ async function resolvePlan(ctx) {
   const changes = await resolveTaskChanges(ctx.root, stored.baseCommit);
   const files = changes.filter((c3) => c3.status !== "deleted").map((c3) => c3.path);
   const { task, unknownGates } = await resolveTaskPolicy(ctx.root, stored, config2, changes);
-  if (JSON.stringify(task) !== JSON.stringify(stored)) writeTask(ctx.root, task);
+  persistTaskPolicy(ctx.root, stored, task);
   const rules = configRules(config2);
   const plan = buildPlan(task.title, files, new RuleMatcher(rules), {
     id,
@@ -28104,7 +28143,7 @@ async function verifyTool(ctx, input) {
   const config2 = readConfig(ctx.root);
   const stored = readTask(ctx.root, id);
   const { task, unknownGates } = await resolveTaskPolicy(ctx.root, stored, config2);
-  if (JSON.stringify(task) !== JSON.stringify(stored)) writeTask(ctx.root, task);
+  persistTaskPolicy(ctx.root, stored, task);
   if (unknownGates.length) throw new Error(`Rules reference unconfigured gates: ${unknownGates.join(", ")}. Fix .junto/config.json.`);
   const names = input.gates ?? Object.keys(task.gates);
   const sections = [];
@@ -28120,18 +28159,19 @@ async function verifyTool(ctx, input) {
       if (gate) gate.stale = true;
     });
     status.invalidationVersion = started.gates[name]?.invalidationVersion ?? 0;
-    const verdict = spec.type === "review" ? await runReview(ctx, task, name, spec, config2) : await runGate({ root: ctx.root, taskId: id, name, spec, runner: ctx.runner });
+    const sourceFingerprint = spec.type === "review" ? null : captureSourceFingerprint(ctx.root, config2, spec);
+    const verdict = spec.type === "review" ? await runReview(ctx, task, name, spec, config2) : await runGate({ root: ctx.root, taskId: id, name, spec, runner: ctx.runner, ...sourceFingerprint ? { sourceFingerprint } : {} });
     status.verdict = `verdicts/${name}.json`;
     status.stale = false;
     if (verdict.state === "pass") status.failStreak = 0;
     else if (verdict.state === "fail") status.failStreak = status.failStreak + 1;
     sections.push(render(verdict, status.failStreak));
+    const latest = readConfig(ctx.root);
+    const latestSpec = latest.gates[name];
+    const changedDuringRun = verdict.reviewFingerprint !== void 0 && captureReviewFingerprint(ctx.root, readTask(ctx.root, id), latest) !== verdict.reviewFingerprint || verdict.sourceFingerprint !== void 0 && (latestSpec === void 0 || captureSourceFingerprint(ctx.root, latest, latestSpec) !== verdict.sourceFingerprint);
     updateTask(ctx.root, id, (current) => {
       const version2 = current.gates[name]?.invalidationVersion ?? 0;
-      current.gates[name] = { ...status, invalidationVersion: version2, stale: version2 !== status.invalidationVersion };
-      if (verdict.reviewFingerprint) {
-        current.gates[name].stale ||= captureReviewFingerprint(ctx.root, current, readConfig(ctx.root)) !== verdict.reviewFingerprint;
-      }
+      current.gates[name] = { ...status, invalidationVersion: version2, stale: version2 !== status.invalidationVersion || changedDuringRun };
     });
   }
   return sections.join("\n\n");

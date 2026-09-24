@@ -21,6 +21,7 @@ export interface RunGateOptions {
   name: string
   spec: GateSpec
   runner: string
+  sourceFingerprint?: string
 }
 
 /** Take a byte-limited tail without splitting a UTF-8 character. */
@@ -30,7 +31,8 @@ function tail(text: string, maxBytes: number): string {
   return new TextDecoder("utf-8", { fatal: false }).decode(buf.subarray(buf.byteLength - maxBytes))
 }
 
-function validGateName(name: string): boolean {
+/** Shared by command and review gates, which write the same verdict file names. */
+export function validGateName(name: string): boolean {
   return VALID_GATE_NAME.test(name)
     && name !== "."
     && name !== ".."
@@ -136,6 +138,7 @@ export async function runGate(opts: RunGateOptions): Promise<VerdictFile> {
     outputBytes: Buffer.byteLength(outcome.output, "utf-8"),
     outputFile: `verdicts/${name}.log`,
     runner,
+    ...(opts.sourceFingerprint ? { sourceFingerprint: opts.sourceFingerprint } : {}),
     ...(outcome.reason ? { reason: outcome.reason } : {}),
   }
 

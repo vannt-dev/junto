@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -5,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { readActiveId, readTask, taskDir, writeTask } from "@junto/core"
 import { advanceTool } from "../src/tools/advance.js"
 import { taskTool } from "../src/tools/task.js"
+import { persistTaskPolicy } from "../src/tools/policy.js"
 import { verifyTool } from "../src/tools/verify.js"
 
 let root: string
@@ -134,5 +136,64 @@ describe("advanceTool", () => {
     await expect(advanceTool(ctx(), { to: "done" })).rejects.toThrow(/adjacent/)
     await advanceTool(ctx(), { to: "verify" })
     expect(readTask(root, id).phase).toBe("verify")
+  })
+})
+
+describe("advanceTool with source-bound command gates", () => {
+  const git = (...args: string[]) => execFileSync("git", args, { cwd: root, stdio: "ignore" })
+
+  beforeEach(() => {
+    git("init", "-q")
+    git("config", "user.email", "junto@example.test")
+    git("config", "user.name", "Junto Test")
+    writeFileSync(join(root, "app.js"), "export const value = 1\n")
+    writeFileSync(join(root, "README.md"), "# App\n")
+    git("add", "app.js", "README.md")
+    git("commit", "-q", "-m", "init")
+  })
+
+  async function passTests(): Promise<string> {
+    await taskTool(ctx(), { action: "start", title: "X", size: "small" })
+    const id = activeId()
+    await advanceTool(ctx(), { to: "verify" })
+    await verifyTool(ctx(), {})
+    return id
+  }
+
+  it("blocks done when source changed without an edit hook (for example through Bash)", async () => {
+    await passTests()
+    writeFileSync(join(root, "app.js"), "export const value = 2\n")
+    await expect(advanceTool(ctx(), { to: "done" })).rejects.toThrow(/tests \(stale evidence/)
+  })
+
+  it("ignores files covered by staleIgnore and commits of unchanged content", async () => {
+    const id = await passTests()
+    writeFileSync(join(root, "README.md"), "# App\n\nMore docs.\n")
+    git("add", "README.md")
+    git("commit", "-q", "-m", "docs")
+    await advanceTool(ctx(), { to: "done" })
+    expect(readTask(root, id).phase).toBe("done")
+  })
+
+  it("keeps a user approval recorded while policy obligations are persisted", async () => {
+    await taskTool(ctx(), { action: "start", title: "X", size: "small" })
+    const id = activeId()
+    const stored = readTask(root, id)
+    const approved = readTask(root, id)
+    approved.phases.build = { ...(approved.phases.build ?? { status: "active" }), approvedBy: "user" }
+    writeTask(root, approved)
+    // Policy resolved from the older snapshot must merge, not overwrite the approval.
+    persistTaskPolicy(root, stored, { ...stored, ruleApprovalRequired: true })
+    const after = readTask(root, id)
+    expect(after.phases.build?.approvedBy).toBe("user")
+    expect(after.ruleApprovalRequired).toBe(true)
+  })
+
+  it("stays done-able after reverting a change made after the gate ran", async () => {
+    const id = await passTests()
+    writeFileSync(join(root, "app.js"), "export const value = 2\n")
+    writeFileSync(join(root, "app.js"), "export const value = 1\n")
+    await advanceTool(ctx(), { to: "done" })
+    expect(readTask(root, id).phase).toBe("done")
   })
 })
