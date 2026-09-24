@@ -26,10 +26,11 @@ claude plugin details junto@junto
 claude plugin update junto@junto
 ```
 
-This release is **0.5.0**. After updating, restart Claude Code and confirm the version with
-`claude plugin details junto@junto`. Existing review verdicts without source fingerprints are
-unverified: rerun required reviews before advancing or finishing a task. A source, Git, policy,
-or requirement change invalidates the affected evidence. See [release notes](CHANGELOG.md).
+This release is **0.6.0** and requires Node.js 22.12 or newer on `PATH`. After updating, restart
+Claude Code and confirm the version with `claude plugin details junto@junto`. In a Git repository
+root, command gate verdicts are now bound to source contents; verdicts recorded by earlier versions
+keep hook-only freshness until their gates run again, so rerun required gates before finishing a
+task. See [release notes](CHANGELOG.md).
 
 ## Quick start
 
