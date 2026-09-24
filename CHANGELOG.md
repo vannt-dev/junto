@@ -4,6 +4,11 @@ All notable changes to junto are documented in this file. The project follows Se
 
 ## [Unreleased]
 
+### Changed
+
+- Require Node.js 22.12 or newer; Node.js 20 reached end of life on 2026-04-30. CI now tests Node.js 22.12 and 24, and bundles target Node.js 22.
+- Update `@modelcontextprotocol/sdk` to 1.30.1.
+
 ### Fixed
 
 - Bind command gate verdicts to source contents outside `staleIgnore` in Git repository roots, so edits that bypass the edit hooks (Bash, formatters, codegen) make them stale.

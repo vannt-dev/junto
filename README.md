@@ -17,7 +17,7 @@ claude plugin install junto@junto
 
 No `npx`, downloaded binary, or install script is required.
 
-Requirements: Claude Code with plugin support and Node.js 20 or newer available on `PATH`.
+Requirements: Claude Code with plugin support and Node.js 22.12 or newer available on `PATH`.
 
 Verify the installed version or update an existing installation:
 

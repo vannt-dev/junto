@@ -4,7 +4,7 @@ import { build } from "esbuild"
 const shared = {
   bundle: true,
   platform: "node",
-  target: "node20",
+  target: "node22",
   format: "esm",
   banner: { js: "import{createRequire as __cr}from'node:module';const require=__cr(import.meta.url);" },
 }
