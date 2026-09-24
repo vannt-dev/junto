@@ -23,7 +23,7 @@ corepack pnpm --filter @junto/core add <package>
 ```
 
 - Do not install pnpm globally or change `"packageManager": "pnpm@10.17.1"`.
-- Node.js 20.19+ or 22.12+ is required by the Vite dependency chain.
+- Node.js 22.12+ is required (Node.js 20 reached end of life on 2026-04-30).
 - Add every new package project to the root `tsconfig.json` references.
 - pnpm explicitly permits the esbuild install script through `pnpm.onlyBuiltDependencies`.
 

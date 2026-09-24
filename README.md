@@ -17,7 +17,7 @@ claude plugin install junto@junto
 
 No `npx`, downloaded binary, or install script is required.
 
-Requirements: Claude Code with plugin support and Node.js 20 or newer available on `PATH`.
+Requirements: Claude Code with plugin support and Node.js 22.12 or newer available on `PATH`.
 
 Verify the installed version or update an existing installation:
 
@@ -72,9 +72,12 @@ advisory and never replace quality-gate evidence.
 ## Evidence, not promises
 
 `junto__verify` runs test commands itself and records the result. A model cannot merely claim that tests passed.
-When source files change, previous verdicts become stale and gates must run again.
+When source files change, previous verdicts become stale and gates must run again. In a Git repository
+root, command gate verdicts are also bound to the contents of files outside `staleIgnore`, so edits made
+through Bash, formatters, or code generators are caught at the next transition as well.
 
-The `guard.js` hook blocks evidence writes through Edit/Write/MultiEdit, but it **cannot block Bash**.
+The `guard.js` hook blocks evidence writes through Edit/Write/MultiEdit, including case and Windows
+path aliases of `.junto/`, but it **cannot block Bash**.
 It prevents accidents and shortcuts; it is not a security boundary against a malicious actor.
 
 ## OpenCodeReview gates and rules

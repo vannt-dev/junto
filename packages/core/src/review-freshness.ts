@@ -3,7 +3,8 @@ import { createHash } from "node:crypto"
 import { closeSync, existsSync, lstatSync, openSync, readFileSync, readlinkSync, readSync, realpathSync } from "node:fs"
 import { basename, isAbsolute, join, relative, resolve } from "node:path"
 import { taskDir } from "./paths.js"
-import type { Config, Task } from "./schema.js"
+import type { Config, GateSpec, Task } from "./schema.js"
+import { shouldStale } from "./stale.js"
 
 const IGNORED_UNTRACKED = new Set(["node_modules", "dist", "build", ".temp", ".venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache"])
 const digest = (value: string | Buffer): string => createHash("sha256").update(value).digest("hex")
@@ -19,8 +20,13 @@ function fileDigest(path: string): string {
   } finally { closeSync(fd) }
 }
 
-/** Bind review evidence to source and policy without storing source text or reading environment files. */
-export function captureReviewFingerprint(root: string, task: Task, config: Config): string {
+interface SourceState {
+  head: string | null
+  index: Buffer
+  files: Array<[string, number | null, string]>
+}
+
+function sourceState(root: string, include: (path: string) => boolean = () => true): SourceState {
   // Native resolution expands Windows 8.3 aliases used by runner temporary directories.
   const canonicalRoot = realpathSync.native(root)
   const git = (...args: string[]): Buffer => execFileSync("git", args, {
@@ -38,7 +44,7 @@ export function captureReviewFingerprint(root: string, task: Task, config: Confi
   const files: Array<[string, number | null, string]> = []
   for (const path of [...paths].sort()) {
     const parts = path.split("/")
-    if (parts[0] === ".junto" || basename(path) === ".env" || basename(path).startsWith(".env.")) continue
+    if (parts[0] === ".junto" || basename(path) === ".env" || basename(path).startsWith(".env.") || !include(path)) continue
     if (!tracked.has(path) && parts.some(part => IGNORED_UNTRACKED.has(part))) continue
     const full = resolve(canonicalRoot, path)
     const rel = relative(canonicalRoot, full)
@@ -56,10 +62,29 @@ export function captureReviewFingerprint(root: string, task: Task, config: Confi
       files.push([path, stat.mode, fileDigest(full)])
     } else throw new Error("Review fingerprints do not support source directories or submodules")
   }
+  return { head, index, files }
+}
+
+/** Bind review evidence to source and policy without storing source text or reading environment files. */
+export function captureReviewFingerprint(root: string, task: Task, config: Config): string {
+  const { head, index, files } = sourceState(root)
   const context = ["brief.md", "plan.md", "review-background.md"].map(name => {
     const path = join(taskDir(root, task.id), name)
     return existsSync(path) ? digest(readFileSync(path)) : null
   })
   return digest(JSON.stringify({ version: 1, head, index: digest(index), files,
     base: task.baseCommit, title: task.title, context, config }))
+}
+
+/**
+ * Bind a command gate verdict to the source it ran against, so edits that bypass the edit hooks
+ * (Bash, formatters, codegen) still make it stale. Only file contents outside `staleIgnore` and the
+ * gate's own spec count: commits, staging and documentation edits keep the verdict fresh.
+ * Returns null where fingerprints are unsupported (no Git repository root, submodules); those
+ * projects keep relying on the edit hooks alone.
+ */
+export function captureSourceFingerprint(root: string, config: Config, spec: GateSpec): string | null {
+  let files: SourceState["files"]
+  try { ({ files } = sourceState(root, path => shouldStale(path, config.staleIgnore))) } catch { return null }
+  return digest(JSON.stringify({ version: 1, kind: "command-gate", files, spec }))
 }

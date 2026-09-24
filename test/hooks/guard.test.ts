@@ -76,6 +76,20 @@ describe("PreToolUse", () => {
   })
 
   it("allows ordinary source files", () => expect(pre(join(root, "src", "app.ts"))).toBe(""))
+
+  // Windows and macOS file systems resolve these spellings to the protected evidence files.
+  it.each([
+    ".JUNTO/tasks/t/verdicts/tests.json",
+    ".junto/tasks/t/Verdicts/tests.json",
+    ".junto/TASKS/t/TASK.JSON",
+    ".Junto/Active",
+  ])("rejects case variants of protected paths: %s", (file) => {
+    expect(JSON.parse(pre(file)).hookSpecificOutput.permissionDecision).toBe("deny")
+  })
+
+  it.runIf(process.platform === "win32")("rejects Windows trailing-dot aliases of protected paths", () => {
+    expect(JSON.parse(pre(".junto./tasks/t/verdicts./tests.json")).hookSpecificOutput.permissionDecision).toBe("deny")
+  })
 })
 
 describe("PostToolUse", () => {

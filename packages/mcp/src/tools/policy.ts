@@ -1,4 +1,4 @@
-import { RuleMatcher, resolveTaskChanges, type ChangedFile, type Config, type Rule, type Task } from "@junto/core"
+import { RuleMatcher, resolveTaskChanges, updateTask, type ChangedFile, type Config, type Rule, type Task } from "@junto/core"
 
 export function configRules(config: Config): Rule[] {
   return (config.rules ?? []).map(r => ({
@@ -29,4 +29,20 @@ export async function resolveTaskPolicy(root: string, task: Task, config: Config
     task: { ...task, gates, ruleApprovalRequired: task.ruleApprovalRequired || matched.approvalRequired },
     unknownGates,
   }
+}
+
+/**
+ * Persist resolved obligations under the task lock. They only ever add gates or raise flags, so
+ * merging them into the latest task keeps concurrent hook updates (staleness, approval).
+ */
+export function persistTaskPolicy(root: string, stored: Task, resolved: Task): void {
+  if (JSON.stringify(resolved) === JSON.stringify(stored)) return
+  updateTask(root, resolved.id, current => {
+    for (const [name, gate] of Object.entries(resolved.gates)) {
+      const existing = current.gates[name]
+      if (existing === undefined) current.gates[name] = { ...gate }
+      else existing.required ||= gate.required
+    }
+    if (resolved.ruleApprovalRequired) current.ruleApprovalRequired = true
+  })
 }

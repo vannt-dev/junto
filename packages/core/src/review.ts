@@ -2,7 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { execa } from "execa"
 import { resolveExecutable } from "./exec.js"
-import { OUTPUT_TAIL_BYTES } from "./gates.js"
+import { OUTPUT_TAIL_BYTES, validGateName } from "./gates.js"
 import { taskDir } from "./paths.js"
 import { SCHEMA_VERSION, type GateState, type VerdictFile } from "./schema.js"
 import type { ReviewScope } from "./review-scope.js"
@@ -489,8 +489,6 @@ export interface RunReviewGateOptions {
 
 export const DEFAULT_FAIL_ON: ReviewSeverity[] = ["critical", "high"]
 
-const VALID_GATE_NAME = /^[A-Za-z0-9._-]+$/
-
 /**
  * Run a review provider as a gate. Only the provider's real result decides the state:
  * a missing reviewer is `skipped` (never a pass), a broken reviewer is `fail`, and findings at or
@@ -498,8 +496,11 @@ const VALID_GATE_NAME = /^[A-Za-z0-9._-]+$/
  */
 export async function runReviewGate(opts: RunReviewGateOptions): Promise<VerdictFile> {
   const { root, taskId, name, provider, runner } = opts
-  if (!VALID_GATE_NAME.test(name) || name === "." || name === "..") {
-    throw new Error(`Invalid gate name "${name}". Use only letters, digits, ".", "_", and "-".`)
+  if (!validGateName(name)) {
+    throw new Error(
+      `Invalid gate name "${name}". Use only letters, digits, ".", "_", and "-", `
+      + "and do not use a reserved Windows device name.",
+    )
   }
   const failOn = opts.failOn ?? DEFAULT_FAIL_ON
   const startedAt = new Date().toISOString()

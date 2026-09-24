@@ -6,7 +6,8 @@ var __export = (target, all) => {
 };
 
 // src-hooks/guard.ts
-import { isAbsolute, relative, resolve } from "node:path";
+import { existsSync as existsSync3, realpathSync } from "node:fs";
+import { basename, dirname as dirname2, isAbsolute, join as join3, relative, resolve } from "node:path";
 
 // node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/external.js
 var external_exports = {};
@@ -4377,7 +4378,19 @@ async function runHook(fn) {
 // src-hooks/guard.ts
 function toRegExp(glob) {
   const body = glob.split("/").map((segment) => segment === "**" ? ".*" : segment.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*")).join("/");
-  return new RegExp(`^${body}$`);
+  return new RegExp(`^${body}$`, "i");
+}
+function canonicalPath(path) {
+  const tail = [];
+  let existing = path;
+  while (!existsSync3(existing)) {
+    const parent = dirname2(existing);
+    if (parent === existing) return path;
+    tail.unshift(basename(existing));
+    existing = parent;
+  }
+  const segments = process.platform === "win32" ? tail.map((segment) => segment.replace(/[. ]+$/, "")) : tail;
+  return join3(realpathSync.native(existing), ...segments);
 }
 function isProtected(relPath) {
   const normalized = relPath.replace(/\\/g, "/").replace(/^\.\//, "");
@@ -4399,7 +4412,7 @@ function handleGuard(input) {
   const root = findProjectRoot(cwd);
   if (root === null) return "";
   const absolutePath = isAbsolute(filePath) ? filePath : resolve(cwd, filePath);
-  const rel = relative(root, absolutePath).replace(/\\/g, "/");
+  const rel = relative(realpathSync.native(root), canonicalPath(absolutePath)).replace(/\\/g, "/");
   if (rel === ".." || rel.startsWith("../")) return "";
   if (input.hook_event_name === "PreToolUse") {
     if (!isProtected(rel)) return "";

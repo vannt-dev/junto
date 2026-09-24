@@ -173,6 +173,8 @@ export interface VerdictFile {
   reason?: string
   /** Present on source-bound reviews; legacy reviews must be rerun. */
   reviewFingerprint?: string
+  /** Present on command gates run in a Git repository root; binds the verdict to source contents. */
+  sourceFingerprint?: string
 }
 
 export function parseTask(raw: unknown): Task {

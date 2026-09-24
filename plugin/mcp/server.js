@@ -3105,12 +3105,13 @@ var require_data = __commonJS({
   }
 });
 
-// node_modules/.pnpm/fast-uri@3.1.6/node_modules/fast-uri/lib/utils.js
+// node_modules/.pnpm/fast-uri@3.1.8/node_modules/fast-uri/lib/utils.js
 var require_utils = __commonJS({
-  "node_modules/.pnpm/fast-uri@3.1.6/node_modules/fast-uri/lib/utils.js"(exports, module) {
+  "node_modules/.pnpm/fast-uri@3.1.8/node_modules/fast-uri/lib/utils.js"(exports, module) {
     "use strict";
     var isUUID = RegExp.prototype.test.bind(/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/iu);
     var isIPv4 = RegExp.prototype.test.bind(/^(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)$/u);
+    var isPort = RegExp.prototype.test.bind(/^\d*$/u);
     var isHexPair = RegExp.prototype.test.bind(/^[\da-f]{2}$/iu);
     var isUnreserved = RegExp.prototype.test.bind(/^[\da-z\-._~]$/iu);
     var isPathCharacter = RegExp.prototype.test.bind(/^[A-Za-z0-9\-._~!$&'()*+,;=:@/]$/u);
@@ -3576,8 +3577,12 @@ var require_utils = __commonJS({
         uriTokens.push(host);
       }
       if (typeof component.port === "number" || typeof component.port === "string") {
+        const port = String(component.port);
+        if (!isPort(port)) {
+          throw new TypeError("URI port is malformed.");
+        }
         uriTokens.push(":");
-        uriTokens.push(String(component.port));
+        uriTokens.push(port);
       }
       return uriTokens.length ? uriTokens.join("") : void 0;
     }
@@ -3602,9 +3607,9 @@ var require_utils = __commonJS({
   }
 });
 
-// node_modules/.pnpm/fast-uri@3.1.6/node_modules/fast-uri/lib/schemes.js
+// node_modules/.pnpm/fast-uri@3.1.8/node_modules/fast-uri/lib/schemes.js
 var require_schemes = __commonJS({
-  "node_modules/.pnpm/fast-uri@3.1.6/node_modules/fast-uri/lib/schemes.js"(exports, module) {
+  "node_modules/.pnpm/fast-uri@3.1.8/node_modules/fast-uri/lib/schemes.js"(exports, module) {
     "use strict";
     var { isUUID } = require_utils();
     var URN_REG = /^([\da-z][\d\-a-z]{0,31}):((?:[\w!$'()*+,\-./:;=@]|%[\da-f]{2})+)$/iu;
@@ -3813,9 +3818,9 @@ var require_schemes = __commonJS({
   }
 });
 
-// node_modules/.pnpm/fast-uri@3.1.6/node_modules/fast-uri/index.js
+// node_modules/.pnpm/fast-uri@3.1.8/node_modules/fast-uri/index.js
 var require_fast_uri = __commonJS({
-  "node_modules/.pnpm/fast-uri@3.1.6/node_modules/fast-uri/index.js"(exports, module) {
+  "node_modules/.pnpm/fast-uri@3.1.8/node_modules/fast-uri/index.js"(exports, module) {
     "use strict";
     var { normalizeIPv6, removeDotSegments, recomposeAuthority, normalizePercentEncoding, normalizePathEncoding, serializePathEncoding, normalizeQueryFragmentEncoding, encodeQuery, encodeFragment, reescapeHostDelimiters, isIPv4, nonSimpleDomain } = require_utils();
     var { SCHEMES, getSchemeHandler } = require_schemes();
@@ -4020,12 +4025,15 @@ var require_fast_uri = __commonJS({
       }
       return false;
     }
+    function isIPLiteral(host) {
+      return host[0] === "[" && host[host.length - 1] === "]";
+    }
     function hasMalformedComponentPercentEncoding(matches) {
       const host = matches[4];
-      return hasMalformedPercentEncoding(matches[3]) || host !== void 0 && !(host[0] === "[" && host[host.length - 1] === "]") && hasMalformedPercentEncoding(host) || hasMalformedPercentEncoding(matches[6]) || hasMalformedPercentEncoding(matches[7]) || hasMalformedPercentEncoding(matches[8]);
+      return hasMalformedPercentEncoding(matches[3]) || host !== void 0 && !isIPLiteral(host) && hasMalformedPercentEncoding(host) || hasMalformedPercentEncoding(matches[6]) || hasMalformedPercentEncoding(matches[7]) || hasMalformedPercentEncoding(matches[8]);
     }
     function canonicalizeHost(parsed, options, schemeHandler, isIP) {
-      if (!options.unicodeSupport && (!schemeHandler || !schemeHandler.unicodeSupport) && parsed.host && parsed.host[0] !== "[" && (options.domainHost || schemeHandler && schemeHandler.domainHost) && isIP === false && nonSimpleDomain(parsed.host)) {
+      if (!options.unicodeSupport && (!schemeHandler || !schemeHandler.unicodeSupport) && parsed.host && !isIPLiteral(parsed.host) && (options.domainHost || schemeHandler && schemeHandler.domainHost) && isIP === false && nonSimpleDomain(parsed.host)) {
         try {
           parsed.host = new URL("http://" + parsed.host).hostname;
         } catch (e) {
@@ -4112,10 +4120,11 @@ var require_fast_uri = __commonJS({
         if (parsed.host) {
           const ipv4result = isIPv4(parsed.host);
           if (ipv4result === false) {
-            const bracketedIPLiteral = parsed.host[0] === "[" && parsed.host[parsed.host.length - 1] === "]";
+            const bracketedIPLiteral = isIPLiteral(parsed.host);
+            const hasIPLiteralBracket = parsed.host.indexOf("[") !== -1 || parsed.host.indexOf("]") !== -1;
             const ipv6result = normalizeIPv6(parsed.host);
             isIP = ipv6result.isIPV6 || ipv6result.isIPVFuture === true;
-            malformedIPLiteral = bracketedIPLiteral && ipv6result.error === true;
+            malformedIPLiteral = hasIPLiteralBracket && (!bracketedIPLiteral || ipv6result.error === true);
             parsed.host = isIP ? ipv6result.host : ipv6result.host.toLowerCase();
             if (malformedIPLiteral) {
               parsed.error = parsed.error || "URI host is malformed.";
@@ -4138,14 +4147,17 @@ var require_fast_uri = __commonJS({
           parsed.error = parsed.error || "URI is not a " + options.reference + " reference.";
         }
         const schemeHandler = getSchemeHandler(options.scheme || parsed.scheme);
-        malformedHost = canonicalizeHost(parsed, options, schemeHandler, isIP);
-        if (!schemeHandler || schemeHandler && !schemeHandler.skipNormalize) {
-          if (uri.indexOf("%") !== -1) {
-            if (parsed.host !== void 0 && !malformedIPLiteral) {
-              const host = isIP ? parsed.host : normalizePercentEncoding(parsed.host, true);
-              parsed.host = reescapeHostDelimiters(host, isIP);
-            }
+        if (!malformedIPLiteral) {
+          malformedHost = canonicalizeHost(parsed, options, schemeHandler, isIP);
+        }
+        if (uri.indexOf("%") !== -1 && parsed.host !== void 0 && !malformedIPLiteral) {
+          let host = isIP ? parsed.host : normalizePercentEncoding(parsed.host, true);
+          if (!isIP) {
+            host = normalizePercentEncoding(host.toLowerCase());
           }
+          parsed.host = reescapeHostDelimiters(host, isIP);
+        }
+        if (!schemeHandler || schemeHandler && !schemeHandler.skipNormalize) {
           if (parsed.path) {
             parsed.path = normalizePathEncoding(parsed.path);
           }
@@ -7686,7 +7698,7 @@ var require_cross_spawn = __commonJS({
   }
 });
 
-// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.0_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
+// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.1_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
 import process2 from "node:process";
 
 // node_modules/.pnpm/zod@3.25.76/node_modules/zod/v4/core/core.js
@@ -11421,7 +11433,7 @@ function preprocess(fn, schema) {
 // node_modules/.pnpm/zod@3.25.76/node_modules/zod/v4/classic/external.js
 config(en_default());
 
-// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.0_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/types.js
+// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.1_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/types.js
 var LATEST_PROTOCOL_VERSION = "2025-11-25";
 var SUPPORTED_PROTOCOL_VERSIONS = [LATEST_PROTOCOL_VERSION, "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];
 var RELATED_TASK_META_KEY = "io.modelcontextprotocol/related-task";
@@ -12940,7 +12952,7 @@ var UrlElicitationRequiredError = class extends McpError {
   }
 };
 
-// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.0_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/shared/stdio.js
+// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.1_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/shared/stdio.js
 var STDIO_DEFAULT_MAX_BUFFER_SIZE = 10 * 1024 * 1024;
 var ReadBuffer = class {
   constructor(options) {
@@ -12977,7 +12989,7 @@ function serializeMessage(message) {
   return JSON.stringify(message) + "\n";
 }
 
-// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.0_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
+// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.1_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
 var StdioServerTransport = class {
   constructor(_stdin = process2.stdin, _stdout = process2.stdout, options) {
     this._stdin = _stdin;
@@ -17085,7 +17097,7 @@ var coerce = {
 };
 var NEVER2 = INVALID;
 
-// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.0_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/server/zod-compat.js
+// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.1_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/server/zod-compat.js
 function isZ4Schema(s) {
   const schema = s;
   return !!schema._zod;
@@ -17148,7 +17160,7 @@ function getLiteralValue(schema) {
   return void 0;
 }
 
-// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.0_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/interfaces.js
+// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.1_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/interfaces.js
 function isTerminal(status) {
   return status === "completed" || status === "failed" || status === "cancelled";
 }
@@ -17159,7 +17171,7 @@ var ignoreOverride = Symbol("Let zodToJsonSchema decide on which parser to use")
 // node_modules/.pnpm/zod-to-json-schema@3.25.2_zod@3.25.76/node_modules/zod-to-json-schema/dist/esm/parsers/string.js
 var ALPHA_NUMERIC = new Set("ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvxyz0123456789");
 
-// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.0_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/server/zod-json-schema-compat.js
+// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.1_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/server/zod-json-schema-compat.js
 function getMethodLiteral(schema) {
   const shape = getObjectShape(schema);
   const methodSchema = shape?.method;
@@ -17180,7 +17192,7 @@ function parseWithCompat(schema, data) {
   return result.data;
 }
 
-// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.0_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/shared/protocol.js
+// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.1_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/shared/protocol.js
 var DEFAULT_REQUEST_TIMEOUT_MSEC = 6e4;
 var Protocol = class {
   constructor(_options) {
@@ -18134,7 +18146,7 @@ function mergeCapabilities(base, additional) {
   return result;
 }
 
-// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.0_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/validation/ajv-provider.js
+// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.1_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/validation/ajv-provider.js
 var import_ajv = __toESM(require_ajv(), 1);
 var import_ajv_formats = __toESM(require_dist(), 1);
 function createDefaultAjvInstance() {
@@ -18202,7 +18214,7 @@ var AjvJsonSchemaValidator = class {
   }
 };
 
-// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.0_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/server.js
+// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.1_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/server.js
 var ExperimentalServerTasks = class {
   constructor(_server) {
     this._server = _server;
@@ -18415,7 +18427,7 @@ var ExperimentalServerTasks = class {
   }
 };
 
-// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.0_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/helpers.js
+// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.1_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/helpers.js
 function assertToolsCallTaskCapability(requests, method, entityName) {
   if (!requests) {
     throw new Error(`${entityName} does not support task creation (required for ${method})`);
@@ -18450,7 +18462,7 @@ function assertClientRequestTaskCapability(requests, method, entityName) {
   }
 }
 
-// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.0_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js
+// node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.1_zod@3.25.76/node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js
 var Server = class extends Protocol {
   /**
    * Initializes this server with the given name and version information.
@@ -26094,6 +26106,7 @@ async function runGate(opts) {
     outputBytes: Buffer.byteLength(outcome.output, "utf-8"),
     outputFile: `verdicts/${name}.log`,
     runner,
+    ...opts.sourceFingerprint ? { sourceFingerprint: opts.sourceFingerprint } : {},
     ...outcome.reason ? { reason: outcome.reason } : {}
   };
   writeFileSync3(join4(dir, `${name}.json`), `${JSON.stringify(verdict, null, 2)}
@@ -27120,11 +27133,12 @@ var OpenCodeReviewProvider = class {
   }
 };
 var DEFAULT_FAIL_ON = ["critical", "high"];
-var VALID_GATE_NAME2 = /^[A-Za-z0-9._-]+$/;
 async function runReviewGate(opts) {
   const { root, taskId, name, provider, runner } = opts;
-  if (!VALID_GATE_NAME2.test(name) || name === "." || name === "..") {
-    throw new Error(`Invalid gate name "${name}". Use only letters, digits, ".", "_", and "-".`);
+  if (!validGateName(name)) {
+    throw new Error(
+      `Invalid gate name "${name}". Use only letters, digits, ".", "_", and "-", and do not use a reserved Windows device name.`
+    );
   }
   const failOn = opts.failOn ?? DEFAULT_FAIL_ON;
   const startedAt = (/* @__PURE__ */ new Date()).toISOString();
@@ -27410,7 +27424,7 @@ function fileDigest(path6) {
     closeSync2(fd);
   }
 }
-function captureReviewFingerprint(root, task, config2) {
+function sourceState(root, include = () => true) {
   const canonicalRoot = realpathSync2.native(root);
   const git = (...args) => execFileSync("git", args, {
     cwd: root,
@@ -27433,7 +27447,7 @@ function captureReviewFingerprint(root, task, config2) {
   const files = [];
   for (const path6 of [...paths].sort()) {
     const parts = path6.split("/");
-    if (parts[0] === ".junto" || basename2(path6) === ".env" || basename2(path6).startsWith(".env.")) continue;
+    if (parts[0] === ".junto" || basename2(path6) === ".env" || basename2(path6).startsWith(".env.") || !include(path6)) continue;
     if (!tracked.has(path6) && parts.some((part) => IGNORED_UNTRACKED.has(part))) continue;
     const full = resolve3(canonicalRoot, path6);
     const rel = relative2(canonicalRoot, full);
@@ -27453,6 +27467,10 @@ function captureReviewFingerprint(root, task, config2) {
       files.push([path6, stat.mode, fileDigest(full)]);
     } else throw new Error("Review fingerprints do not support source directories or submodules");
   }
+  return { head, index, files };
+}
+function captureReviewFingerprint(root, task, config2) {
+  const { head, index, files } = sourceState(root);
   const context = ["brief.md", "plan.md", "review-background.md"].map((name) => {
     const path6 = join10(taskDir(root, task.id), name);
     return existsSync9(path6) ? digest(readFileSync9(path6)) : null;
@@ -27467,6 +27485,15 @@ function captureReviewFingerprint(root, task, config2) {
     context,
     config: config2
   }));
+}
+function captureSourceFingerprint(root, config2, spec) {
+  let files;
+  try {
+    ({ files } = sourceState(root, (path6) => shouldStale(path6, config2.staleIgnore)));
+  } catch {
+    return null;
+  }
+  return digest(JSON.stringify({ version: 1, kind: "command-gate", files, spec }));
 }
 
 // packages/mcp/src/version.ts
@@ -27518,6 +27545,17 @@ async function resolveTaskPolicy(root, task, config2, changes) {
     unknownGates
   };
 }
+function persistTaskPolicy(root, stored, resolved) {
+  if (JSON.stringify(resolved) === JSON.stringify(stored)) return;
+  updateTask(root, resolved.id, (current) => {
+    for (const [name, gate] of Object.entries(resolved.gates)) {
+      const existing = current.gates[name];
+      if (existing === void 0) current.gates[name] = { ...gate };
+      else existing.required ||= gate.required;
+    }
+    if (resolved.ruleApprovalRequired) current.ruleApprovalRequired = true;
+  });
+}
 
 // packages/mcp/src/tools/advance.ts
 function buildTransitionContext(root, task, config2) {
@@ -27532,6 +27570,14 @@ function buildTransitionContext(root, task, config2) {
       if (config2.gates[name]?.type === "review" || verdict.reviewFingerprint !== void 0) {
         fingerprint ??= captureReviewFingerprint(root, task, config2);
         if (verdict.reviewFingerprint !== fingerprint) {
+          const gate = task.gates[name];
+          if (gate) gate.stale = true;
+          return null;
+        }
+      }
+      if (verdict.sourceFingerprint !== void 0) {
+        const spec = config2.gates[name];
+        if (spec === void 0 || captureSourceFingerprint(root, config2, spec) !== verdict.sourceFingerprint) {
           const gate = task.gates[name];
           if (gate) gate.stale = true;
           return null;
@@ -27564,15 +27610,20 @@ async function advanceTool(ctx, input) {
   const config2 = readConfig(ctx.root);
   const stored = readTask(ctx.root, id);
   const { task, unknownGates } = await resolveTaskPolicy(ctx.root, stored, config2);
-  if (JSON.stringify(task) !== JSON.stringify(stored)) writeTask(ctx.root, task);
+  persistTaskPolicy(ctx.root, stored, task);
   const check2 = canEnter(task, input.to, { ...buildTransitionContext(ctx.root, task, config2), unknownRuleGates: unknownGates });
   if (!check2.ok) throw new Error(`Cannot transition to "${input.to}". ${check2.reason}`);
   const now = (/* @__PURE__ */ new Date()).toISOString();
-  const previous = task.phases[task.phase];
-  if (previous !== void 0) task.phases[task.phase] = { ...previous, status: "done", at: now };
-  task.phases[input.to] = { ...task.phases[input.to] ?? {}, status: "active", at: now };
-  task.phase = input.to;
-  writeTask(ctx.root, task);
+  updateTask(ctx.root, id, (current) => {
+    const invalidated = Object.entries(current.gates).some(([name, gate]) => gate.required && (gate.stale || (gate.invalidationVersion ?? 0) !== (task.gates[name]?.invalidationVersion ?? 0)));
+    if (current.phase !== task.phase || input.to === "done" && invalidated) {
+      throw new Error(`Cannot transition to "${input.to}". The task changed during the transition; retry.`);
+    }
+    const previous = current.phases[current.phase];
+    if (previous !== void 0) current.phases[current.phase] = { ...previous, status: "done", at: now };
+    current.phases[input.to] = { ...current.phases[input.to] ?? {}, status: "active", at: now };
+    current.phase = input.to;
+  });
   const nudge = input.to === "panel" ? " Run /junto:panel to review the approved plan, then advance to build." : input.to === "review" ? " Run /junto:panel to review the implementation, then advance to verify." : "";
   return `Task "${id}" transitioned to phase ${input.to}.${nudge}`;
 }
@@ -27782,7 +27833,7 @@ async function resolvePlan(ctx) {
   const changes = await resolveTaskChanges(ctx.root, stored.baseCommit);
   const files = changes.filter((c3) => c3.status !== "deleted").map((c3) => c3.path);
   const { task, unknownGates } = await resolveTaskPolicy(ctx.root, stored, config2, changes);
-  if (JSON.stringify(task) !== JSON.stringify(stored)) writeTask(ctx.root, task);
+  persistTaskPolicy(ctx.root, stored, task);
   const rules = configRules(config2);
   const plan = buildPlan(task.title, files, new RuleMatcher(rules), {
     id,
@@ -28104,7 +28155,7 @@ async function verifyTool(ctx, input) {
   const config2 = readConfig(ctx.root);
   const stored = readTask(ctx.root, id);
   const { task, unknownGates } = await resolveTaskPolicy(ctx.root, stored, config2);
-  if (JSON.stringify(task) !== JSON.stringify(stored)) writeTask(ctx.root, task);
+  persistTaskPolicy(ctx.root, stored, task);
   if (unknownGates.length) throw new Error(`Rules reference unconfigured gates: ${unknownGates.join(", ")}. Fix .junto/config.json.`);
   const names = input.gates ?? Object.keys(task.gates);
   const sections = [];
@@ -28120,18 +28171,19 @@ async function verifyTool(ctx, input) {
       if (gate) gate.stale = true;
     });
     status.invalidationVersion = started.gates[name]?.invalidationVersion ?? 0;
-    const verdict = spec.type === "review" ? await runReview(ctx, task, name, spec, config2) : await runGate({ root: ctx.root, taskId: id, name, spec, runner: ctx.runner });
+    const sourceFingerprint = spec.type === "review" ? null : captureSourceFingerprint(ctx.root, config2, spec);
+    const verdict = spec.type === "review" ? await runReview(ctx, task, name, spec, config2) : await runGate({ root: ctx.root, taskId: id, name, spec, runner: ctx.runner, ...sourceFingerprint ? { sourceFingerprint } : {} });
     status.verdict = `verdicts/${name}.json`;
     status.stale = false;
     if (verdict.state === "pass") status.failStreak = 0;
     else if (verdict.state === "fail") status.failStreak = status.failStreak + 1;
     sections.push(render(verdict, status.failStreak));
+    const latest = readConfig(ctx.root);
+    const latestSpec = latest.gates[name];
+    const changedDuringRun = verdict.reviewFingerprint !== void 0 && captureReviewFingerprint(ctx.root, readTask(ctx.root, id), latest) !== verdict.reviewFingerprint || verdict.sourceFingerprint !== void 0 && (latestSpec === void 0 || captureSourceFingerprint(ctx.root, latest, latestSpec) !== verdict.sourceFingerprint);
     updateTask(ctx.root, id, (current) => {
       const version2 = current.gates[name]?.invalidationVersion ?? 0;
-      current.gates[name] = { ...status, invalidationVersion: version2, stale: version2 !== status.invalidationVersion };
-      if (verdict.reviewFingerprint) {
-        current.gates[name].stale ||= captureReviewFingerprint(ctx.root, current, readConfig(ctx.root)) !== verdict.reviewFingerprint;
-      }
+      current.gates[name] = { ...status, invalidationVersion: version2, stale: version2 !== status.invalidationVersion || changedDuringRun };
     });
   }
   return sections.join("\n\n");

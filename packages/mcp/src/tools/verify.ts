@@ -1,10 +1,10 @@
 import {
-  captureReviewFingerprint, CliReviewProvider, OpenCodeReviewProvider, ScopedReviewProvider, readActiveId, readConfig, readTask, resolveReviewScopes, runGate, runReviewGate, updateTask,
-  writeReviewBackground, writeTask,
+  captureReviewFingerprint, captureSourceFingerprint, CliReviewProvider, OpenCodeReviewProvider, ScopedReviewProvider, readActiveId, readConfig, readTask, resolveReviewScopes, runGate, runReviewGate, updateTask,
+  writeReviewBackground,
 } from "@junto/core"
 import type { Config, GateSpec, Task, VerdictFile } from "@junto/core"
 import type { ToolContext } from "../context.js"
-import { resolveTaskPolicy } from "./policy.js"
+import { persistTaskPolicy, resolveTaskPolicy } from "./policy.js"
 
 const FAIL_STREAK_HINT_AT = 3
 
@@ -65,7 +65,7 @@ export async function verifyTool(ctx: ToolContext, input: { gates?: string[] }):
   const config = readConfig(ctx.root)
   const stored = readTask(ctx.root, id)
   const { task, unknownGates } = await resolveTaskPolicy(ctx.root, stored, config)
-  if (JSON.stringify(task) !== JSON.stringify(stored)) writeTask(ctx.root, task)
+  persistTaskPolicy(ctx.root, stored, task)
   if (unknownGates.length) throw new Error(`Rules reference unconfigured gates: ${unknownGates.join(", ")}. Fix .junto/config.json.`)
   const names = input.gates ?? Object.keys(task.gates)
 
@@ -82,9 +82,10 @@ export async function verifyTool(ctx: ToolContext, input: { gates?: string[] }):
     const started = updateTask(ctx.root, id, current => { const gate = current.gates[name]; if (gate) gate.stale = true })
     status.invalidationVersion = started.gates[name]?.invalidationVersion ?? 0
 
+    const sourceFingerprint = spec.type === "review" ? null : captureSourceFingerprint(ctx.root, config, spec)
     const verdict = spec.type === "review"
       ? await runReview(ctx, task, name, spec, config)
-      : await runGate({ root: ctx.root, taskId: id, name, spec, runner: ctx.runner })
+      : await runGate({ root: ctx.root, taskId: id, name, spec, runner: ctx.runner, ...(sourceFingerprint ? { sourceFingerprint } : {}) })
 
     // Build the path from the validated name rather than coupling to outputFile formatting.
     status.verdict = `verdicts/${name}.json`
@@ -94,13 +95,19 @@ export async function verifyTool(ctx: ToolContext, input: { gates?: string[] }):
     else if (verdict.state === "fail") status.failStreak = status.failStreak + 1
     sections.push(render(verdict, status.failStreak))
 
+    // Hash outside the task lock: edit hooks wait only briefly for it. Source edited while the gate
+    // ran leaves a result that may describe neither version; advance rechecks the fingerprint later.
+    const latest = readConfig(ctx.root)
+    const latestSpec = latest.gates[name]
+    const changedDuringRun = (verdict.reviewFingerprint !== undefined
+      && captureReviewFingerprint(ctx.root, readTask(ctx.root, id), latest) !== verdict.reviewFingerprint)
+      || (verdict.sourceFingerprint !== undefined && (latestSpec === undefined
+        || captureSourceFingerprint(ctx.root, latest, latestSpec) !== verdict.sourceFingerprint))
+
     // Persist after every gate so a later failure cannot discard completed evidence.
     updateTask(ctx.root, id, current => {
       const version = current.gates[name]?.invalidationVersion ?? 0
-      current.gates[name] = { ...status, invalidationVersion: version, stale: version !== status.invalidationVersion }
-      if (verdict.reviewFingerprint) {
-        current.gates[name].stale ||= captureReviewFingerprint(ctx.root, current, readConfig(ctx.root)) !== verdict.reviewFingerprint
-      }
+      current.gates[name] = { ...status, invalidationVersion: version, stale: version !== status.invalidationVersion || changedDuringRun }
     })
   }
 
