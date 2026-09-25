@@ -23,17 +23,19 @@ const savedBin = process.env.OPEN_CODE_REVIEW_BIN
 function installFakeOcr(output: unknown, exitCode = 0): void {
   writeFileSync(join(bin, "out.json"), typeof output === "string" ? output : JSON.stringify(output))
   if (process.platform === "win32") {
-    const script = [
-      "@echo off",
-      "if \"%~1\"==\"--version\" goto version",
-      "echo %*>> \"%~dp0args.txt\"",
-      "type \"%~dp0out.json\"",
-      `exit /b ${exitCode}`,
-      ":version",
-      "echo ocr 9.9.9",
-      "exit /b 0",
-    ].join("\r\n")
-    writeFileSync(join(bin, "ocr.cmd"), script)
+    // Like the shims npm installs for `ocr`: the .cmd only forwards %* to a Node script, so the
+    // fake does not depend on how the spawner quotes arguments for cmd.exe.
+    const fake = [
+      "const { appendFileSync, readFileSync } = require('node:fs')",
+      "const { join } = require('node:path')",
+      "const args = process.argv.slice(2)",
+      "if (args[0] === '--version') { console.log('ocr 9.9.9'); process.exit(0) }",
+      "appendFileSync(join(__dirname, 'args.txt'), args.join(' ') + '\\n')",
+      "process.stdout.write(readFileSync(join(__dirname, 'out.json')))",
+      `process.exitCode = ${exitCode}`,
+    ].join("\n")
+    writeFileSync(join(bin, "fake-ocr.cjs"), fake)
+    writeFileSync(join(bin, "ocr.cmd"), `@"${process.execPath}" "%~dp0fake-ocr.cjs" %*\r\n`)
     process.env.OPEN_CODE_REVIEW_BIN = join(bin, "ocr.cmd")
   } else {
     const script = [
