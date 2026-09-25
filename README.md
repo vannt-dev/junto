@@ -26,11 +26,10 @@ claude plugin details junto@junto
 claude plugin update junto@junto
 ```
 
-This release is **0.6.0** and requires Node.js 22.12 or newer on `PATH`. After updating, restart
-Claude Code and confirm the version with `claude plugin details junto@junto`. In a Git repository
-root, command gate verdicts are now bound to source contents; verdicts recorded by earlier versions
-keep hook-only freshness until their gates run again, so rerun required gates before finishing a
-task. See [release notes](CHANGELOG.md).
+This release is **0.6.1** and requires Node.js 22.12 or newer on `PATH`. After updating, restart
+Claude Code and confirm the version with `claude plugin details junto@junto`. Since 0.6.0, command
+gate verdicts in a Git repository root are bound to source contents; when upgrading from 0.5.x or
+earlier, rerun required gates before finishing a task. See [release notes](CHANGELOG.md).
 
 ## Quick start
 

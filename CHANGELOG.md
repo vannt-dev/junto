@@ -2,7 +2,7 @@
 
 All notable changes to junto are documented in this file. The project follows Semantic Versioning.
 
-## [Unreleased]
+## [0.6.1] - 2026-09-25
 
 ### Changed
 
@@ -103,6 +103,7 @@ All notable changes to junto are documented in this file. The project follows Se
 
 - Initial task lifecycle, durable project-local state, hooks, MCP tools, and evidence-based gates.
 
+[0.6.1]: https://github.com/vannt-dev/junto/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/vannt-dev/junto/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/vannt-dev/junto/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/vannt-dev/junto/compare/v0.3.0...v0.4.0
