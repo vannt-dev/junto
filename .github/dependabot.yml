@@ -16,6 +16,11 @@ updates:
       - dependency-name: "@types/node"
         update-types:
           - version-update:semver-major
+      # zod stays on 3.x (CHANGELOG 0.6.1): zod 4 makes each bundled hook about 5x larger and
+      # adds 10-20 ms to every hook start. #11 took it to 4 and was reverted for that.
+      - dependency-name: "zod"
+        update-types:
+          - version-update:semver-major
   - package-ecosystem: github-actions
     directory: /
     schedule:
