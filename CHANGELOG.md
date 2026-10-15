@@ -2,6 +2,17 @@
 
 All notable changes to junto are documented in this file. The project follows Semantic Versioning.
 
+## [0.6.2] - 2026-10-15
+
+### Security
+
+- Update `@modelcontextprotocol/sdk` to 1.32.1, which fixes GHSA-6qxp-vccf-f47h in the SDK's OAuth client. The junto MCP server does not use that client.
+
+### Changed
+
+- Update `execa` to 10.1, Vitest to 5.0.3 and `@types/node` to 22.20.5.
+- Dependabot now proposes dependency and GitHub Actions updates. It leaves out `zod` majors: `zod` stays on 3.x, as in 0.6.1.
+
 ## [0.6.1] - 2026-09-25
 
 ### Changed
