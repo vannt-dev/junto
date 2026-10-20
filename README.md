@@ -180,6 +180,37 @@ command, writes the prompt to its stdin, and reads the response from stdout. Emp
 rejected and output is limited to 1 MB per stream. CLI backends have no token accounting
 (`consultBudget` cannot cap their spend). Override any role's prompt by adding `.junto/roles/<role>.md`.
 
+### OpenAI-compatible endpoints
+
+The `openai` backend calls the Chat Completions API (`POST <baseUrl>/chat/completions`), which most
+OpenAI-compatible servers implement. Set `baseUrl` to point it at one; the default is
+`https://api.openai.com/v1`. Include the version path (usually `/v1`) and set `model`, because the
+default `gpt-5` only exists on OpenAI. Trailing slashes are ignored; the URL must be http(s) and may
+not contain credentials, a query string or a fragment.
+
+```json
+{ "backends": { "openai": {
+  "apiKeyEnv": "OPENROUTER_API_KEY",
+  "baseUrl": "https://openrouter.ai/api/v1",
+  "model": "google/gemini-2.5-pro"
+} } }
+```
+
+| Server | `baseUrl` | Key |
+| --- | --- | --- |
+| OpenRouter | `https://openrouter.ai/api/v1` | required |
+| Gemini | `https://generativelanguage.googleapis.com/v1beta/openai/` | required (`GEMINI_API_KEY`) |
+| Ollama | `http://localhost:11434/v1` | none |
+| LM Studio | `http://localhost:1234/v1` | none |
+
+For a `baseUrl` on `localhost`, `127.0.0.1` or `[::1]`, the key is optional: if the variable named
+by `apiKeyEnv` is unset, junto sends no `Authorization` header. Any other `baseUrl` still requires
+the key. Local models can be slow, so raise `timeoutMs` if calls time out. Servers that do not
+report token usage count as 0 tokens, so `consultBudget` cannot cap them.
+
+`JUNTO_OPENAI_BASE_URL` overrides `backends.openai.baseUrl` for one machine or shell, e.g.
+`JUNTO_OPENAI_BASE_URL=http://localhost:11434/v1`. It needs an existing `backends.openai` entry.
+
 See [examples/config.basic.json](examples/config.basic.json) for a gate-only setup and
 [examples/config.multi-model.json](examples/config.multi-model.json) for API and CLI advisory
 backends. Copy one to `.junto/config.json` and adjust commands and environment-variable names for
@@ -201,7 +232,8 @@ Runtime log files are ignored by `.junto/.gitignore`; the rest can be retained a
 - Durable small, standard, and deep task lifecycles.
 - User-approved plans and evidence-backed quality gates.
 - Read-only task status with next actions, blockers, gate state, and advisory budget usage.
-- Anthropic, OpenAI, and generic CLI advisory backends with project-defined roles.
+- Anthropic, OpenAI (or any OpenAI-compatible endpoint), and generic CLI advisory backends with
+  project-defined roles.
 - Optional bounded source context and code-review-graph-aware planning and review.
 - Self-contained Claude Code plugin with Windows and Linux CI coverage.
 

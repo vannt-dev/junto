@@ -110,6 +110,23 @@ describe("parseConfig", () => {
     })).toThrow()
   })
 
+  it("accepts an http(s) baseUrl on a backend", () => {
+    const cfg = parseConfig({
+      schemaVersion: 1,
+      gates: {},
+      backends: { openai: { apiKeyEnv: "OPENAI_API_KEY", baseUrl: "http://localhost:11434/v1" } },
+    })
+    expect(cfg.backends?.openai?.baseUrl).toBe("http://localhost:11434/v1")
+  })
+
+  it("rejects a non-http(s) baseUrl", () => {
+    expect(() => parseConfig({
+      schemaVersion: 1,
+      gates: {},
+      backends: { openai: { apiKeyEnv: "OPENAI_API_KEY", baseUrl: "ftp://example.com/v1" } },
+    })).toThrow(/http/i)
+  })
+
   it("rejects a backend spec carrying a literal key value instead of an env var name", () => {
     expect(() => parseConfig({
       schemaVersion: 1,

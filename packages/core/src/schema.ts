@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { normalizeBaseUrl } from "./backends/openai.js"
 
 export const SCHEMA_VERSION = 1
 
@@ -96,7 +97,15 @@ export const backendSpecSchema = z.object({
   apiKeyEnv: z.string().min(1),
   model: z.string().optional(),
   timeoutMs: z.number().int().positive().optional(),
-}).strict()
+  baseUrl: z.string().min(1).optional(),
+}).strict().superRefine((spec, ctx) => {
+  if (spec.baseUrl === undefined) return
+  try {
+    normalizeBaseUrl(spec.baseUrl)
+  } catch (error) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: (error as Error).message, path: ["baseUrl"] })
+  }
+})
 
 export const cliBackendSpecSchema = z.object({
   argv: z.array(z.string()).min(1),

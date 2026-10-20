@@ -18351,6 +18351,83 @@ var Server = class extends Protocol {
   }
 };
 
+// packages/core/src/backends/openai.ts
+var DEFAULT_MODEL = "gpt-5";
+var DEFAULT_TIMEOUT_MS = 6e4;
+var DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
+var LOOPBACK_HOSTS = /* @__PURE__ */ new Set(["localhost", "127.0.0.1", "[::1]"]);
+function normalizeBaseUrl(raw, label = "baseUrl") {
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`${label} "${raw}" is not a valid URL. Use an http(s) URL such as https://openrouter.ai/api/v1.`);
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`${label} must use http or https, not "${url.protocol}".`);
+  }
+  if (url.username !== "" || url.password !== "") {
+    throw new Error(`${label} must not contain credentials. Put the key in the environment variable named by apiKeyEnv.`);
+  }
+  if (url.search !== "" || url.hash !== "") {
+    throw new Error(`${label} must not contain a query string or fragment.`);
+  }
+  return `${url.origin}${url.pathname}`.replace(/\/+$/, "");
+}
+function isLoopbackUrl(raw) {
+  try {
+    return LOOPBACK_HOSTS.has(new URL(raw).hostname);
+  } catch {
+    return false;
+  }
+}
+function openaiBackend(apiKey, options = {}) {
+  const baseUrl = options.baseUrl === void 0 ? DEFAULT_OPENAI_BASE_URL : normalizeBaseUrl(options.baseUrl);
+  const apiUrl = `${baseUrl}/chat/completions`;
+  const label = baseUrl === DEFAULT_OPENAI_BASE_URL ? "OpenAI API" : `OpenAI-compatible API at ${new URL(baseUrl).host}`;
+  const headers = { "content-type": "application/json" };
+  if (apiKey !== void 0 && apiKey !== "") headers.Authorization = `Bearer ${apiKey}`;
+  return {
+    async complete({ systemPrompt, userPrompt, model, timeoutMs }) {
+      const controller = new AbortController();
+      const effectiveTimeoutMs = timeoutMs ?? DEFAULT_TIMEOUT_MS;
+      const timer = setTimeout(() => controller.abort(), effectiveTimeoutMs);
+      const requestedModel = model ?? DEFAULT_MODEL;
+      try {
+        const res = await fetch(apiUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            model: requestedModel,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt }
+            ]
+          }),
+          signal: controller.signal
+        });
+        if (!res.ok) {
+          throw new Error(`${label} returned ${res.status}: ${await res.text()}`);
+        }
+        const data = await res.json();
+        const first = data.choices[0];
+        return {
+          text: first?.message.content ?? "",
+          tokensUsed: data.usage?.total_tokens ?? 0,
+          model: data.model ?? requestedModel
+        };
+      } catch (err) {
+        if (err.name === "AbortError") {
+          throw new Error(`${label} call timed out after ${effectiveTimeoutMs}ms.`);
+        }
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  };
+}
+
 // packages/core/src/schema.ts
 var SCHEMA_VERSION = 1;
 var DEFAULT_STALE_IGNORE = ["**/*.md", "docs/**", ".junto/**"];
@@ -18431,8 +18508,16 @@ var providerSchema = external_exports.enum(["anthropic", "openai"]);
 var backendSpecSchema = external_exports.object({
   apiKeyEnv: external_exports.string().min(1),
   model: external_exports.string().optional(),
-  timeoutMs: external_exports.number().int().positive().optional()
-}).strict();
+  timeoutMs: external_exports.number().int().positive().optional(),
+  baseUrl: external_exports.string().min(1).optional()
+}).strict().superRefine((spec, ctx) => {
+  if (spec.baseUrl === void 0) return;
+  try {
+    normalizeBaseUrl(spec.baseUrl);
+  } catch (error2) {
+    ctx.addIssue({ code: external_exports.ZodIssueCode.custom, message: error2.message, path: ["baseUrl"] });
+  }
+});
 var cliBackendSpecSchema = external_exports.object({
   argv: external_exports.array(external_exports.string()).min(1),
   timeoutMs: external_exports.number().int().positive().optional()
@@ -26518,7 +26603,7 @@ function resolveExecutable(cmd, cwd) {
 
 // packages/core/src/gates.ts
 var OUTPUT_TAIL_BYTES = 8192;
-var DEFAULT_TIMEOUT_MS = 3e5;
+var DEFAULT_TIMEOUT_MS2 = 3e5;
 var VALID_GATE_NAME = /^[A-Za-z0-9._-]+$/;
 var WINDOWS_DEVICE_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
 function tail(text, maxBytes) {
@@ -26578,7 +26663,7 @@ async function runGate(opts) {
   const t0 = Date.now();
   const argv = spec.argv ?? [];
   const [cmd, ...args] = argv;
-  const outcome = cmd === void 0 ? skipOutcome(name, "empty argv") : resolveExecutable(cmd, cwd) ? await spawnOutcome(cmd, args, cwd, name, spec.timeoutMs ?? DEFAULT_TIMEOUT_MS) : skipOutcome(name, `command "${cmd}" does not exist or is not executable`);
+  const outcome = cmd === void 0 ? skipOutcome(name, "empty argv") : resolveExecutable(cmd, cwd) ? await spawnOutcome(cmd, args, cwd, name, spec.timeoutMs ?? DEFAULT_TIMEOUT_MS2) : skipOutcome(name, `command "${cmd}" does not exist or is not executable`);
   const dir = join4(taskDir(root, taskId), "verdicts");
   mkdirSync2(dir, { recursive: true });
   writeFileSync3(join4(dir, `${name}.log`), outcome.output, "utf-8");
@@ -26632,15 +26717,15 @@ function resolveRolePrompt(root, role) {
 }
 
 // packages/core/src/backends/anthropic.ts
-var DEFAULT_MODEL = "claude-sonnet-5";
+var DEFAULT_MODEL2 = "claude-sonnet-5";
 var DEFAULT_MAX_TOKENS = 4096;
-var DEFAULT_TIMEOUT_MS2 = 6e4;
+var DEFAULT_TIMEOUT_MS3 = 6e4;
 var API_URL = "https://api.anthropic.com/v1/messages";
 function anthropicBackend(apiKey) {
   return {
     async complete({ systemPrompt, userPrompt, model, timeoutMs }) {
       const controller = new AbortController();
-      const effectiveTimeoutMs = timeoutMs ?? DEFAULT_TIMEOUT_MS2;
+      const effectiveTimeoutMs = timeoutMs ?? DEFAULT_TIMEOUT_MS3;
       const timer = setTimeout(() => controller.abort(), effectiveTimeoutMs);
       try {
         const res = await fetch(API_URL, {
@@ -26651,7 +26736,7 @@ function anthropicBackend(apiKey) {
             "content-type": "application/json"
           },
           body: JSON.stringify({
-            model: model ?? DEFAULT_MODEL,
+            model: model ?? DEFAULT_MODEL2,
             max_tokens: DEFAULT_MAX_TOKENS,
             system: systemPrompt,
             messages: [{ role: "user", content: userPrompt }]
@@ -26667,54 +26752,6 @@ function anthropicBackend(apiKey) {
       } catch (err) {
         if (err.name === "AbortError") {
           throw new Error(`Anthropic API call timed out after ${effectiveTimeoutMs}ms.`);
-        }
-        throw err;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-  };
-}
-
-// packages/core/src/backends/openai.ts
-var DEFAULT_MODEL2 = "gpt-5";
-var DEFAULT_TIMEOUT_MS3 = 6e4;
-var API_URL2 = "https://api.openai.com/v1/chat/completions";
-function openaiBackend(apiKey) {
-  return {
-    async complete({ systemPrompt, userPrompt, model, timeoutMs }) {
-      const controller = new AbortController();
-      const effectiveTimeoutMs = timeoutMs ?? DEFAULT_TIMEOUT_MS3;
-      const timer = setTimeout(() => controller.abort(), effectiveTimeoutMs);
-      try {
-        const res = await fetch(API_URL2, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "content-type": "application/json"
-          },
-          body: JSON.stringify({
-            model: model ?? DEFAULT_MODEL2,
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt }
-            ]
-          }),
-          signal: controller.signal
-        });
-        if (!res.ok) {
-          throw new Error(`OpenAI API returned ${res.status}: ${await res.text()}`);
-        }
-        const data = await res.json();
-        const first = data.choices[0];
-        return {
-          text: first?.message.content ?? "",
-          tokensUsed: data.usage.total_tokens,
-          model: data.model
-        };
-      } catch (err) {
-        if (err.name === "AbortError") {
-          throw new Error(`OpenAI API call timed out after ${effectiveTimeoutMs}ms.`);
         }
         throw err;
       } finally {
@@ -26788,13 +26825,18 @@ function resolveBackend(name, config2, root) {
     if (name !== "anthropic" && name !== "openai") {
       throw new Error(`"${name}" under "backends" is not a supported API vendor (only "anthropic" and "openai" are).`);
     }
+    if (name === "anthropic" && apiSpec.baseUrl !== void 0) {
+      throw new Error("backends.anthropic.baseUrl is not supported; baseUrl applies only to backends.openai.");
+    }
+    const baseUrl = name === "openai" ? openaiBaseUrl(apiSpec.baseUrl) : void 0;
     const apiKey = process.env[apiSpec.apiKeyEnv];
-    if (apiKey === void 0 || apiKey === "") {
+    const keyMissing = apiKey === void 0 || apiKey === "";
+    if (keyMissing && !(baseUrl !== void 0 && isLoopbackUrl(baseUrl))) {
       throw new Error(
         `Environment variable "${apiSpec.apiKeyEnv}" is not set (required by backends.${name}.apiKeyEnv in .junto/config.json).`
       );
     }
-    return name === "anthropic" ? { backend: anthropicBackend(apiKey), model: apiSpec.model, timeoutMs: apiSpec.timeoutMs } : { backend: openaiBackend(apiKey), model: apiSpec.model, timeoutMs: apiSpec.timeoutMs };
+    return name === "anthropic" ? { backend: anthropicBackend(apiKey ?? ""), model: apiSpec.model, timeoutMs: apiSpec.timeoutMs } : { backend: openaiBackend(apiKey, { baseUrl }), model: apiSpec.model, timeoutMs: apiSpec.timeoutMs };
   }
   const cliSpec = config2.cliBackends?.[name];
   if (cliSpec !== void 0) {
@@ -26803,6 +26845,11 @@ function resolveBackend(name, config2, root) {
   throw new Error(
     `No "${name}" entry under "backends" or "cliBackends" in .junto/config.json. Add one under "backends" (API vendor) or "cliBackends" (spawned CLI tool).`
   );
+}
+function openaiBaseUrl(configured) {
+  const fromEnv = process.env.JUNTO_OPENAI_BASE_URL;
+  if (fromEnv !== void 0 && fromEnv !== "") return normalizeBaseUrl(fromEnv, "JUNTO_OPENAI_BASE_URL");
+  return configured === void 0 ? void 0 : normalizeBaseUrl(configured, "backends.openai.baseUrl");
 }
 
 // packages/core/src/changes.ts
