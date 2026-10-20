@@ -18725,7 +18725,7 @@ function isPlainObject3(value) {
   return (prototype === null || prototype === Object.prototype || Object.getPrototypeOf(prototype) === null) && !(Symbol.toStringTag in value) && !(Symbol.iterator in value);
 }
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/arguments/file-url.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/arguments/file-url.js
 import { fileURLToPath } from "node:url";
 var safeNormalizeFileUrl = (file, name) => {
   const fileString = normalizeFileUrl(normalizeDenoExecPath(file));
@@ -18738,10 +18738,16 @@ var normalizeDenoExecPath = (file) => isDenoExecPath(file) ? file.toString() : f
 var isDenoExecPath = (file) => typeof file !== "string" && file && Object.getPrototypeOf(file) === String.prototype;
 var normalizeFileUrl = (file) => file instanceof URL ? fileURLToPath(file) : file;
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/methods/parameters.js
-var normalizeParameters = (rawFile, rawArguments = [], rawOptions = {}) => {
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/methods/parameters.js
+var normalizeParameters = (rawFile, rawArguments = [], rawOptions, ...rawExtraArguments) => {
+  if (rawExtraArguments.length > 0) {
+    throw new TypeError("Execa accepts at most three arguments: file, arguments, options.");
+  }
+  if (rawOptions !== void 0 && isPlainObject3(rawArguments)) {
+    throw new TypeError("Execa accepts at most one options object. Please merge the second and third arguments.");
+  }
   const filePath = safeNormalizeFileUrl(rawFile, "First argument");
-  const [commandArguments, options] = isPlainObject3(rawArguments) ? [[], rawArguments] : [rawArguments, rawOptions];
+  const [commandArguments, options = {}] = isPlainObject3(rawArguments) ? [[], rawArguments] : [rawArguments, rawOptions];
   if (!Array.isArray(commandArguments)) {
     throw new TypeError(`Second argument must be either an array of arguments or an options object: ${commandArguments}`);
   }
@@ -18759,16 +18765,16 @@ var normalizeParameters = (rawFile, rawArguments = [], rawOptions = {}) => {
   return [filePath, normalizedArguments, { __proto__: null, ...options }];
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/methods/template.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/methods/template.js
 import { ChildProcess } from "node:child_process";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/arguments/escape.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/arguments/escape.js
 import { platform } from "node:process";
 import { stripVTControlCharacters } from "node:util";
-var joinCommand = (filePath, rawArguments) => {
+var joinCommand = (filePath, rawArguments, shell) => {
   const fileAndArguments = [filePath, ...rawArguments];
   const command = fileAndArguments.join(" ");
-  const escapedCommand = fileAndArguments.map((fileAndArgument) => quoteString(escapeControlCharacters(fileAndArgument))).join(" ");
+  const escapedCommand = shell ? escapeControlCharacters(command) : fileAndArguments.map((fileAndArgument) => quoteString(escapeControlCharacters(fileAndArgument))).join(" ");
   return { command, escapedCommand };
 };
 var escapeLines = (lines) => stripVTControlCharacters(lines).split("\n").map((line) => escapeControlCharacters(line)).join("\n");
@@ -18807,7 +18813,7 @@ var quoteString = (escapedArgument) => {
 };
 var NO_ESCAPE_REGEXP = /^[\w\-./]+$/;
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/utils/uint-array.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/utils/uint-array.js
 import { StringDecoder } from "node:string_decoder";
 var { toString: objectToString } = Object.prototype;
 var isArrayBuffer = (value) => objectToString.call(value) === "[object ArrayBuffer]";
@@ -18849,18 +18855,57 @@ var getJoinLength = (uint8Arrays) => {
   return joinLength;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/methods/template.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/return/final-error.js
+var getFinalError = (originalError, message, isSync) => {
+  const ErrorClass = isSync ? ExecaSyncError : ExecaError;
+  const options = originalError instanceof DiscardedError ? {} : { cause: originalError };
+  return new ErrorClass(message, options);
+};
+var DiscardedError = class extends Error {
+};
+var setErrorName = (ErrorClass, value) => {
+  Object.defineProperties(ErrorClass.prototype, {
+    name: {
+      value,
+      writable: true,
+      enumerable: false,
+      configurable: true
+    },
+    [execaErrorSymbol]: {
+      value: true,
+      writable: false,
+      enumerable: false,
+      configurable: false
+    }
+  });
+};
+var isExecaError = (error2) => isErrorInstance(error2) && execaErrorSymbol in error2;
+var execaErrorSymbol = /* @__PURE__ */ Symbol("isExecaError");
+var isErrorInstance = (value) => value instanceof Error || Object.prototype.toString.call(value) === "[object Error]";
+var ExecaError = class extends Error {
+};
+setErrorName(ExecaError, ExecaError.name);
+var ExecaSyncError = class extends Error {
+};
+setErrorName(ExecaSyncError, ExecaSyncError.name);
+
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/utils/type-name.js
+var getTypeName = (value) => value === null ? "null" : typeof value;
+
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/methods/template.js
 var isTemplateString = (templates) => Array.isArray(templates) && Array.isArray(templates.raw);
 var parseTemplates = (templates, expressions) => {
   let tokens = [];
+  let isSeparated = false;
   for (const [index, template] of templates.entries()) {
-    tokens = parseTemplate({
+    ({ tokens, isSeparated } = parseTemplate({
       templates,
       expressions,
       tokens,
+      isSeparated,
       index,
       template
-    });
+    }));
   }
   if (tokens.length === 0) {
     throw new TypeError("Template script must not be empty");
@@ -18868,18 +18913,22 @@ var parseTemplates = (templates, expressions) => {
   const [file, ...commandArguments] = tokens;
   return [file, commandArguments, {}];
 };
-var parseTemplate = ({ templates, expressions, tokens, index, template }) => {
+var parseTemplate = ({ templates, expressions, tokens, isSeparated, index, template }) => {
   if (template === void 0) {
     throw new TypeError(`Invalid backslash sequence: ${templates.raw[index]}`);
   }
   const { nextTokens, leadingWhitespaces, trailingWhitespaces } = splitByWhitespaces(template, templates.raw[index]);
-  const newTokens = concatTokens(tokens, nextTokens, leadingWhitespaces);
+  const newTokens = concatTokens(tokens, nextTokens, isSeparated || leadingWhitespaces);
+  const isTemplateSeparated = trailingWhitespaces || nextTokens.length === 0 && isSeparated;
   if (index === expressions.length) {
-    return newTokens;
+    return { tokens: newTokens, isSeparated: isTemplateSeparated };
   }
   const expression = expressions[index];
   const expressionTokens = Array.isArray(expression) ? expression.map((expression2) => parseExpression(expression2)) : [parseExpression(expression)];
-  return concatTokens(newTokens, expressionTokens, trailingWhitespaces);
+  return {
+    tokens: concatTokens(newTokens, expressionTokens, isTemplateSeparated),
+    isSeparated: expressionTokens.length === 0 && isTemplateSeparated
+  };
 };
 var splitByWhitespaces = (template, rawTemplate) => {
   if (template.length === 0) {
@@ -18929,14 +18978,14 @@ var concatTokens = (tokens, nextTokens, isSeparated) => isSeparated || tokens.le
   ...nextTokens.slice(1)
 ];
 var parseExpression = (expression) => {
-  const typeOfExpression = typeof expression;
+  const typeOfExpression = getTypeName(expression);
   if (typeOfExpression === "string") {
     return expression;
   }
   if (typeOfExpression === "number") {
     return String(expression);
   }
-  if (isPlainObject3(expression) && (Object.hasOwn(expression, "stdout") || Object.hasOwn(expression, "isMaxBuffer"))) {
+  if ((isPlainObject3(expression) || isExecaError(expression)) && (Object.hasOwn(expression, "stdout") || Object.hasOwn(expression, "isMaxBuffer"))) {
     return getSubprocessResult(expression);
   }
   if (expression instanceof ChildProcess || Object.prototype.toString.call(expression) === "[object Promise]") {
@@ -18955,16 +19004,16 @@ var getSubprocessResult = (result) => {
   if (stdout === void 0) {
     throw new TypeError(`Missing result.stdout in template expression. This is probably due to the previous subprocess' "stdout" option.`);
   }
-  throw new TypeError(`Unexpected "${typeof stdout}" stdout in template expression`);
+  throw new TypeError(`Unexpected "${getTypeName(stdout)}" stdout in template expression`);
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/methods/main-sync.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/methods/main-sync.js
 import { spawnSync } from "node:child_process";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/arguments/specific.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/arguments/specific.js
 import { debuglog } from "node:util";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/utils/standard-stream.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/utils/standard-stream.js
 import process3 from "node:process";
 var isStandardStream = (stream) => STANDARD_STREAMS.includes(stream);
 var STANDARD_STREAMS = [process3.stdin, process3.stdout, process3.stderr];
@@ -18974,7 +19023,20 @@ var allStreamSymbol = /* @__PURE__ */ Symbol("execa.allStream");
 var setAllStream = (stream) => Object.assign(stream, { [allStreamSymbol]: true });
 var isAllStream = (stream) => stream?.[allStreamSymbol] === true;
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/arguments/specific.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/utils/options.js
+var copyOptions = (options = {}) => {
+  if (options === null) {
+    throw new TypeError("The options must be an object, not `null`.");
+  }
+  return { __proto__: null, ...options };
+};
+var checkBooleanOption = (value, optionName) => {
+  if (value !== void 0 && typeof value !== "boolean") {
+    throw new TypeError(`The \`${optionName}\` option must use a boolean.`);
+  }
+};
+
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/arguments/specific.js
 var normalizeFdSpecificOptions = (options) => {
   const optionsCopy = { __proto__: null, ...options };
   for (const optionName of FD_SPECIFIC_OPTIONS) {
@@ -18989,9 +19051,16 @@ var normalizeFdSpecificOption = (options, optionName) => {
   return addDefaultValue(optionArray, optionName);
 };
 var getStdioLength = ({ stdio }) => Array.isArray(stdio) ? Math.max(stdio.length, STANDARD_STREAMS_ALIASES.length) : STANDARD_STREAMS_ALIASES.length;
-var normalizeFdSpecificValue = (optionValue, optionArray, optionName, stdioLength) => isPlainObject3(optionValue) ? normalizeOptionObject(optionValue, optionArray, optionName, stdioLength) : optionArray.fill(optionValue);
+var normalizeFdSpecificValue = (optionValue, optionArray, optionName, stdioLength) => {
+  if (isPlainObject3(optionValue)) {
+    return normalizeOptionObject(optionValue, optionArray, optionName, stdioLength);
+  }
+  validateFdSpecificValue(optionValue, optionName);
+  return optionArray.fill(optionValue);
+};
 var normalizeOptionObject = (optionValue, optionArray, optionName, stdioLength) => {
   for (const fdName of Object.keys(optionValue).sort(compareFdName)) {
+    validateFdSpecificValue(optionValue[fdName], optionName, `${optionName}.${fdName}`);
     for (const fdNumber of parseFdName(fdName, optionName, stdioLength)) {
       optionArray[fdNumber] = optionValue[fdName];
     }
@@ -19034,6 +19103,14 @@ var parseFd = (fdName) => {
 };
 var FD_REGEXP = /^fd(?<fdNumber>\d+)$/;
 var addDefaultValue = (optionArray, optionName) => optionArray.map((optionValue) => optionValue === void 0 ? DEFAULT_OPTIONS[optionName] : optionValue);
+var BOOLEAN_FD_SPECIFIC_OPTIONS = /* @__PURE__ */ new Set(["lines", "buffer", "stripFinalNewline"]);
+var validateFdSpecificValue = (optionValue, optionName, fullOptionName = optionName) => {
+  if (BOOLEAN_FD_SPECIFIC_OPTIONS.has(optionName)) {
+    checkBooleanOption(optionValue, fullOptionName);
+  } else if (optionName === "maxBuffer" && optionValue !== void 0 && (typeof optionValue !== "number" || Number.isNaN(optionValue))) {
+    throw new TypeError(`The \`${fullOptionName}\` option must use a number.`);
+  }
+};
 var verboseDefault = debuglog("execa").enabled ? "full" : "none";
 var DEFAULT_OPTIONS = {
   lines: false,
@@ -19045,7 +19122,7 @@ var DEFAULT_OPTIONS = {
 var FD_SPECIFIC_OPTIONS = ["lines", "buffer", "maxBuffer", "verbose", "stripFinalNewline"];
 var getFdSpecificValue = (optionArray, fdNumber) => fdNumber === "ipc" ? optionArray.at(-1) : optionArray[fdNumber];
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/verbose/values.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/verbose/values.js
 var isVerbose = ({ verbose }, fdNumber) => getFdVerbose(verbose, fdNumber) !== "none";
 var isFullVerbose = ({ verbose }, fdNumber) => !["none", "short"].includes(getFdVerbose(verbose, fdNumber));
 var getVerboseFunction = ({ verbose }, fdNumber) => {
@@ -19057,8 +19134,11 @@ var getFdGenericVerbose = (verbose) => verbose.find((fdVerbose) => isVerboseFunc
 var isVerboseFunction = (fdVerbose) => typeof fdVerbose === "function";
 var VERBOSE_VALUES = ["none", "short", "full"];
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/verbose/log.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/verbose/log.js
 import { inspect } from "node:util";
+
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/verbose/default.js
+import process5 from "node:process";
 
 // node_modules/.pnpm/is-unicode-supported@2.1.0/node_modules/is-unicode-supported/index.js
 import process4 from "node:process";
@@ -19437,7 +19517,14 @@ var underlineMagentaBright = format("58;5;13", 59);
 var underlineCyanBright = format("58;5;14", 59);
 var underlineWhiteBright = format("58;5;15", 59);
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/verbose/default.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/verbose/default.js
+var hasColors2 = process5.env.FORCE_COLOR !== void 0 || process5.stderr.isTTY === true;
+var identity = (string3) => string3;
+var getColor = (color) => hasColors2 ? color : identity;
+var gray2 = getColor(gray);
+var bold2 = getColor(bold);
+var redBright2 = getColor(redBright);
+var yellowBright2 = getColor(yellowBright);
 var defaultVerboseFunction = ({
   type,
   message,
@@ -19450,7 +19537,7 @@ var defaultVerboseFunction = ({
   const timestampString = serializeTimestamp(timestamp);
   const icon = ICONS[type]({ failed, reject, piped });
   const color = COLORS[type]({ reject });
-  return `${gray(`[${timestampString}]`)} ${gray(`[${commandId}]`)} ${color(icon)} ${color(message)}`;
+  return `${gray2(`[${timestampString}]`)} ${gray2(`[${commandId}]`)} ${color(icon)} ${color(message)}`;
 };
 var serializeTimestamp = (timestamp) => `${padField(timestamp.getHours(), 2)}:${padField(timestamp.getMinutes(), 2)}:${padField(timestamp.getSeconds(), 2)}.${padField(timestamp.getMilliseconds(), 3)}`;
 var padField = (field, padding) => String(field).padStart(padding, "0");
@@ -19467,16 +19554,15 @@ var ICONS = {
   error: getFinalIcon,
   duration: getFinalIcon
 };
-var identity = (string3) => string3;
 var COLORS = {
-  command: () => bold,
+  command: () => bold2,
   output: () => identity,
   ipc: () => identity,
-  error: ({ reject }) => reject ? redBright : yellowBright,
-  duration: () => gray
+  error: ({ reject }) => reject ? redBright2 : yellowBright2,
+  duration: () => gray2
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/verbose/custom.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/verbose/custom.js
 var applyVerboseOnLines = (printedLines, verboseInfo, fdNumber) => {
   const verboseFunction = getVerboseFunction(verboseInfo, fdNumber);
   return printedLines.map(({ verboseLine, verboseObject }) => applyVerboseFunction(verboseLine, verboseObject, verboseFunction)).filter((printedLine) => printedLine !== void 0).map((printedLine) => appendNewline(printedLine)).join("");
@@ -19493,7 +19579,7 @@ var applyVerboseFunction = (verboseLine, verboseObject, verboseFunction) => {
 var appendNewline = (printedLine) => printedLine.endsWith("\n") ? printedLine : `${printedLine}
 `;
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/verbose/log.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/verbose/log.js
 var verboseLog = ({ type, verboseMessage, fdNumber, verboseInfo, result }) => {
   const verboseObject = getVerboseObject({ type, result, verboseInfo });
   const printedLines = getPrintedLines(verboseMessage, verboseObject);
@@ -19525,7 +19611,7 @@ var serializeVerboseMessage = (message) => {
   return escapeLines(messageString);
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/verbose/start.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/verbose/start.js
 var logCommand = (escapedCommand, verboseInfo) => {
   if (!isVerbose(verboseInfo)) {
     return;
@@ -19537,7 +19623,7 @@ var logCommand = (escapedCommand, verboseInfo) => {
   });
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/verbose/info.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/verbose/info.js
 var getVerboseInfo = (verbose, escapedCommand, rawOptions) => {
   validateVerbose(verbose);
   const commandId = getCommandId(verbose);
@@ -19565,15 +19651,15 @@ var validateVerbose = (verbose) => {
   }
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/return/duration.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/return/duration.js
 import { hrtime } from "node:process";
 var getStartTime = () => hrtime.bigint();
 var getDurationMs = (startTime) => Number(hrtime.bigint() - startTime) / 1e6;
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/arguments/command.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/arguments/command.js
 var handleCommand = (filePath, rawArguments, rawOptions) => {
   const startTime = getStartTime();
-  const { command, escapedCommand } = joinCommand(filePath, rawArguments);
+  const { command, escapedCommand } = joinCommand(filePath, rawArguments, rawOptions.shell && !rawOptions.node);
   const verbose = normalizeFdSpecificOption(rawOptions, "verbose");
   const verboseInfo = getVerboseInfo(verbose, escapedCommand, { __proto__: null, ...rawOptions });
   logCommand(escapedCommand, verboseInfo);
@@ -19585,12 +19671,12 @@ var handleCommand = (filePath, rawArguments, rawOptions) => {
   };
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/arguments/options.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/arguments/options.js
 import path7 from "node:path";
-import process9 from "node:process";
+import process10 from "node:process";
 
 // node_modules/.pnpm/npm-run-path@6.0.0/node_modules/npm-run-path/index.js
-import process5 from "node:process";
+import process6 from "node:process";
 import path2 from "node:path";
 
 // node_modules/.pnpm/path-key@4.0.0/node_modules/path-key/index.js
@@ -19631,10 +19717,10 @@ var TEN_MEGABYTES_IN_BYTES = 10 * 1024 * 1024;
 
 // node_modules/.pnpm/npm-run-path@6.0.0/node_modules/npm-run-path/index.js
 var npmRunPath = ({
-  cwd = process5.cwd(),
-  path: pathOption = process5.env[pathKey()],
+  cwd = process6.cwd(),
+  path: pathOption = process6.env[pathKey()],
   preferLocal = true,
-  execPath: execPath2 = process5.execPath,
+  execPath: execPath2 = process6.execPath,
   addExecPath = true
 } = {}) => {
   const cwdPath = path2.resolve(toPath(cwd));
@@ -19662,7 +19748,7 @@ var applyExecPath = (result, pathParts, execPath2, cwdPath) => {
     result.push(pathPart);
   }
 };
-var npmRunPathEnv = ({ env = process5.env, ...options } = {}) => {
+var npmRunPathEnv = ({ env = process6.env, ...options } = {}) => {
   env = { ...env };
   const pathName = pathKey({ env });
   options.path = env[pathName];
@@ -19670,44 +19756,10 @@ var npmRunPathEnv = ({ env = process5.env, ...options } = {}) => {
   return env;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/terminate/kill.js
-import { setTimeout as setTimeout2 } from "node:timers/promises";
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/terminate/kill.js
+import { setTimeout as setTimeout3 } from "node:timers/promises";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/return/final-error.js
-var getFinalError = (originalError, message, isSync) => {
-  const ErrorClass = isSync ? ExecaSyncError : ExecaError;
-  const options = originalError instanceof DiscardedError ? {} : { cause: originalError };
-  return new ErrorClass(message, options);
-};
-var DiscardedError = class extends Error {
-};
-var setErrorName = (ErrorClass, value) => {
-  Object.defineProperties(ErrorClass.prototype, {
-    name: {
-      value,
-      writable: true,
-      enumerable: false,
-      configurable: true
-    },
-    [execaErrorSymbol]: {
-      value: true,
-      writable: false,
-      enumerable: false,
-      configurable: false
-    }
-  });
-};
-var isExecaError = (error2) => isErrorInstance(error2) && execaErrorSymbol in error2;
-var execaErrorSymbol = /* @__PURE__ */ Symbol("isExecaError");
-var isErrorInstance = (value) => Object.prototype.toString.call(value) === "[object Error]";
-var ExecaError = class extends Error {
-};
-setErrorName(ExecaError, ExecaError.name);
-var ExecaSyncError = class extends Error {
-};
-setErrorName(ExecaSyncError, ExecaSyncError.name);
-
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/terminate/signal.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/terminate/signal.js
 import { constants as constants3 } from "node:os";
 
 // node_modules/.pnpm/human-signals@8.0.1/node_modules/human-signals/build/src/main.js
@@ -20077,7 +20129,7 @@ var findSignalByNumber = (number3, signals2) => {
 };
 var signalsByNumber = getSignalsByNumber();
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/terminate/signal.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/terminate/signal.js
 var normalizeKillSignal = (killSignal) => {
   const optionName = "option `killSignal`";
   if (killSignal === 0) {
@@ -20121,7 +20173,28 @@ var getAvailableSignalNames = () => Object.keys(constants3.signals).sort().map((
 var getAvailableSignalIntegers = () => [...new Set(Object.values(constants3.signals).sort((signalInteger, signalIntegerTwo) => signalInteger - signalIntegerTwo))].join(", ");
 var getSignalDescription = (signal) => signalsByName[signal].description;
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/terminate/kill.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/terminate/timeout.js
+import { setTimeout as setTimeout2 } from "node:timers/promises";
+var validateTimeout = ({ timeout }) => {
+  if (timeout !== void 0) {
+    validateDelay(timeout, "timeout");
+  }
+};
+var validateDelay = (delay, optionName) => {
+  if (!Number.isInteger(delay) || delay < 0 || delay > MAX_DELAY) {
+    throw new TypeError(`Expected the \`${optionName}\` option to be a non-negative integer up to ${MAX_DELAY}, got \`${delay}\` (${getTypeName(delay)})`);
+  }
+};
+var MAX_DELAY = 2 ** 31 - 1;
+var throwOnTimeout = (kill, timeout, context, controller) => timeout === 0 || timeout === void 0 ? [] : [killAfterTimeout(kill, timeout, context, controller)];
+var killAfterTimeout = async (kill, timeout, context, { signal }) => {
+  await setTimeout2(timeout, void 0, { signal });
+  context.terminationReason ??= "timeout";
+  kill();
+  throw new DiscardedError();
+};
+
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/terminate/kill.js
 var normalizeForceKillAfterDelay = (forceKillAfterDelay) => {
   if (forceKillAfterDelay === false) {
     return forceKillAfterDelay;
@@ -20129,9 +20202,7 @@ var normalizeForceKillAfterDelay = (forceKillAfterDelay) => {
   if (forceKillAfterDelay === true) {
     return DEFAULT_FORCE_KILL_TIMEOUT;
   }
-  if (!Number.isFinite(forceKillAfterDelay) || forceKillAfterDelay < 0) {
-    throw new TypeError(`Expected the \`forceKillAfterDelay\` option to be a non-negative integer, got \`${forceKillAfterDelay}\` (${typeof forceKillAfterDelay})`);
-  }
+  validateDelay(forceKillAfterDelay, "forceKillAfterDelay");
   return forceKillAfterDelay;
 };
 var DEFAULT_FORCE_KILL_TIMEOUT = 1e3 * 5;
@@ -20180,7 +20251,7 @@ var killOnTimeout = async ({ kill, forceKillAfterDelay, context, controllerSigna
     return;
   }
   try {
-    await setTimeout2(forceKillAfterDelay, void 0, { signal: controllerSignal });
+    await setTimeout3(forceKillAfterDelay, void 0, { signal: controllerSignal });
     if (kill("SIGKILL")) {
       context.isForcefullyTerminated ??= true;
     }
@@ -20188,19 +20259,22 @@ var killOnTimeout = async ({ kill, forceKillAfterDelay, context, controllerSigna
   }
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/utils/abort-signal.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/utils/abort-signal.js
 import { once } from "node:events";
 var onAbortedSignal = async (mainSignal, stopSignal) => {
   if (!mainSignal.aborted) {
     await once(mainSignal, "abort", { signal: stopSignal });
   }
 };
-
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/terminate/cancel.js
-var validateCancelSignal = ({ cancelSignal }) => {
-  if (cancelSignal !== void 0 && Object.prototype.toString.call(cancelSignal) !== "[object AbortSignal]") {
-    throw new Error(`The \`cancelSignal\` option must be an AbortSignal: ${String(cancelSignal)}`);
+var validateAbortSignal = (signal, optionName) => {
+  if (signal !== void 0 && Object.prototype.toString.call(signal) !== "[object AbortSignal]") {
+    throw new TypeError(`The \`${optionName}\` option must be an AbortSignal: ${String(signal)}.`);
   }
+};
+
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/terminate/cancel.js
+var validateCancelSignal = ({ cancelSignal }) => {
+  validateAbortSignal(cancelSignal, "cancelSignal");
 };
 var validateRenamedSignalOption = ({ signal }) => {
   if (signal !== void 0) {
@@ -20215,21 +20289,14 @@ var terminateOnCancel = async (kill, cancelSignal, context, { signal }) => {
   throw cancelSignal.reason;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/graceful.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/graceful.js
 import { scheduler as scheduler2 } from "node:timers/promises";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/send.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/send.js
 import { promisify as promisify2 } from "node:util";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/utils/options.js
-var copyOptions = (options = {}) => {
-  if (options === null) {
-    throw new TypeError("The options must be an object, not `null`.");
-  }
-  return { __proto__: null, ...options };
-};
-
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/validation.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/validation.js
+import { inspect as inspect2 } from "node:util";
 var validateIpcMethod = ({ methodName, isSubprocess, ipc, isConnected: isConnected2 }) => {
   validateIpcOption(methodName, isSubprocess, ipc);
   validateConnection(methodName, isSubprocess, isConnected2);
@@ -20274,7 +20341,14 @@ var handleEpipeError = ({ error: error2, methodName, isSubprocess }) => {
 };
 var handleSerializationError = ({ error: error2, methodName, isSubprocess, message }) => {
   if (isSerializationError(error2)) {
-    throw new Error(`${getMethodName(methodName, isSubprocess)}'s argument type is invalid: the message cannot be serialized: ${String(message)}.`, { cause: error2 });
+    throw new Error(`${getMethodName(methodName, isSubprocess)}'s argument type is invalid: the message cannot be serialized: ${serializeInvalidMessage(message)}.`, { cause: error2 });
+  }
+};
+var serializeInvalidMessage = (message) => {
+  try {
+    return String(message);
+  } catch {
+    return inspect2(message);
   }
 };
 var isSerializationError = ({ code, message }) => SERIALIZATION_ERROR_CODES.has(code) || SERIALIZATION_ERROR_MESSAGES.some((serializationErrorMessage) => message.includes(serializationErrorMessage));
@@ -20301,7 +20375,7 @@ var disconnect = (anyProcess) => {
   }
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/utils/deferred.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/utils/deferred.js
 var createDeferred = () => {
   const methods = {};
   const promise = new Promise((resolve5, reject) => {
@@ -20310,10 +20384,10 @@ var createDeferred = () => {
   return Object.assign(promise, methods);
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/strict.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/strict.js
 import { once as once3 } from "node:events";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/utils/max-listeners.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/utils/max-listeners.js
 import { addAbortListener } from "node:events";
 var incrementMaxListeners = (eventEmitter, maxListenersIncrement, signal) => {
   const maxListeners = eventEmitter.getMaxListeners();
@@ -20326,14 +20400,14 @@ var incrementMaxListeners = (eventEmitter, maxListenersIncrement, signal) => {
   });
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/forward.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/forward.js
 import { EventEmitter } from "node:events";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/incoming.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/incoming.js
 import { once as once2 } from "node:events";
 import { scheduler } from "node:timers/promises";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/reference.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/reference.js
 var addReference = (channel, reference) => {
   if (reference) {
     addReferenceCount(channel);
@@ -20365,7 +20439,7 @@ var redoAddedReferences = (channel, isSubprocess) => {
   addReferenceCount(channel);
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/incoming.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/incoming.js
 var onMessage = async ({ anyProcess, channel, isSubprocess, ipcEmitter }, wrappedMessage) => {
   if (handleStrictResponse(wrappedMessage, anyProcess) || isSubprocess && handleAbort(wrappedMessage)) {
     return;
@@ -20408,12 +20482,13 @@ var onDisconnect = async ({ anyProcess, channel, isSubprocess, ipcEmitter, bound
 };
 var INCOMING_MESSAGES = /* @__PURE__ */ new WeakMap();
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/forward.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/forward.js
 var getIpcEmitter = (anyProcess, channel, isSubprocess) => {
   if (IPC_EMITTERS.has(anyProcess)) {
     return IPC_EMITTERS.get(anyProcess);
   }
   const ipcEmitter = new EventEmitter();
+  ipcEmitter.setMaxListeners(0);
   ipcEmitter.connected = true;
   IPC_EMITTERS.set(anyProcess, ipcEmitter);
   forwardEvents({
@@ -20447,7 +20522,7 @@ var isConnected = (anyProcess) => {
   return ipcEmitter === void 0 ? anyProcess.channel !== void 0 && anyProcess.channel !== null : ipcEmitter.connected;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/strict.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/strict.js
 var handleSendStrict = ({ anyProcess, channel, isSubprocess, message, strict }) => {
   if (!strict) {
     return message;
@@ -20463,7 +20538,7 @@ var handleSendStrict = ({ anyProcess, channel, isSubprocess, message, strict }) 
 };
 var count = 0;
 var validateStrictDeadlock = (outgoingMessages, wrappedMessage) => {
-  if (wrappedMessage?.type !== REQUEST_TYPE || wrappedMessage.hasListeners) {
+  if (!isStrictRequest(wrappedMessage) || wrappedMessage.hasListeners) {
     return;
   }
   for (const { id } of outgoingMessages) {
@@ -20473,10 +20548,13 @@ var validateStrictDeadlock = (outgoingMessages, wrappedMessage) => {
   }
 };
 var handleStrictRequest = async ({ wrappedMessage, anyProcess, channel, isSubprocess, ipcEmitter }) => {
-  if (wrappedMessage?.type !== REQUEST_TYPE || !anyProcess.connected) {
+  if (!isStrictRequest(wrappedMessage)) {
     return wrappedMessage;
   }
   const { id, message } = wrappedMessage;
+  if (!anyProcess.connected) {
+    return message;
+  }
   const response = { id, type: RESPONSE_TYPE, message: hasMessageListeners(anyProcess, ipcEmitter) };
   try {
     await sendMessage({
@@ -20486,7 +20564,9 @@ var handleStrictRequest = async ({ wrappedMessage, anyProcess, channel, isSubpro
       ipc: true
     }, response);
   } catch (error2) {
-    ipcEmitter.emit("strict:error", error2);
+    if (error2.cause?.code !== "EPIPE") {
+      ipcEmitter.emit("strict:error", error2);
+    }
   }
   return message;
 };
@@ -20502,9 +20582,6 @@ var handleStrictResponse = (wrappedMessage, anyProcess) => {
   return true;
 };
 var waitForStrictResponse = async (wrappedMessage, anyProcess, isSubprocess) => {
-  if (wrappedMessage?.type !== REQUEST_TYPE) {
-    return;
-  }
   const deferred = createDeferred();
   STRICT_RESPONSES[wrappedMessage.id] = { deferred, anyProcess };
   const controller = new AbortController();
@@ -20532,8 +20609,9 @@ var throwOnDisconnect = async (anyProcess, isSubprocess, { signal }) => {
 };
 var REQUEST_TYPE = "execa:ipc:request";
 var RESPONSE_TYPE = "execa:ipc:response";
+var isStrictRequest = (wrappedMessage) => wrappedMessage?.type === REQUEST_TYPE && Number.isInteger(wrappedMessage.id) && typeof wrappedMessage.hasListeners === "boolean";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/outgoing.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/outgoing.js
 var startSendMessage = (anyProcess, wrappedMessage, strict) => {
   if (!OUTGOING_MESSAGES.has(anyProcess)) {
     OUTGOING_MESSAGES.set(anyProcess, /* @__PURE__ */ new Set());
@@ -20565,9 +20643,10 @@ var hasMessageListeners = (anyProcess, ipcEmitter) => ipcEmitter.listenerCount("
 var getMinListenerCount = (anyProcess) => getOptions(anyProcess) !== void 0 && !getFdSpecificValue(getOptions(anyProcess).buffer, "ipc") ? 1 : 0;
 var getOptions = (anyProcess) => IPC_SUBPROCESS_OPTIONS.get(anyProcess);
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/send.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/send.js
 var sendMessage = ({ anyProcess, channel, isSubprocess, ipc }, message, options) => {
   const { strict = false } = copyOptions(options);
+  checkBooleanOption(strict, "strict");
   const methodName = "sendMessage";
   validateIpcMethod({
     methodName,
@@ -20599,7 +20678,8 @@ var sendMessageAsync = async ({ anyProcess, channel, methodName, isSubprocess, m
       methodName,
       isSubprocess,
       wrappedMessage,
-      message
+      message,
+      strict
     });
   } catch (error2) {
     disconnect(anyProcess);
@@ -20608,11 +20688,12 @@ var sendMessageAsync = async ({ anyProcess, channel, methodName, isSubprocess, m
     endSendMessage(outgoingMessagesState);
   }
 };
-var sendOneMessage = async ({ anyProcess, methodName, isSubprocess, wrappedMessage, message }) => {
+var sendOneMessage = async ({ anyProcess, methodName, isSubprocess, wrappedMessage, message, strict = false }) => {
   const sendMethod = getSendMethod(anyProcess);
   try {
     await Promise.all([
-      waitForStrictResponse(wrappedMessage, anyProcess, isSubprocess),
+      // Only messages sent with the `strict` option wait for an acknowledgment response
+      strict ? waitForStrictResponse(wrappedMessage, anyProcess, isSubprocess) : void 0,
       sendMethod(wrappedMessage)
     ]);
   } catch (error2) {
@@ -20636,7 +20717,7 @@ var getSendMethod = (anyProcess) => {
 };
 var PROCESS_SEND_METHODS = /* @__PURE__ */ new WeakMap();
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/graceful.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/graceful.js
 var sendAbort = (subprocess, message) => {
   const methodName = "cancelSignal";
   validateConnection(methodName, false, subprocess.connected);
@@ -20666,7 +20747,7 @@ var startIpc = async ({ anyProcess, channel, isSubprocess, ipc }) => {
     return;
   }
   isCancelListening = true;
-  if (channel === null) {
+  if (!anyProcess.connected) {
     abortOnDisconnect();
     return;
   }
@@ -20687,7 +20768,7 @@ var abortOnDisconnect = () => {
 };
 var cancelController = new AbortController();
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/terminate/graceful.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/terminate/graceful.js
 var validateGracefulCancel = ({ gracefulCancel, cancelSignal, ipc, serialization }) => {
   if (!gracefulCancel) {
     return;
@@ -20745,22 +20826,7 @@ var getReason = ({ reason }) => {
   return error2;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/terminate/timeout.js
-import { setTimeout as setTimeout3 } from "node:timers/promises";
-var validateTimeout = ({ timeout }) => {
-  if (timeout !== void 0 && (!Number.isFinite(timeout) || timeout < 0)) {
-    throw new TypeError(`Expected the \`timeout\` option to be a non-negative integer, got \`${timeout}\` (${typeof timeout})`);
-  }
-};
-var throwOnTimeout = (kill, timeout, context, controller) => timeout === 0 || timeout === void 0 ? [] : [killAfterTimeout(kill, timeout, context, controller)];
-var killAfterTimeout = async (kill, timeout, context, { signal }) => {
-  await setTimeout3(timeout, void 0, { signal });
-  context.terminationReason ??= "timeout";
-  kill();
-  throw new DiscardedError();
-};
-
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/methods/node.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/methods/node.js
 import { execPath, execArgv } from "node:process";
 import path3 from "node:path";
 var mapNode = ({ options }) => {
@@ -20769,16 +20835,35 @@ var mapNode = ({ options }) => {
   }
   return { options: { __proto__: null, ...options, node: true } };
 };
+var getDefaultNodeOptions = () => {
+  const nodeOptions = [];
+  for (let index = 0; index < execArgv.length; index += 1) {
+    const nodeOption = execArgv[index];
+    if (REMOVED_OPTIONS_WITH_VALUE.has(nodeOption)) {
+      if (!execArgv[index + 1]?.startsWith("-")) {
+        index += 1;
+      }
+    } else if (!IGNORED_OPTIONS_REGEXP.test(nodeOption)) {
+      nodeOptions.push(nodeOption);
+    }
+  }
+  return nodeOptions;
+};
+var REMOVED_OPTIONS_WITH_VALUE = /* @__PURE__ */ new Set(["-e", "--eval", "-p", "--print", "-pe", "--input-type", "--inspect-port"]);
+var IGNORED_OPTIONS_REGEXP = /^--(?:inspect|eval=|input-type=)/;
 var handleNodeOption = (file, commandArguments, {
   node: shouldHandleNode = false,
   nodePath = execPath,
-  nodeOptions = execArgv.filter((nodeOption) => !nodeOption.startsWith("--inspect")),
+  nodeOptions = getDefaultNodeOptions(),
   cwd,
   execPath: formerNodePath,
   ...options
 }) => {
   if (formerNodePath !== void 0) {
     throw new TypeError('The "execPath" option has been removed. Please use the "nodePath" option instead.');
+  }
+  if (!Array.isArray(nodeOptions) || nodeOptions.some((nodeOption) => typeof nodeOption !== "string")) {
+    throw new TypeError('The "nodeOptions" option must be an array of strings.');
   }
   const normalizedNodePath = safeNormalizeFileUrl(nodePath, 'The "nodePath" option');
   const resolvedNodePath = path3.resolve(cwd, normalizedNodePath);
@@ -20805,14 +20890,15 @@ var handleNodeOption = (file, commandArguments, {
     ],
     {
       __proto__: null,
-      ipc: true,
       ...newOptions,
+      // Like other options, `undefined` uses the default value
+      ipc: newOptions.ipc === void 0 ? true : newOptions.ipc,
       shell: false
     }
   ];
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/ipc-input.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/ipc-input.js
 import { serialize } from "node:v8";
 var validateIpcInputOption = ({ ipcInput, ipc, serialization }) => {
   if (ipcInput === void 0) {
@@ -20856,7 +20942,7 @@ var sendIpcInput = async (subprocess, ipcInput, ipc) => {
   }, ipcInput);
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/arguments/encoding-option.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/arguments/encoding-option.js
 var validateEncoding = ({ encoding }) => {
   if (ENCODINGS.has(encoding)) {
     return;
@@ -20901,17 +20987,17 @@ var ENCODING_ALIASES = {
 };
 var serializeEncoding = (encoding) => typeof encoding === "string" ? `"${encoding}"` : String(encoding);
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/arguments/command-file.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/arguments/command-file.js
 import { openSync as openSync2, readSync, closeSync as closeSync2 } from "node:fs";
 import { Buffer as Buffer2 } from "node:buffer";
 import path5 from "node:path";
-import process7 from "node:process";
+import process8 from "node:process";
 
 // node_modules/.pnpm/which-command@0.1.0/node_modules/which-command/index.js
 import fs from "node:fs";
 import path4 from "node:path";
-import process6 from "node:process";
-var isWindows = process6.platform === "win32";
+import process7 from "node:process";
+var isWindows = process7.platform === "win32";
 var separatorPattern = isWindows ? new RegExp("[\\/\\\\]", "v") : new RegExp("\\/", "v");
 var defaultPathExt = ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC";
 function resolveOptions(command, options) {
@@ -20919,11 +21005,11 @@ function resolveOptions(command, options) {
     throw new TypeError("Expected a non-empty string.");
   }
   const {
-    cwd = process6.cwd(),
+    cwd = process7.cwd(),
     // On Windows, `process.env.PATH` can be undefined in some contexts (for example, worker threads), where it's only exposed as `Path`.
-    path: searchPath = process6.env.PATH ?? (isWindows ? process6.env.Path : void 0) ?? "",
+    path: searchPath = process7.env.PATH ?? (isWindows ? process7.env.Path : void 0) ?? "",
     // `||` (not `??`) so an empty `PATHEXT` falls back to the default instead of disabling all lookup on Windows.
-    pathExt = process6.env.PATHEXT || defaultPathExt
+    pathExt = process7.env.PATHEXT || defaultPathExt
   } = options;
   return { cwd, searchPath, pathExt };
 }
@@ -20990,10 +21076,10 @@ function whichCommandSync(command, options = {}) {
   return void 0;
 }
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/arguments/command-file.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/arguments/command-file.js
 var parseCommandFile = (file, commandArguments, options) => {
   const parsed = { file, commandArguments: [...commandArguments], options };
-  return options.shell || process7.platform !== "win32" ? parsed : escapeWindowsCommand(parsed);
+  return options.shell || process8.platform !== "win32" ? parsed : escapeWindowsCommand(parsed);
 };
 var directlyExecutableRegExp = /\.(?:com|exe)$/i;
 var escapeWindowsCommand = (parsed) => {
@@ -21013,7 +21099,7 @@ var escapeWindowsCommand = (parsed) => {
   const commandLine = `"${[escapedFile, ...escapedArguments].join(" ")}"`;
   parsed.options.windowsVerbatimArguments = true;
   return {
-    file: process7.env.comspec || "cmd.exe",
+    file: process8.env.comspec || "cmd.exe",
     // `/e:on` enables the command extensions the `%` escaping relies on, and `/v:off` disables delayed expansion so `!` is literal, even when the registry changes either default
     commandArguments: ["/d", "/e:on", "/v:off", "/s", "/c", commandLine],
     options: parsed.options
@@ -21030,15 +21116,15 @@ var resolveWithShebang = (parsed) => {
   return resolvePath(parsed);
 };
 var resolvePath = (parsed) => {
-  const environment = parsed.options.env || process7.env;
-  const cwd = parsed.options.cwd ?? process7.cwd();
+  const environment = parsed.options.env || process8.env;
+  const cwd = parsed.options.cwd ?? process8.cwd();
   const environmentPathExt = getWindowsEnvironmentValue(environment, "PATHEXT");
   const commandExtension = path5.extname(parsed.file);
   const pathExt = commandExtension === "" ? environmentPathExt : `${commandExtension}${path5.delimiter}${environmentPathExt ?? ""}`;
   if (hasWindowsPathSeparator(parsed.file)) {
     return whichCommandSync(path5.resolve(cwd, parsed.file), { cwd, pathExt });
   }
-  const searchPath = getWindowsEnvironmentValue(environment, "PATH") ?? getWindowsEnvironmentValue(process7.env, "PATH") ?? "";
+  const searchPath = getWindowsEnvironmentValue(environment, "PATH") ?? getWindowsEnvironmentValue(process8.env, "PATH") ?? "";
   const resolveOptions2 = {
     cwd,
     path: searchPath,
@@ -21047,7 +21133,7 @@ var resolvePath = (parsed) => {
   return shouldSearchCurrentDirectory(environment) ? whichCommandSync(parsed.file, resolveOptions2) : resolvePathDirectories(parsed.file, resolveOptions2);
 };
 var hasWindowsPathSeparator = (file) => file.includes("/") || file.includes("\\") || file.includes(":");
-var shouldSearchCurrentDirectory = (environment) => getWindowsEnvironmentValue(process7.env, "NODEFAULTCURRENTDIRECTORYINEXEPATH") === void 0 && getWindowsEnvironmentValue(environment, "NODEFAULTCURRENTDIRECTORYINEXEPATH") === void 0;
+var shouldSearchCurrentDirectory = (environment) => getWindowsEnvironmentValue(process8.env, "NODEFAULTCURRENTDIRECTORYINEXEPATH") === void 0 && getWindowsEnvironmentValue(environment, "NODEFAULTCURRENTDIRECTORYINEXEPATH") === void 0;
 var resolvePathDirectories = (file, { cwd, path: searchPath, pathExt }) => {
   for (const directory of searchPath.split(path5.delimiter)) {
     const unquotedDirectory = directory.length > 1 && directory.startsWith('"') && directory.endsWith('"') ? directory.slice(1, -1) : directory;
@@ -21119,17 +21205,17 @@ var escapeArgument = (rawArgument) => {
 };
 var shouldQuoteArgument = (argument) => argument === "" || argument.endsWith("\\") || quotedCharacterRegExp.test(argument);
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/arguments/cwd.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/arguments/cwd.js
 import { statSync as statSync3 } from "node:fs";
 import path6 from "node:path";
-import process8 from "node:process";
+import process9 from "node:process";
 var normalizeCwd = (cwd = getDefaultCwd()) => {
   const cwdString = safeNormalizeFileUrl(cwd, 'The "cwd" option');
   return path6.resolve(cwdString);
 };
 var getDefaultCwd = () => {
   try {
-    return process8.cwd();
+    return process9.cwd();
   } catch (error2) {
     error2.message = `The current directory does not exist.
 ${error2.message}`;
@@ -21138,7 +21224,7 @@ ${error2.message}`;
 };
 var getCurrentCwd = () => {
   try {
-    return process8.cwd();
+    return process9.cwd();
   } catch {
   }
 };
@@ -21158,7 +21244,7 @@ ${originalMessage}`;
 ${originalMessage}`;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/arguments/options.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/arguments/options.js
 var cmdExeRegExp = /^cmd(?:\.exe)?$/i;
 var normalizeOptions = (filePath, rawArguments, rawOptions) => {
   const sanitizedOptions = { __proto__: null, ...rawOptions };
@@ -21166,6 +21252,8 @@ var normalizeOptions = (filePath, rawArguments, rawOptions) => {
   const [processedFile, processedArguments, processedOptions] = handleNodeOption(filePath, rawArguments, sanitizedOptions);
   const fdOptions = normalizeFdSpecificOptions(processedOptions);
   const options = addDefaultOptions(fdOptions);
+  validateBooleanOptions(options);
+  validateEnv(options);
   options.env = getEnv(options);
   const { file, commandArguments } = parseCommandFile(processedFile, processedArguments, options);
   validateTimeout(options);
@@ -21178,10 +21266,31 @@ var normalizeOptions = (filePath, rawArguments, rawOptions) => {
   options.killSignal = normalizeKillSignal(options.killSignal);
   options.forceKillAfterDelay = normalizeForceKillAfterDelay(options.forceKillAfterDelay);
   options.lines = options.lines.map((lines, fdNumber) => lines && !BINARY_ENCODINGS.has(options.encoding) && options.buffer[fdNumber]);
-  if (process9.platform === "win32" && cmdExeRegExp.test(path7.basename(file))) {
+  if (process10.platform === "win32" && cmdExeRegExp.test(path7.basename(file))) {
     commandArguments.unshift("/q");
   }
   return { file, commandArguments, options };
+};
+var BOOLEAN_OPTIONS = [
+  "extendEnv",
+  "preferLocal",
+  "reject",
+  "cleanup",
+  "killDescendants",
+  "all",
+  "gracefulCancel",
+  "ipc",
+  "node"
+];
+var validateBooleanOptions = (options) => {
+  for (const optionName of BOOLEAN_OPTIONS) {
+    checkBooleanOption(options[optionName], optionName);
+  }
+};
+var validateEnv = ({ env }) => {
+  if (env !== void 0 && (typeof env !== "object" || env === null || Array.isArray(env))) {
+    throw new TypeError(`The \`env\` option must be an object: ${String(env)}.`);
+  }
 };
 var addDefaultOptions = ({
   extendEnv = true,
@@ -21223,7 +21332,7 @@ var addDefaultOptions = ({
 });
 var getEnv = (options) => ({ __proto__: null, ...computeEnv(options) });
 var computeEnv = ({ env: envOption, extendEnv, preferLocal, node, localDirectory, nodePath }) => {
-  const env = { __proto__: null, ...extendEnv && process9.env, ...envOption };
+  const env = { __proto__: null, ...extendEnv && process10.env, ...envOption };
   if (preferLocal || node) {
     return npmRunPathEnv({
       env,
@@ -21236,11 +21345,95 @@ var computeEnv = ({ env: envOption, extendEnv, preferLocal, node, localDirectory
   return env;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/arguments/shell.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/arguments/shell.js
 var concatenateShell = (file, commandArguments, options) => options.shell && commandArguments.length > 0 ? [[file, ...commandArguments].join(" "), [], options] : [file, commandArguments, options];
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/return/message.js
-import { inspect as inspect2 } from "node:util";
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/resolve/all-sync.js
+import { Buffer as Buffer3 } from "node:buffer";
+
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/transform/split.js
+var getSplitLinesGenerator = (binary, preserveNewlines, skipped, state) => binary || skipped ? void 0 : initializeSplitLines(preserveNewlines, state);
+var splitLinesSync = (chunk, preserveNewlines, objectMode) => objectMode ? chunk.flatMap((item) => splitLinesItemSync(item, preserveNewlines)) : splitLinesItemSync(chunk, preserveNewlines);
+var splitLinesItemSync = (chunk, preserveNewlines) => {
+  const { transform: transform2, final } = initializeSplitLines(preserveNewlines, {});
+  return [...transform2(chunk), ...final()];
+};
+var initializeSplitLines = (preserveNewlines, state) => {
+  state.previousChunks = "";
+  return {
+    transform: splitGenerator.bind(void 0, state, preserveNewlines),
+    final: linesFinal.bind(void 0, state)
+  };
+};
+var splitGenerator = function* (state, preserveNewlines, chunk) {
+  if (typeof chunk !== "string") {
+    yield chunk;
+    return;
+  }
+  let { previousChunks } = state;
+  let start2 = -1;
+  for (let end = 0; end < chunk.length; end += 1) {
+    if (chunk[end] !== "\n") {
+      continue;
+    }
+    let line = chunk.slice(start2 + 1, preserveNewlines ? end + 1 : end);
+    if (previousChunks.length > 0) {
+      line = concatString(previousChunks, line);
+      previousChunks = "";
+    }
+    yield preserveNewlines ? line : stripCarriageReturn(line, state);
+    start2 = end;
+  }
+  if (start2 !== chunk.length - 1) {
+    previousChunks = concatString(previousChunks, chunk.slice(start2 + 1));
+  }
+  state.previousChunks = previousChunks;
+};
+var stripCarriageReturn = (line, state) => {
+  state.isWindowsNewline = line.endsWith("\r");
+  return state.isWindowsNewline ? line.slice(0, -1) : line;
+};
+var linesFinal = function* ({ previousChunks }) {
+  if (previousChunks.length > 0) {
+    yield previousChunks;
+  }
+};
+var getAppendNewlineGenerator = ({ binary, preserveNewlines, readableObjectMode, state, encoding }) => binary || preserveNewlines || readableObjectMode ? void 0 : { transform: appendNewlineGenerator.bind(void 0, state, getStringEncoding(binary, encoding)) };
+var appendNewlineGenerator = function* ({ isWindowsNewline = false }, stringEncoding, chunk) {
+  const { unixNewline, windowsNewline, concat } = typeof chunk === "string" ? linesStringInfo : LINES_BYTES_INFO[stringEncoding];
+  if (endsWithNewline(chunk, unixNewline)) {
+    yield chunk;
+    return;
+  }
+  const newline = isWindowsNewline ? windowsNewline : unixNewline;
+  yield concat(chunk, newline);
+};
+var endsWithNewline = (chunk, unixNewline) => typeof chunk === "string" ? chunk.endsWith(unixNewline) : chunk.length >= unixNewline.length && chunk.subarray(-unixNewline.length).every((byte, index) => byte === unixNewline[index]);
+var concatString = (firstChunk, secondChunk) => `${firstChunk}${secondChunk}`;
+var linesStringInfo = {
+  windowsNewline: "\r\n",
+  unixNewline: "\n",
+  concat: concatString
+};
+var concatUint8Array = (firstChunk, secondChunk) => {
+  const chunk = new Uint8Array(firstChunk.length + secondChunk.length);
+  chunk.set(firstChunk, 0);
+  chunk.set(secondChunk, firstChunk.length);
+  return chunk;
+};
+var LINES_BYTES_INFO = {
+  __proto__: null,
+  utf8: {
+    windowsNewline: new Uint8Array([13, 10]),
+    unixNewline: new Uint8Array([10]),
+    concat: concatUint8Array
+  },
+  utf16le: {
+    windowsNewline: new Uint8Array([13, 0, 10, 0]),
+    unixNewline: new Uint8Array([10, 0]),
+    concat: concatUint8Array
+  }
+};
 
 // node_modules/.pnpm/strip-final-newline@4.0.0/node_modules/strip-final-newline/index.js
 function stripFinalNewline(input) {
@@ -21258,6 +21451,44 @@ var LF = "\n";
 var LF_BINARY = LF.codePointAt(0);
 var CR = "\r";
 var CR_BINARY = CR.codePointAt(0);
+
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/io/strip-newline.js
+var stripNewline = (value, { stripFinalNewline: stripFinalNewline2 }, fdNumber, allFds) => value !== void 0 && !Array.isArray(value) && getStripFinalNewline(stripFinalNewline2, fdNumber, allFds) ? stripFinalNewline(value) : value;
+var getStripFinalNewline = (stripFinalNewline2, fdNumber, allFds) => fdNumber === "all" ? allFds.some((allFd) => stripFinalNewline2[allFd]) : stripFinalNewline2[fdNumber];
+
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/resolve/all-sync.js
+var getAllSyncFds = ([, stdout, stderr]) => [
+  ...stdout === void 0 ? [] : [1],
+  ...stderr === void 0 ? [] : [2]
+];
+var getAllSync = ([, stdout, stderr], allFds, options) => {
+  if (!options.all) {
+    return;
+  }
+  if (stdout === void 0) {
+    return splitAllLines(stderr, allFds, options);
+  }
+  if (stderr === void 0) {
+    return splitAllLines(stdout, allFds, options);
+  }
+  if (hasLines(options)) {
+    return [splitAllLines(stdout, allFds, options), splitAllLines(stderr, allFds, options)].flat();
+  }
+  if (Array.isArray(stdout) || Array.isArray(stderr)) {
+    return [stdout, stderr].filter((value) => value.length > 0).flat();
+  }
+  if (isUint8Array(stdout) && isUint8Array(stderr)) {
+    return concatUint8Arrays([stdout, stderr]);
+  }
+  return BASE64_ENCODINGS.has(options.encoding) ? concatBase64(stdout, stderr, options.encoding) : `${stdout}${stderr}`;
+};
+var concatBase64 = (stdout, stderr, encoding) => Buffer3.concat([Buffer3.from(stdout, encoding), Buffer3.from(stderr, encoding)]).toString(encoding);
+var BASE64_ENCODINGS = /* @__PURE__ */ new Set(["base64", "base64url"]);
+var hasLines = ({ lines }) => Boolean(lines[1] || lines[2]);
+var splitAllLines = (value, allFds, options) => value === void 0 || Array.isArray(value) || !hasLines(options) ? value : splitLinesSync(value, !getStripFinalNewline(options.stripFinalNewline, "all", allFds), false);
+
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/return/message.js
+import { inspect as inspect3 } from "node:util";
 
 // node_modules/.pnpm/get-stream@9.0.1/node_modules/get-stream/source/index.js
 import { on } from "node:events";
@@ -21629,7 +21860,7 @@ var stringMethods = {
 // node_modules/.pnpm/get-stream@9.0.1/node_modules/get-stream/source/index.js
 Object.assign(nodeImports, { on, finished });
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/io/max-buffer.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/io/max-buffer.js
 var handleMaxBuffer = ({ error: error2, stream, readableObjectMode, lines, encoding, fdNumber }) => {
   if (!(error2 instanceof MaxBufferError)) {
     throw error2;
@@ -21695,7 +21926,7 @@ var truncateMaxBufferSync = (result, fdNumber, { maxBuffer, buffer }) => {
   return buffer[fdNumber] && result.length > maxBufferValue ? result.slice(0, maxBufferValue) : result;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/return/message.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/return/message.js
 var createMessages = ({
   stdio,
   all,
@@ -21716,7 +21947,7 @@ var createMessages = ({
   timeout,
   cwd
 }) => {
-  const errorCode = originalError?.code;
+  const errorCode = getErrorCode(originalError);
   const prefix = getErrorPrefix({
     originalError,
     timedOut,
@@ -21746,6 +21977,7 @@ ${originalMessage}`;
   ].map((messagePart) => escapeLines(stripFinalNewline(serializeMessagePart(messagePart)))).filter(Boolean).join("\n\n");
   return { originalMessage, shortMessage, message };
 };
+var getErrorCode = (error2) => typeof error2?.code === "string" ? error2.code : void 0;
 var getErrorPrefix = ({
   originalError,
   timedOut,
@@ -21794,12 +22026,13 @@ var getOriginalMessage = (originalError, cwd) => {
   if (originalError instanceof DiscardedError) {
     return;
   }
-  const originalMessage = isExecaError(originalError) ? originalError.originalMessage : String(originalError?.message ?? originalError);
+  const originalMessage = isExecaError(originalError) ? originalError.originalMessage ?? "" : String(originalError?.message ?? originalError);
   const escapedOriginalMessage = escapeLines(fixCwdError(originalMessage, cwd));
   return escapedOriginalMessage === "" ? void 0 : escapedOriginalMessage;
 };
-var serializeIpcMessage = (ipcMessage) => typeof ipcMessage === "string" ? ipcMessage : inspect2(ipcMessage);
-var serializeMessagePart = (messagePart) => Array.isArray(messagePart) ? messagePart.map((messageItem) => stripFinalNewline(serializeMessageItem(messageItem))).filter(Boolean).join("\n") : serializeMessageItem(messagePart);
+var serializeIpcMessage = (ipcMessage) => typeof ipcMessage === "string" ? ipcMessage : inspect3(ipcMessage);
+var serializeMessagePart = (messagePart) => Array.isArray(messagePart) ? messagePart.filter((messageItem) => isTextItem(messageItem)).map((messageItem) => stripFinalNewline(serializeMessageItem(messageItem))).join("\n") : serializeMessageItem(messagePart);
+var isTextItem = (messageItem) => typeof messageItem === "string" || isUint8Array(messageItem);
 var serializeMessageItem = (messageItem) => {
   if (typeof messageItem === "string") {
     return messageItem;
@@ -21807,7 +22040,7 @@ var serializeMessageItem = (messageItem) => {
   return isUint8Array(messageItem) ? uint8ArrayToString(messageItem) : "";
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/return/result.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/return/result.js
 var makeSuccessResult = ({
   command,
   escapedCommand,
@@ -21843,7 +22076,9 @@ var makeEarlyError = ({
   fileDescriptors,
   options,
   startTime,
-  isSync
+  isSync,
+  stdio = Array.from({ length: fileDescriptors.length }),
+  all
 }) => makeError({
   error: error2,
   command,
@@ -21854,11 +22089,26 @@ var makeEarlyError = ({
   isGracefullyCanceled: false,
   isMaxBuffer: false,
   isForcefullyTerminated: false,
-  stdio: Array.from({ length: fileDescriptors.length }),
+  stdio,
+  all,
   ipcOutput: [],
   options,
   isSync
 });
+var getEarlyErrorOutput = (fileDescriptors, options) => {
+  const stdio = fileDescriptors.map((fileDescriptor, fdNumber) => getEmptyOutput(fileDescriptor, fdNumber, options));
+  return { stdio, all: getAllSync(stdio, getAllSyncFds(stdio), options) };
+};
+var getEmptyOutput = ({ direction, objectMode }, fdNumber, { stdio, buffer, lines, encoding }) => {
+  if (direction === "input" || !PIPED_STDIO.has(stdio[fdNumber]) || !buffer[fdNumber]) {
+    return;
+  }
+  if (objectMode || lines[fdNumber]) {
+    return [];
+  }
+  return encoding === "buffer" ? new Uint8Array() : "";
+};
+var PIPED_STDIO = /* @__PURE__ */ new Set(["pipe", "overlapped"]);
 var makeError = ({
   error: originalError,
   command,
@@ -21964,7 +22214,7 @@ var getErrorProperties = ({
   exitCode,
   signal,
   signalDescription,
-  code: error2.cause?.code,
+  code: getErrorCode(error2.cause),
   stdout: stdio[1],
   stderr: stdio[2],
   all,
@@ -22119,7 +22369,7 @@ function prettyMilliseconds(milliseconds, options) {
   return sign + result.join(separator);
 }
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/verbose/error.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/verbose/error.js
 var logError = (result, verboseInfo) => {
   if (result.failed) {
     verboseLog({
@@ -22131,7 +22381,7 @@ var logError = (result, verboseInfo) => {
   }
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/verbose/complete.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/verbose/complete.js
 var logResult = (result, verboseInfo) => {
   if (!isVerbose(verboseInfo)) {
     return;
@@ -22149,7 +22399,7 @@ var logDuration = (result, verboseInfo) => {
   });
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/return/reject.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/return/reject.js
 var handleResult2 = (result, verboseInfo, { reject }) => {
   logResult(result, verboseInfo);
   if (reject && result.failed) {
@@ -22158,10 +22408,10 @@ var handleResult2 = (result, verboseInfo, { reject }) => {
   return result;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/stdio/handle-sync.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/stdio/handle-sync.js
 import { readFileSync as readFileSync3 } from "node:fs";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/stdio/type.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/stdio/type.js
 var getStdioItemType = (value, optionName) => {
   if (isAsyncGenerator(value)) {
     return "asyncGenerator";
@@ -22236,11 +22486,6 @@ var getGeneratorObjectType = ({ transform: transform2, final, binary, objectMode
   checkBooleanOption(objectMode, `${optionName}.objectMode`);
   return isAsyncGenerator(transform2) || isAsyncGenerator(final) ? "asyncGenerator" : "generator";
 };
-var checkBooleanOption = (value, optionName) => {
-  if (value !== void 0 && typeof value !== "boolean") {
-    throw new TypeError(`The \`${optionName}\` option must use a boolean.`);
-  }
-};
 var isGenerator = (value) => isAsyncGenerator(value) || isSyncGenerator(value);
 var isAsyncGenerator = (value) => Object.prototype.toString.call(value) === "[object AsyncGeneratorFunction]";
 var isSyncGenerator = (value) => Object.prototype.toString.call(value) === "[object GeneratorFunction]";
@@ -22283,7 +22528,7 @@ var TYPE_TO_MESSAGE = {
   uint8Array: "a Uint8Array"
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/transform/object-mode.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/transform/object-mode.js
 var getTransformObjectModes = (objectMode, index, newTransforms, direction) => direction === "output" ? getOutputObjectModes(objectMode, index, newTransforms) : getInputObjectModes(objectMode, index, newTransforms);
 var getOutputObjectModes = (objectMode, index, newTransforms) => {
   const writableObjectMode = index !== 0 && newTransforms[index - 1].value.readableObjectMode;
@@ -22303,7 +22548,7 @@ var getFdObjectMode = (stdioItems, direction) => {
   return direction === "input" ? lastTransform.value.writableObjectMode : lastTransform.value.readableObjectMode;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/transform/normalize.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/transform/normalize.js
 var normalizeTransforms = (stdioItems, optionName, direction, options) => [
   ...stdioItems.filter(({ type }) => !TRANSFORM_TYPES.has(type)),
   ...getTransforms(stdioItems, optionName, direction, options)
@@ -22391,8 +22636,8 @@ var normalizeGenerator = ({ stdioItem, stdioItem: { value }, index, newTransform
 };
 var sortTransforms = (newTransforms, direction) => direction === "input" ? newTransforms.reverse() : newTransforms;
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/stdio/direction.js
-import process10 from "node:process";
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/stdio/direction.js
+import process11 from "node:process";
 var getStreamDirection = ({ stdioItems, isStdioArray, fdNumber, optionName }) => {
   const directions = stdioItems.map((stdioItem) => getStdioItemDirection(stdioItem, fdNumber, isStdioArray));
   if (directions.includes("input") && directions.includes("output")) {
@@ -22460,19 +22705,19 @@ var guessStreamDirection = {
   }
 };
 var getStandardStreamDirection = (value) => {
-  if ([0, process10.stdin].includes(value)) {
+  if ([0, process11.stdin].includes(value)) {
     return "input";
   }
-  if ([1, 2, process10.stdout, process10.stderr].includes(value)) {
+  if ([1, 2, process11.stdout, process11.stderr].includes(value)) {
     return "output";
   }
 };
 var DEFAULT_DIRECTION = "output";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/array.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/array.js
 var normalizeIpcStdioArray = (stdioArray, ipc) => ipc ? [...stdioArray, "ipc"] : stdioArray;
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/stdio/stdio-option.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/stdio/stdio-option.js
 var normalizeStdioOption = (options, verboseInfo, isSync) => {
   const { stdio, ipc, buffer } = options;
   const stdioArray = getStdioArray(stdio, options).map((stdioOption, fdNumber) => addDefaultValue2(stdioOption, fdNumber));
@@ -22497,7 +22742,7 @@ var getStdioArray = (stdio, options) => {
     return [stdio, stdio, stdio];
   }
   if (!Array.isArray(stdio)) {
-    throw new TypeError(`Expected \`stdio\` to be of type \`string\` or \`Array\`, got \`${typeof stdio}\``);
+    throw new TypeError(`Expected \`stdio\` to be of type \`string\` or \`Array\`, got \`${getTypeName(stdio)}\``);
   }
   const length = Math.max(stdio.length, STANDARD_STREAMS_ALIASES.length);
   return Array.from({ length }, (_, fdNumber) => stdio[fdNumber]);
@@ -22519,11 +22764,11 @@ var isOutputPipeObject = (stdioOption, fdNumber) => isStdioValueObject(stdioOpti
 var isFixedOutputPipe = (fdNumber, input) => input === true && isStandardOutputFd(fdNumber);
 var isStandardOutputFd = (fdNumber) => fdNumber === 1 || fdNumber === 2;
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/stdio/native.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/stdio/native.js
 import { readFileSync as readFileSync2 } from "node:fs";
 import tty2 from "node:tty";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/arguments/fd-options.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/arguments/fd-options.js
 var getToStream = (destination, to = "stdin") => {
   const isWritable = true;
   const { options, fileDescriptors } = SUBPROCESS_OPTIONS.get(destination);
@@ -22601,7 +22846,7 @@ var serializeOptionValue = (value) => {
   return typeof value === "number" ? `${value}` : "Stream";
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/stdio/native.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/stdio/native.js
 var handleNativeStream = ({ stdioItem, stdioItem: { type }, isStdioArray, fdNumber, direction, isSync }) => {
   if (!isStdioArray || type !== "native") {
     return stdioItem;
@@ -22665,7 +22910,7 @@ var getStandardStream = (fdNumber, value, optionName) => {
   return standardStream;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/stdio/input-option.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/stdio/input-option.js
 var handleInputOptions = ({ input, inputFile }, fdNumber) => fdNumber === 0 ? [
   ...handleInputOption(input),
   ...handleInputFileOption(inputFile)
@@ -22701,7 +22946,7 @@ var getInputFileType = (inputFile) => {
   throw new Error("The `inputFile` option must be a file path string or a file URL.");
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/stdio/duplicate.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/stdio/duplicate.js
 import path8 from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 var isFileType = (type) => SPECIAL_DUPLICATE_TYPES_SYNC.has(type);
@@ -22776,7 +23021,7 @@ var throwOnDuplicateStream = (stdioItem, optionName, type) => {
   }
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/stdio/handle.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/stdio/handle.js
 var handleStdio = (addProperties3, options, verboseInfo, isSync) => {
   const stdio = normalizeStdioOption(options, verboseInfo, isSync);
   const initialFileDescriptors = stdio.map((stdioOption, fdNumber) => getFileDescriptor({
@@ -22830,7 +23075,7 @@ var initializeStdioItems = ({ stdioOption, fdNumber, options, optionName }) => {
   const stdioItems = filterDuplicates(initialStdioItems);
   const isStdioArray = stdioItems.length > 1;
   validateStdioArray(stdioItems, isStdioArray, optionName);
-  validateStreams(stdioItems);
+  validateStreams(stdioItems, isStdioArray);
   return { stdioItems, isStdioArray };
 };
 var omitInheritedStdin = (stdioItems, inputStdioItems) => inputStdioItems.length > 0 && isInheritedStdinOnly(stdioItems) ? [] : stdioItems;
@@ -22868,10 +23113,11 @@ var validateStdioArray = (stdioItems, isStdioArray, optionName) => {
   }
 };
 var INVALID_STDIO_ARRAY_OPTIONS = /* @__PURE__ */ new Set(["ignore"]);
-var validateStreams = (stdioItems) => {
+var validateStreams = (stdioItems, isStdioArray) => {
   for (const stdioItem of stdioItems) {
     validateFileStdio(stdioItem);
     validateFileDescriptorStdio(stdioItem);
+    validateNativeStdio(stdioItem, isStdioArray);
   }
 };
 var validateFileDescriptorStdio = ({ type, value, optionName }) => {
@@ -22880,6 +23126,21 @@ var validateFileDescriptorStdio = ({ type, value, optionName }) => {
   }
 };
 var MAX_FILE_DESCRIPTOR = 2 ** 31 - 1;
+var validateNativeStdio = ({ type, value, optionName }, isStdioArray) => {
+  if (type !== "native") {
+    return;
+  }
+  if (isFileHandle(value)) {
+    if (isStdioArray) {
+      throw new TypeError(`The \`${optionName}\` option cannot combine file handles with other values.`);
+    }
+    return;
+  }
+  if (typeof value !== "string" && typeof value !== "number" && !isStream(value, { checkOpen: false })) {
+    throw new TypeError(`The \`${optionName}\` option is invalid: ${String(value)} (${typeof value}).`);
+  }
+};
+var isFileHandle = (value) => typeof value?.fd === "number" && !isStream(value, { checkOpen: false });
 var validateFileStdio = ({ type, value, optionName }) => {
   if (isRegularUrl(value)) {
     throw new TypeError(`The \`${optionName}: URL\` option must use the \`file:\` scheme.
@@ -22925,13 +23186,14 @@ var addFinalFileDescriptor = ({ fileDescriptor, fileDescriptors, addProperties: 
       stdioItem,
       addProperties: addProperties3,
       direction,
+      objectMode,
       options,
       fileDescriptors,
       isSync
     }));
   }
 };
-var addStreamProperties = ({ stdioItem, addProperties: addProperties3, direction, options, fileDescriptors, isSync }) => {
+var addStreamProperties = ({ stdioItem, addProperties: addProperties3, direction, objectMode, options, fileDescriptors, isSync }) => {
   const duplicateStream = getDuplicateStream({
     stdioItem,
     direction,
@@ -22943,7 +23205,7 @@ var addStreamProperties = ({ stdioItem, addProperties: addProperties3, direction
   }
   return {
     ...stdioItem,
-    ...addProperties3[direction][stdioItem.type](stdioItem, options)
+    ...addProperties3[direction][stdioItem.type](stdioItem, options, objectMode)
   };
 };
 var cleanupCustomStreams = (fileDescriptors) => {
@@ -22964,7 +23226,7 @@ var forwardStdio = (stdioItems) => {
   return type === "native" ? value : "pipe";
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/stdio/handle-sync.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/stdio/handle-sync.js
 var handleStdioSync = (options, verboseInfo) => handleStdio(addPropertiesSync, options, verboseInfo, true);
 var forbiddenIfSync = ({ type, optionName }) => {
   throwInvalidSyncValue(optionName, TYPE_TO_MESSAGE[type]);
@@ -22981,6 +23243,11 @@ var forbiddenNativeInputIfSync = (stdioItem) => {
     throw new TypeError(`Only the \`stdin\` option, not \`${optionName}\`, can be an input pipe with synchronous methods.`);
   }
   return forbiddenNativeIfSync(stdioItem);
+};
+var forbiddenInputTransformIfSync = ({ optionName }) => {
+  if (optionName !== "stdin") {
+    throw new TypeError(`Only the \`stdin\` option, not \`${optionName}\`, can be an input transform with synchronous methods.`);
+  }
 };
 var throwInvalidSyncValue = (optionName, value) => {
   throw new TypeError(`The \`${optionName}\` option cannot be ${value} with synchronous methods.`);
@@ -22999,12 +23266,13 @@ var addProperties = {
 var addPropertiesSync = {
   input: {
     ...addProperties,
+    generator: forbiddenInputTransformIfSync,
     native: forbiddenNativeInputIfSync,
-    // Files are read lazily, so that a file which cannot be read is reported like any other early error, instead of being thrown as a raw error
+    // Files and iterables are read lazily, so that a file which cannot be read, or an iterable which throws, is reported like any other early error, instead of being thrown as a raw error
     fileUrl: ({ value }) => ({ contents: () => [bufferToUint8Array(readFileSync3(value))] }),
     filePath: ({ value: { file } }) => ({ contents: () => [bufferToUint8Array(readFileSync3(file))] }),
     fileNumber: forbiddenIfSync,
-    iterable: ({ value }) => ({ contents: [...value] }),
+    iterable: ({ value }) => ({ contents: () => [...value] }),
     string: ({ value }) => ({ contents: [value] }),
     // `contents` is already set when reading from a file descriptor
     uint8Array: ({ value, contents = [value] }) => ({ contents })
@@ -23020,102 +23288,14 @@ var addPropertiesSync = {
   }
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/io/strip-newline.js
-var stripNewline = (value, { stripFinalNewline: stripFinalNewline2 }, fdNumber, allFds) => value !== void 0 && !Array.isArray(value) && getStripFinalNewline(stripFinalNewline2, fdNumber, allFds) ? stripFinalNewline(value) : value;
-var getStripFinalNewline = (stripFinalNewline2, fdNumber, allFds) => fdNumber === "all" ? allFds.some((allFd) => stripFinalNewline2[allFd]) : stripFinalNewline2[fdNumber];
-
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/transform/generator.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/transform/generator.js
 import { Transform, getDefaultHighWaterMark } from "node:stream";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/transform/split.js
-var getSplitLinesGenerator = (binary, preserveNewlines, skipped, state) => binary || skipped ? void 0 : initializeSplitLines(preserveNewlines, state);
-var splitLinesSync = (chunk, preserveNewlines, objectMode) => objectMode ? chunk.flatMap((item) => splitLinesItemSync(item, preserveNewlines)) : splitLinesItemSync(chunk, preserveNewlines);
-var splitLinesItemSync = (chunk, preserveNewlines) => {
-  const { transform: transform2, final } = initializeSplitLines(preserveNewlines, {});
-  return [...transform2(chunk), ...final()];
-};
-var initializeSplitLines = (preserveNewlines, state) => {
-  state.previousChunks = "";
-  return {
-    transform: splitGenerator.bind(void 0, state, preserveNewlines),
-    final: linesFinal.bind(void 0, state)
-  };
-};
-var splitGenerator = function* (state, preserveNewlines, chunk) {
-  if (typeof chunk !== "string") {
-    yield chunk;
-    return;
-  }
-  let { previousChunks } = state;
-  let start2 = -1;
-  for (let end = 0; end < chunk.length; end += 1) {
-    if (chunk[end] !== "\n") {
-      continue;
-    }
-    let line = chunk.slice(start2 + 1, preserveNewlines ? end + 1 : end);
-    if (previousChunks.length > 0) {
-      line = concatString(previousChunks, line);
-      previousChunks = "";
-    }
-    yield preserveNewlines ? line : stripCarriageReturn(line, state);
-    start2 = end;
-  }
-  if (start2 !== chunk.length - 1) {
-    previousChunks = concatString(previousChunks, chunk.slice(start2 + 1));
-  }
-  state.previousChunks = previousChunks;
-};
-var stripCarriageReturn = (line, state) => {
-  state.isWindowsNewline = line.endsWith("\r");
-  return state.isWindowsNewline ? line.slice(0, -1) : line;
-};
-var linesFinal = function* ({ previousChunks }) {
-  if (previousChunks.length > 0) {
-    yield previousChunks;
-  }
-};
-var getAppendNewlineGenerator = ({ binary, preserveNewlines, readableObjectMode, state, encoding }) => binary || preserveNewlines || readableObjectMode ? void 0 : { transform: appendNewlineGenerator.bind(void 0, state, getStringEncoding(binary, encoding)) };
-var appendNewlineGenerator = function* ({ isWindowsNewline = false }, stringEncoding, chunk) {
-  const { unixNewline, windowsNewline, concat } = typeof chunk === "string" ? linesStringInfo : LINES_BYTES_INFO[stringEncoding];
-  if (endsWithNewline(chunk, unixNewline)) {
-    yield chunk;
-    return;
-  }
-  const newline = isWindowsNewline ? windowsNewline : unixNewline;
-  yield concat(chunk, newline);
-};
-var endsWithNewline = (chunk, unixNewline) => typeof chunk === "string" ? chunk.endsWith(unixNewline) : chunk.length >= unixNewline.length && chunk.subarray(-unixNewline.length).every((byte, index) => byte === unixNewline[index]);
-var concatString = (firstChunk, secondChunk) => `${firstChunk}${secondChunk}`;
-var linesStringInfo = {
-  windowsNewline: "\r\n",
-  unixNewline: "\n",
-  concat: concatString
-};
-var concatUint8Array = (firstChunk, secondChunk) => {
-  const chunk = new Uint8Array(firstChunk.length + secondChunk.length);
-  chunk.set(firstChunk, 0);
-  chunk.set(secondChunk, firstChunk.length);
-  return chunk;
-};
-var LINES_BYTES_INFO = {
-  __proto__: null,
-  utf8: {
-    windowsNewline: new Uint8Array([13, 10]),
-    unixNewline: new Uint8Array([10]),
-    concat: concatUint8Array
-  },
-  utf16le: {
-    windowsNewline: new Uint8Array([13, 0, 10, 0]),
-    unixNewline: new Uint8Array([10, 0]),
-    concat: concatUint8Array
-  }
-};
-
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/transform/validate.js
-import { Buffer as Buffer3 } from "node:buffer";
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/transform/validate.js
+import { Buffer as Buffer4 } from "node:buffer";
 var getValidateTransformInput = (writableObjectMode, optionName) => writableObjectMode ? void 0 : validateStringTransformInput.bind(void 0, optionName);
 var validateStringTransformInput = function* (optionName, chunk) {
-  if (typeof chunk !== "string" && !isUint8Array(chunk) && !Buffer3.isBuffer(chunk)) {
+  if (typeof chunk !== "string" && !isUint8Array(chunk) && !Buffer4.isBuffer(chunk)) {
     throw new TypeError(`The \`${optionName}\` option's transform must use "objectMode: true" to receive as input: ${typeof chunk}.`);
   }
   yield chunk;
@@ -23140,8 +23320,8 @@ Instead, \`yield\` should either be called with a value, or not be called at all
   }
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/transform/encoding-transform.js
-import { Buffer as Buffer4 } from "node:buffer";
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/transform/encoding-transform.js
+import { Buffer as Buffer5 } from "node:buffer";
 import { StringDecoder as StringDecoder2 } from "node:string_decoder";
 var getEncodingTransformGenerator = (binary, encoding, skipped) => {
   if (skipped) {
@@ -23157,7 +23337,7 @@ var getEncodingTransformGenerator = (binary, encoding, skipped) => {
   };
 };
 var encodingUint8ArrayGenerator = function* (textEncoder3, chunk) {
-  if (Buffer4.isBuffer(chunk)) {
+  if (Buffer5.isBuffer(chunk)) {
     yield bufferToUint8Array(chunk);
   } else if (typeof chunk === "string") {
     yield textEncoder3.encode(chunk);
@@ -23176,13 +23356,13 @@ var encodingStringFinal = function* (stringDecoder) {
 };
 var getStringToBytesGenerator = (binary, encoding, skipped) => skipped || encoding === "utf8" ? void 0 : { transform: stringToBytesGenerator.bind(void 0, getStringEncoding(binary, encoding)) };
 var stringToBytesGenerator = function* (stringEncoding, chunk) {
-  yield typeof chunk === "string" ? bufferToUint8Array(Buffer4.from(chunk, stringEncoding)) : chunk;
+  yield typeof chunk === "string" ? bufferToUint8Array(Buffer5.from(chunk, stringEncoding)) : chunk;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/transform/run-async.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/transform/run-async.js
 import { callbackify } from "node:util";
-var pushChunks = callbackify(async (getChunks, state, getChunksArguments, transformStream) => {
-  state.currentIterable = getChunks(...getChunksArguments);
+var pushChunks = callbackify(async (getChunks2, state, getChunksArguments, transformStream) => {
+  state.currentIterable = getChunks2(...getChunksArguments);
   try {
     for await (const chunk of state.currentIterable) {
       transformStream.push(chunk);
@@ -23227,7 +23407,7 @@ var identityGenerator = function* (chunk) {
   yield chunk;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/transform/run-sync.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/transform/run-sync.js
 var pushChunksSync = (getChunksSync, getChunksArguments, transformStream, done) => {
   try {
     for (const chunk of getChunksSync(...getChunksArguments)) {
@@ -23269,7 +23449,7 @@ var identityGenerator2 = function* (chunk) {
   yield chunk;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/transform/generator.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/transform/generator.js
 var generatorToStream = ({
   value,
   value: {
@@ -23333,7 +23513,7 @@ var addInternalGenerators = ({ transform: transform2, final, binary, writableObj
   ].filter(Boolean);
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/io/input-sync.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/io/input-sync.js
 var addInputOptionsSync = (fileDescriptors, options) => {
   for (const fdNumber of getInputFdNumbers(fileDescriptors)) {
     addInputOptionSync(fileDescriptors, fdNumber, options);
@@ -23350,25 +23530,30 @@ var addInputOptionSync = (fileDescriptors, fdNumber, options) => {
     const [{ type, optionName }] = allStdioItems;
     throw new TypeError(`Only the \`stdin\` option, not \`${optionName}\`, can be ${TYPE_TO_MESSAGE[type]} with synchronous methods.`);
   }
-  const chunks = allStdioItems.flatMap(({ contents }) => typeof contents === "function" ? contents() : contents);
+  const chunks = allStdioItems.flatMap(({ type, contents }) => getChunks(type, typeof contents === "function" ? contents() : contents));
   options.input = applyInputGeneratorsSync(chunks, stdioItems, options.encoding);
 };
+var getChunks = (type, chunks) => type === "iterable" ? chunks : chunks.filter((chunk) => chunk.length > 0);
 var applyInputGeneratorsSync = (chunks, stdioItems, encoding) => {
   const newContents = runGeneratorsSync(chunks, stdioItems, getInputEncoding(encoding), true);
   validateSerializable(newContents);
   return joinToUint8Array(newContents);
 };
 var validateSerializable = (newContents) => {
-  const invalidItem = newContents.find((item) => typeof item !== "string" && !isUint8Array(item));
+  const invalidItem = newContents.find((item) => !isSerializableInput(item));
   if (invalidItem !== void 0) {
-    throw new TypeError(`The \`stdin\` option is invalid: when passing objects as input, a transform must be used to serialize them to strings or Uint8Arrays: ${invalidItem}.`);
+    throwOnSerializableInput("stdin", invalidItem);
   }
 };
+var isSerializableInput = (item) => typeof item === "string" || isUint8Array(item);
+var throwOnSerializableInput = (optionName, invalidItem) => {
+  throw new TypeError(`The \`${optionName}\` option is invalid: when passing objects as input, a transform must be used to serialize them to strings or Uint8Arrays: ${invalidItem}.`);
+};
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/io/output-sync.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/io/output-sync.js
 import { writeFileSync as writeFileSync2, appendFileSync } from "node:fs";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/verbose/output.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/verbose/output.js
 var shouldLogOutput = ({ stdioItems, encoding, verboseInfo, fdNumber }) => fdNumber !== "all" && isFullVerbose(verboseInfo, fdNumber) && !BINARY_ENCODINGS.has(encoding) && isFdVerbose(fdNumber) && (stdioItems.some(({ type, value }) => type === "native" && PIPED_STDIO_VALUES.has(value)) || stdioItems.every(({ type }) => TRANSFORM_TYPES.has(type)));
 var isFdVerbose = (fdNumber) => fdNumber === 1 || fdNumber === 2;
 var PIPED_STDIO_VALUES = /* @__PURE__ */ new Set(["pipe", "overlapped"]);
@@ -23395,7 +23580,7 @@ var logLine = (line, fdNumber, verboseInfo) => {
   });
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/io/output-sync.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/io/output-sync.js
 var transformOutputSync = ({ fileDescriptors, syncResult, options, verboseInfo }) => {
   const output = syncResult.output ?? getSpawnFailureOutput(options);
   const outputFiles = /* @__PURE__ */ new Set();
@@ -23506,33 +23691,7 @@ var writeToFiles = (chunks, stdioItems, outputFiles) => {
   }
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/resolve/all-sync.js
-var getAllSyncFds = ([, stdout, stderr]) => [
-  ...stdout === void 0 ? [] : [1],
-  ...stderr === void 0 ? [] : [2]
-];
-var getAllSync = ([, stdout, stderr], allFds, options) => {
-  if (!options.all) {
-    return;
-  }
-  if (stdout === void 0) {
-    return splitAllLines(stderr, allFds, options);
-  }
-  if (stderr === void 0) {
-    return splitAllLines(stdout, allFds, options);
-  }
-  if (hasLines(options)) {
-    return [splitAllLines(stdout, allFds, options), splitAllLines(stderr, allFds, options)].flat();
-  }
-  if (Array.isArray(stdout) || Array.isArray(stderr)) {
-    return [stdout, stderr].flat();
-  }
-  return isUint8Array(stdout) && isUint8Array(stderr) ? concatUint8Arrays([stdout, stderr]) : `${stdout}${stderr}`;
-};
-var hasLines = ({ lines }) => Boolean(lines[1] || lines[2]);
-var splitAllLines = (value, allFds, options) => value === void 0 || Array.isArray(value) || !hasLines(options) ? value : splitLinesSync(value, !getStripFinalNewline(options.stripFinalNewline, "all", allFds), false);
-
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/resolve/exit-async.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/resolve/exit-async.js
 import { once as once4 } from "node:events";
 var waitForExit = async (subprocess, context) => {
   const [exitCode, signal] = await waitForExitOrError(subprocess);
@@ -23566,7 +23725,7 @@ var waitForSuccessfulExit = async (exitPromise) => {
 var isSubprocessErrorExit = (exitCode, signal) => exitCode === void 0 && signal === void 0;
 var isFailedExit = (exitCode, signal) => exitCode !== 0 || signal !== null;
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/resolve/exit-sync.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/resolve/exit-sync.js
 var getExitResultSync = ({ error: error2, status: exitCode, signal, output }, { maxBuffer, buffer }) => {
   const initialError = getResultError(error2, exitCode, signal);
   const isTimedOut = initialError?.code === "ETIMEDOUT";
@@ -23591,7 +23750,7 @@ var getResultError = (error2, exitCode, signal) => {
   return isFailedExit(exitCode, signal) ? new DiscardedError() : void 0;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/methods/main-sync.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/methods/main-sync.js
 var execaCoreSync = (rawFile, rawArguments, rawOptions) => {
   const { file, commandArguments, command, escapedCommand, startTime, verboseInfo, options, fileDescriptors } = handleSyncArguments(rawFile, rawArguments, rawOptions);
   const result = spawnSubprocessSync({
@@ -23694,7 +23853,8 @@ var runSubprocessSync = ({ file, commandArguments, options, command, escapedComm
       fileDescriptors,
       options,
       startTime,
-      isSync: true
+      isSync: true,
+      ...getEarlyErrorOutput(fileDescriptors, options)
     });
   }
 };
@@ -23726,14 +23886,14 @@ var getSyncResult = ({ error: error2, exitCode, signal, timedOut, isMaxBuffer, s
   isSync: true
 });
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/methods/main-async.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/methods/main-async.js
 import { setMaxListeners, once as once9 } from "node:events";
 import { spawn } from "node:child_process";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/methods.js
-import process11 from "node:process";
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/methods.js
+import process12 from "node:process";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/get-one.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/get-one.js
 import { once as once5, on as on2 } from "node:events";
 var internalGetOneMessageOptions = /* @__PURE__ */ Symbol("internalGetOneMessageOptions");
 var getOneMessage = ({ anyProcess, channel, isSubprocess, ipc }, rawOptions) => {
@@ -23767,7 +23927,9 @@ var getOneMessageAsync = async ({ anyProcess, channel, isSubprocess, filter, ref
       throwOnStrictError(ipcEmitter, isSubprocess, controller)
     ]);
   } catch (error2) {
-    disconnect(anyProcess);
+    if (!signal?.aborted) {
+      disconnect(anyProcess);
+    }
     throw error2;
   } finally {
     controller.abort();
@@ -23806,7 +23968,7 @@ var throwOnStrictError = async (ipcEmitter, isSubprocess, { signal }) => {
   throw getStrictResponseError(error2, isSubprocess);
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/get-each.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/get-each.js
 import { once as once6, on as on3 } from "node:events";
 var internalGetEachMessageOptions = /* @__PURE__ */ Symbol("internalGetEachMessageOptions");
 var getEachMessage = (subprocessInfo, rawOptions) => {
@@ -23848,7 +24010,8 @@ var loopOnMessages = ({ anyProcess, waitProcess = anyProcess, channel, isSubproc
     shouldAwait,
     controller,
     state,
-    reference
+    reference,
+    signal
   });
 };
 var stopOnAbort2 = (signal, controller) => {
@@ -23878,7 +24041,7 @@ var abortOnStrictError = async ({ ipcEmitter, isSubprocess, controller, state })
   } catch {
   }
 };
-var iterateOnMessages = async function* ({ anyProcess, waitProcess, channel, ipcEmitter, isSubprocess, shouldAwait, controller, state, reference }) {
+var iterateOnMessages = async function* ({ anyProcess, waitProcess, channel, ipcEmitter, isSubprocess, shouldAwait, controller, state, reference, signal }) {
   try {
     for await (const [message] of on3(ipcEmitter, "message", { signal: controller.signal })) {
       throwIfStrictError(state);
@@ -23889,7 +24052,7 @@ var iterateOnMessages = async function* ({ anyProcess, waitProcess, channel, ipc
   } finally {
     controller.abort();
     removeReference(channel, reference);
-    if (!isSubprocess) {
+    if (!isSubprocess && !signal?.aborted) {
       disconnect(anyProcess);
     }
     if (shouldAwait) {
@@ -23903,14 +24066,14 @@ var throwIfStrictError = ({ error: error2 }) => {
   }
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/methods.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/methods.js
 var addIpcMethods = (target, subprocess, { ipc }) => {
   Object.assign(target, getIpcMethods(subprocess, false, ipc, target));
 };
 var getIpcExport = () => {
-  const anyProcess = process11;
+  const anyProcess = process12;
   const isSubprocess = true;
-  const isIpc = process11.channel !== void 0;
+  const isIpc = process12.channel !== void 0;
   return {
     ...getIpcMethods(anyProcess, isSubprocess, isIpc),
     getCancelSignal: getCancelSignal.bind(void 0, {
@@ -23943,7 +24106,7 @@ var getIpcMethods = (anyProcess, isSubprocess, ipc, waitProcess = anyProcess) =>
   })
 });
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/return/early-error.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/return/early-error.js
 import { ChildProcess as ChildProcess2 } from "node:child_process";
 import { callbackify as callbackify2 } from "node:util";
 import {
@@ -23990,6 +24153,8 @@ var createDummyStreams = (subprocess, fileDescriptors) => {
 };
 var createDummyStream = () => {
   const stream = new PassThrough();
+  stream.on("error", () => {
+  });
   stream.end();
   return stream;
 };
@@ -24033,14 +24198,15 @@ var handleDummyPromise = async ({ error: error2, command, escapedCommand, fileDe
     fileDescriptors,
     options,
     startTime,
-    isSync: false
+    isSync: false,
+    ...getEarlyErrorOutput(fileDescriptors, options)
   });
   return handleResult2(earlyError, verboseInfo, options);
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/stdio/handle-async.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/stdio/handle-async.js
 import { createReadStream, createWriteStream } from "node:fs";
-import { Buffer as Buffer5 } from "node:buffer";
+import { Buffer as Buffer6 } from "node:buffer";
 import { Readable as Readable2, Writable as Writable2, Duplex as Duplex2 } from "node:stream";
 var handleStdioAsync = (options, verboseInfo) => handleStdio(addPropertiesAsync, options, verboseInfo, false);
 var forbiddenIfAsync = ({ type, optionName }) => {
@@ -24051,15 +24217,35 @@ var addProperties2 = {
   generator: generatorToStream,
   asyncGenerator: generatorToStream,
   nodeStream: ({ value }) => ({ stream: value }),
-  webTransform({ value: { transform: transform2, writableObjectMode, readableObjectMode } }) {
-    const objectMode = writableObjectMode || readableObjectMode;
-    const stream = Duplex2.fromWeb(transform2, { objectMode });
-    return { stream };
-  },
+  // `Duplex.fromWeb()` uses the same `objectMode` for both sides
+  webTransform: ({ value: { transform: transform2, writableObjectMode, readableObjectMode } }) => ({
+    stream: Duplex2.from({
+      writable: Writable2.fromWeb(transform2.writable, { objectMode: writableObjectMode }),
+      readable: Readable2.fromWeb(transform2.readable, { objectMode: readableObjectMode })
+    })
+  }),
   duplex: ({ value: { transform: transform2 } }) => ({ stream: transform2 }),
   native() {
   }
 };
+var validateIterable = function* (iterable, optionName) {
+  for (const value of iterable) {
+    validateIterableValue(value, optionName);
+    yield value;
+  }
+};
+var validateAsyncIterable = async function* (iterable, optionName) {
+  for await (const value of iterable) {
+    validateIterableValue(value, optionName);
+    yield value;
+  }
+};
+var validateIterableValue = (value, optionName) => {
+  if (!isSerializableInput(value)) {
+    throwOnSerializableInput(optionName, value);
+  }
+};
+var readableFromChunk = (chunk) => Readable2.from(chunk.length === 0 ? [] : [chunk]);
 var generatorToInputStream = (stdioItem, { encoding }) => generatorToStream(stdioItem, { encoding: getInputEncoding(encoding) });
 var addPropertiesAsync = {
   input: {
@@ -24069,10 +24255,10 @@ var addPropertiesAsync = {
     fileUrl: ({ value }) => ({ stream: createReadStream(value) }),
     filePath: ({ value: { file } }) => ({ stream: createReadStream(file) }),
     webStream: ({ value }) => ({ stream: Readable2.fromWeb(value) }),
-    iterable: ({ value }) => ({ stream: Readable2.from(value) }),
-    asyncIterable: ({ value }) => ({ stream: Readable2.from(value) }),
-    string: ({ value }) => ({ stream: Readable2.from(value) }),
-    uint8Array: ({ value }) => ({ stream: Readable2.from(Buffer5.from(value)) })
+    iterable: ({ value, optionName }, options, objectMode) => ({ stream: Readable2.from(objectMode ? value : validateIterable(value, optionName)) }),
+    asyncIterable: ({ value, optionName }, options, objectMode) => ({ stream: Readable2.from(objectMode ? value : validateAsyncIterable(value, optionName)) }),
+    string: ({ value }) => ({ stream: readableFromChunk(value) }),
+    uint8Array: ({ value }) => ({ stream: readableFromChunk(Buffer6.from(value)) })
   },
   output: {
     ...addProperties2,
@@ -24303,12 +24489,12 @@ var updateMaxListeners = (passThroughStream, increment2) => {
 var PASSTHROUGH_LISTENERS_COUNT = 2;
 var PASSTHROUGH_LISTENERS_PER_STREAM = 1;
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/io/pipeline.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/io/pipeline.js
 import { finished as finished3 } from "node:stream/promises";
-var pipeStreams = (source, destination) => {
+var pipeStreams = (source, destination, onDestinationEnd) => {
   source.pipe(destination);
   onSourceFinish(source, destination);
-  onDestinationFinish(source, destination);
+  onDestinationFinish(source, destination, onDestinationEnd);
 };
 var onSourceFinish = async (source, destination) => {
   if (isStandardStream(source) || isStandardStream(destination)) {
@@ -24325,13 +24511,16 @@ var endDestinationStream = (destination) => {
     destination.end();
   }
 };
-var onDestinationFinish = async (source, destination) => {
+var onDestinationFinish = async (source, destination, onDestinationEnd) => {
   if (isStandardStream(source) || isStandardStream(destination)) {
     return;
   }
   try {
     await finished3(destination, { cleanup: true, readable: false, writable: true });
   } catch {
+  }
+  if (onDestinationEnd !== void 0) {
+    await onDestinationEnd();
   }
   abortSourceStream(source);
 };
@@ -24341,7 +24530,7 @@ var abortSourceStream = (source) => {
   }
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/io/output-async.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/io/output-async.js
 var pipeOutputAsync = (subprocess, fileDescriptors, controller) => {
   const pipeGroups = /* @__PURE__ */ new Map();
   for (const [fdNumber, { stdioItems, direction }] of Object.entries(fileDescriptors)) {
@@ -24395,11 +24584,11 @@ var setStandardStreamMaxListeners = (stream, { signal }) => {
 };
 var MAX_LISTENERS_INCREMENT = 2;
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/terminate/kill-descendants.js
-import process12 from "node:process";
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/terminate/kill-descendants.js
+import process13 from "node:process";
 import { execFile } from "node:child_process";
 import path9 from "node:path/win32";
-var isWindows2 = process12.platform === "win32";
+var isWindows2 = process13.platform === "win32";
 var getSpawnOptions = (options) => !isWindows2 && options.killDescendants ? { ...options, detached: true } : options;
 var getKillFunction = (subprocess, { killDescendants }) => {
   if (!killDescendants) {
@@ -24416,7 +24605,7 @@ var killDescendantsUnix = (subprocess, signal) => {
     return false;
   }
   try {
-    return process12.kill(-subprocess.pid, signal);
+    return process13.kill(-subprocess.pid, signal);
   } catch {
     return subprocess.kill(signal);
   }
@@ -24437,7 +24626,7 @@ var killDescendantsWindows = (subprocess, signal) => {
   return true;
 };
 var getTaskkillFile = () => {
-  const windowsDirectory = [process12.env.SystemRoot, process12.env.windir].find((directory) => directory && isWindowsDriveAbsolutePath(directory));
+  const windowsDirectory = [process13.env.SystemRoot, process13.env.windir].find((directory) => directory && isWindowsDriveAbsolutePath(directory));
   return windowsDirectory === void 0 ? void 0 : path9.join(windowsDirectory, "System32", "taskkill.exe");
 };
 var isWindowsDriveAbsolutePath = (directory) => {
@@ -24445,7 +24634,7 @@ var isWindowsDriveAbsolutePath = (directory) => {
   return /^[a-z]:[/\\]/i.test(root);
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/terminate/cleanup.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/terminate/cleanup.js
 import { addAbortListener as addAbortListener2 } from "node:events";
 
 // node_modules/.pnpm/signal-exit@4.1.0/node_modules/signal-exit/dist/mjs/signals.js
@@ -24473,7 +24662,7 @@ if (process.platform === "linux") {
 }
 
 // node_modules/.pnpm/signal-exit@4.1.0/node_modules/signal-exit/dist/mjs/index.js
-var processOk = (process14) => !!process14 && typeof process14 === "object" && typeof process14.removeListener === "function" && typeof process14.emit === "function" && typeof process14.reallyExit === "function" && typeof process14.listeners === "function" && typeof process14.kill === "function" && typeof process14.pid === "number" && typeof process14.on === "function";
+var processOk = (process15) => !!process15 && typeof process15 === "object" && typeof process15.removeListener === "function" && typeof process15.emit === "function" && typeof process15.reallyExit === "function" && typeof process15.listeners === "function" && typeof process15.kill === "function" && typeof process15.pid === "number" && typeof process15.on === "function";
 var kExitEmitter = /* @__PURE__ */ Symbol.for("signal-exit emitter");
 var global = globalThis;
 var ObjectDefineProperty = Object.defineProperty.bind(Object);
@@ -24558,7 +24747,7 @@ var SignalExit = class extends SignalExitBase {
   // "SIGHUP" throws an `ENOSYS` error on Windows,
   // so use a supported signal instead
   /* c8 ignore start */
-  #hupSig = process13.platform === "win32" ? "SIGINT" : "SIGHUP";
+  #hupSig = process14.platform === "win32" ? "SIGINT" : "SIGHUP";
   /* c8 ignore stop */
   #emitter = new Emitter();
   #process;
@@ -24566,15 +24755,15 @@ var SignalExit = class extends SignalExitBase {
   #originalProcessReallyExit;
   #sigListeners = {};
   #loaded = false;
-  constructor(process14) {
+  constructor(process15) {
     super();
-    this.#process = process14;
+    this.#process = process15;
     this.#sigListeners = {};
     for (const sig of signals) {
       this.#sigListeners[sig] = () => {
         const listeners = this.#process.listeners(sig);
         let { count: count2 } = this.#emitter;
-        const p = process14;
+        const p = process15;
         if (typeof p.__signal_exit_emitter__ === "object" && typeof p.__signal_exit_emitter__.count === "number") {
           count2 += p.__signal_exit_emitter__.count;
         }
@@ -24583,12 +24772,12 @@ var SignalExit = class extends SignalExitBase {
           const ret = this.#emitter.emit("exit", null, sig);
           const s = sig === "SIGHUP" ? this.#hupSig : sig;
           if (!ret)
-            process14.kill(process14.pid, s);
+            process15.kill(process15.pid, s);
         }
       };
     }
-    this.#originalProcessReallyExit = process14.reallyExit;
-    this.#originalProcessEmit = process14.emit;
+    this.#originalProcessReallyExit = process15.reallyExit;
+    this.#originalProcessEmit = process15.emit;
   }
   onExit(cb, opts) {
     if (!processOk(this.#process)) {
@@ -24669,7 +24858,7 @@ var SignalExit = class extends SignalExitBase {
     }
   }
 };
-var process13 = globalThis.process;
+var process14 = globalThis.process;
 var {
   /**
    * Called when the process is exiting, whether via signal, explicit
@@ -24697,9 +24886,9 @@ var {
    * @internal
    */
   unload
-} = signalExitWrap(processOk(process13) ? new SignalExit(process13) : new SignalExitFallback());
+} = signalExitWrap(processOk(process14) ? new SignalExit(process14) : new SignalExitFallback());
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/terminate/cleanup.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/terminate/cleanup.js
 var cleanupOnExit = (kill, { cleanup, detached }, { signal }) => {
   if (!cleanup || detached) {
     return;
@@ -24712,7 +24901,7 @@ var cleanupOnExit = (kill, { cleanup, detached }, { signal }) => {
   });
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/convert/concurrent.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/convert/concurrent.js
 var initializeConcurrentStreams = () => ({
   readableDestroy: /* @__PURE__ */ new WeakMap(),
   writableFinal: /* @__PURE__ */ new WeakMap(),
@@ -24738,7 +24927,7 @@ var waitForConcurrentStreams = async ({ resolve: resolve5, promises }, subproces
   return !isSubprocessExit;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/io/iterate.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/io/iterate.js
 import { on as on5 } from "node:events";
 import { getDefaultHighWaterMark as getDefaultHighWaterMark3 } from "node:stream";
 var iterateOnSubprocessStream = ({ subprocessStdout, subprocess, binary, shouldEncode, encoding, preserveNewlines }) => {
@@ -24831,9 +25020,11 @@ var getGenerators = ({ binary, shouldEncode, encoding, shouldSplit, preserveNewl
   getSplitLinesGenerator(binary, preserveNewlines, !shouldSplit, {})
 ].filter(Boolean);
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/convert/iterable.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/convert/iterable.js
 var createIterable = (subprocess, encoding, options) => {
   const { from, binary: binaryOption = false, preserveNewlines = false } = copyOptions(options);
+  checkBooleanOption(binaryOption, "binary");
+  checkBooleanOption(preserveNewlines, "preserveNewlines");
   const binary = binaryOption || BINARY_ENCODINGS.has(encoding);
   const subprocessStdout = getFromStream(subprocess, from);
   const onStdoutData = iterateOnSubprocessStream({
@@ -24857,14 +25048,14 @@ var iterateOnStdoutData = async function* (onStdoutData, subprocessStdout, subpr
   }
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/convert/readable.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/convert/readable.js
 import { Readable as Readable3 } from "node:stream";
 import { callbackify as callbackify3 } from "node:util";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/convert/shared.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/convert/shared.js
 import { finished as finished5 } from "node:stream/promises";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/resolve/wait-stream.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/resolve/wait-stream.js
 import { finished as finished4 } from "node:stream/promises";
 var waitForStream = async (stream, fdNumber, streamInfo, {
   isSameDirection,
@@ -24885,7 +25076,7 @@ var waitForStream = async (stream, fdNumber, streamInfo, {
       })
     ]);
   } catch (error2) {
-    if (!state.stdinCleanedUp) {
+    if (!state.stdinCleanedUp && !isInputTransformAbort(stream, fdNumber, streamInfo, error2)) {
       handleStreamError(error2, fdNumber, streamInfo, isSameDirection);
     }
   } finally {
@@ -24895,7 +25086,7 @@ var waitForStream = async (stream, fdNumber, streamInfo, {
 var handleStdinDestroy = (stream, { originalStreams, subprocess }) => {
   const [originalStdin] = originalStreams;
   const state = { stdinCleanedUp: false };
-  if (stream === originalStdin) {
+  if (stream === originalStdin || stream === subprocess.stdin) {
     spyOnStdinDestroy(stream, subprocess, state);
   }
   return state;
@@ -24911,6 +25102,10 @@ var setStdinCleanedUp = ({ exitCode, signalCode }, state) => {
   if (exitCode !== null || signalCode !== null) {
     state.stdinCleanedUp = true;
   }
+};
+var isInputTransformAbort = (stream, fdNumber, streamInfo, error2) => {
+  const originalStream = streamInfo.originalStreams[fdNumber];
+  return stream !== originalStream && isInputFileDescriptor(streamInfo, fdNumber) && originalStream?.destroyed === true && (isStreamAbort(error2) || error2?.code === "ABORT_ERR");
 };
 var handleStreamError = (error2, fdNumber, streamInfo, isSameDirection) => {
   if (!shouldIgnoreStreamError(error2, fdNumber, streamInfo, isSameDirection)) {
@@ -24928,7 +25123,7 @@ var isInputFileDescriptor = ({ fileDescriptors }, fdNumber) => fdNumber !== "all
 var isStreamAbort = (error2) => error2?.code === "ERR_STREAM_PREMATURE_CLOSE";
 var isStreamEpipe = (error2) => error2?.code === "EPIPE";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/convert/shared.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/convert/shared.js
 var safeWaitForSubprocessStdin = async (subprocessStdin) => {
   if (subprocessStdin === void 0) {
     return;
@@ -24953,8 +25148,7 @@ var waitForSubprocessStdin = async (subprocessStdin) => {
 var waitForSubprocessStdout = async (subprocessStdout) => {
   await finished5(subprocessStdout, { cleanup: true, readable: true, writable: false });
 };
-var waitForSubprocess = async (subprocess, error2) => {
-  await subprocess;
+var throwDestroyError = (error2) => {
   if (error2) {
     throw error2;
   }
@@ -24967,9 +25161,11 @@ var destroyOtherStream = (stream, isOpen, error2) => {
   }
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/convert/readable.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/convert/readable.js
 var createReadable = ({ subprocess, concurrentStreams, encoding }, options) => {
   const { from, binary: binaryOption = true, preserveNewlines = true } = copyOptions(options);
+  checkBooleanOption(binaryOption, "binary");
+  checkBooleanOption(preserveNewlines, "preserveNewlines");
   const binary = binaryOption || BINARY_ENCODINGS.has(encoding);
   const { subprocessStdout, waitReadableDestroy } = getSubprocessStdout(subprocess, from, concurrentStreams);
   const { readableEncoding, readableObjectMode, readableHighWaterMark } = getReadableOptions(subprocessStdout, binary);
@@ -25055,23 +25251,23 @@ var getPrematureCloseError = async (subprocess, error2) => {
   return error2;
 };
 var onReadableDestroy = async ({ subprocessStdout, subprocess, waitReadableDestroy }, error2) => {
-  if (!await waitForConcurrentStreams(waitReadableDestroy, subprocess)) {
-    return;
+  if (await waitForConcurrentStreams(waitReadableDestroy, subprocess)) {
+    destroyOtherReadable(subprocessStdout, error2?.code === "ABORT_ERR" ? void 0 : error2);
+    await subprocess;
   }
-  destroyOtherReadable(subprocessStdout, error2);
-  await waitForSubprocess(subprocess, error2);
+  throwDestroyError(error2);
 };
 var destroyOtherReadable = (stream, error2) => {
   destroyOtherStream(stream, stream.readable, error2);
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/convert/web.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/convert/web.js
 import { Readable as Readable4, Writable as Writable3, Duplex as Duplex3 } from "node:stream";
 var createReadableStream = (subprocess, readableOptions) => Readable4.toWeb(subprocess.readable(readableOptions));
 var createWritableStream = (subprocess, writableOptions) => Writable3.toWeb(subprocess.writable(writableOptions));
 var createTransformStream = (subprocess, duplexOptions) => Duplex3.toWeb(subprocess.duplex(duplexOptions));
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/pipe/pipe-arguments.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/pipe/pipe-arguments.js
 var normalizePipeArguments = ({ source, sourcePromise, boundOptions, createNested }, ...pipeArguments) => {
   const startTime = getStartTime();
   const {
@@ -25084,6 +25280,7 @@ var normalizePipeArguments = ({ source, sourcePromise, boundOptions, createNeste
   const { sourceStream, sourceError } = getSourceStream(source, from);
   const { options: sourceOptions, fileDescriptors } = SUBPROCESS_OPTIONS.get(source);
   return {
+    source,
     sourcePromise,
     sourceStream,
     sourceOptions,
@@ -25106,6 +25303,7 @@ var getDestinationStream = (boundOptions, createNested, pipeArguments) => {
   const { destination, pipeOptions } = destinationInfo;
   try {
     const { from, to, unpipeSignal } = copyOptions(pipeOptions);
+    validateAbortSignal(unpipeSignal, "unpipeSignal");
     const destinationStream = getToStream(destination, to);
     return {
       destination,
@@ -25165,7 +25363,7 @@ var getSourceStream = (source, from) => {
   }
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/pipe/throw.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/pipe/throw.js
 var handlePipeArgumentsError = ({
   sourceStream,
   sourceError,
@@ -25215,14 +25413,15 @@ var createNonCommandError = ({ error: error2, fileDescriptors, sourceOptions, st
 });
 var PIPE_COMMAND_MESSAGE = "source.pipe(destination)";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/pipe/sequence.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/pipe/sequence.js
 var waitForBothSubprocesses = async (subprocessPromises) => {
   const [
     { status: sourceStatus, reason: sourceReason, value: sourceResult = sourceReason },
-    { status: destinationStatus, reason: destinationReason, value: destinationResult = destinationReason }
+    { status: destinationStatus, reason: destinationReason, value: destinationResult = destinationReason },
+    { reason: pipedFromReason, value: pipedFromResult = pipedFromReason }
   ] = await subprocessPromises;
-  if (!destinationResult.pipedFrom.includes(sourceResult)) {
-    destinationResult.pipedFrom.push(sourceResult);
+  if (!destinationResult.pipedFrom.includes(pipedFromResult)) {
+    destinationResult.pipedFrom.push(pipedFromResult);
   }
   if (destinationStatus === "rejected") {
     throw destinationResult;
@@ -25233,7 +25432,7 @@ var waitForBothSubprocesses = async (subprocessPromises) => {
   return destinationResult;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/pipe/streaming.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/pipe/streaming.js
 import { finished as finished6 } from "node:stream/promises";
 var pipeSubprocessStream = (sourceStream, destinationStream, maxListenersController) => {
   const mergedStream = MERGED_STREAMS.has(destinationStream) ? pipeMoreSubprocessStream(sourceStream, destinationStream) : pipeFirstSubprocessStream(sourceStream, destinationStream);
@@ -25244,14 +25443,42 @@ var pipeSubprocessStream = (sourceStream, destinationStream, maxListenersControl
 };
 var pipeFirstSubprocessStream = (sourceStream, destinationStream) => {
   const mergedStream = mergeStreams([sourceStream]);
-  pipeStreams(mergedStream, destinationStream);
+  addMergeSource(mergedStream, sourceStream);
+  pipeStreams(mergedStream, destinationStream, () => unpipeSourcesOnDestinationEnd(mergedStream));
   MERGED_STREAMS.set(destinationStream, mergedStream);
   return mergedStream;
 };
 var pipeMoreSubprocessStream = (sourceStream, destinationStream) => {
   const mergedStream = MERGED_STREAMS.get(destinationStream);
   mergedStream.add(sourceStream);
+  addMergeSource(mergedStream, sourceStream);
   return mergedStream;
+};
+var MERGE_SOURCES = /* @__PURE__ */ new WeakMap();
+var SOURCE_MERGES = /* @__PURE__ */ new WeakMap();
+var addMergeSource = (mergedStream, sourceStream) => {
+  addToSetMap(MERGE_SOURCES, mergedStream, sourceStream);
+  addToSetMap(SOURCE_MERGES, sourceStream, mergedStream);
+};
+var addToSetMap = (map, key, value) => {
+  if (!map.has(key)) {
+    map.set(key, /* @__PURE__ */ new Set());
+  }
+  map.get(key).add(value);
+};
+var unpipeSubprocessStream = async (mergedStream, sourceStream) => {
+  MERGE_SOURCES.get(mergedStream)?.delete(sourceStream);
+  SOURCE_MERGES.get(sourceStream)?.delete(mergedStream);
+  await mergedStream.remove(sourceStream);
+};
+var unpipeSourcesOnDestinationEnd = async (mergedStream) => {
+  for (const sourceStream of MERGE_SOURCES.get(mergedStream)) {
+    const mergedStreams = SOURCE_MERGES.get(sourceStream);
+    mergedStreams.delete(mergedStream);
+    if (mergedStreams.size > 0) {
+      await mergedStream.remove(sourceStream);
+    }
+  }
 };
 var cleanupMergedStreamsMap = async (destinationStream) => {
   try {
@@ -25264,12 +25491,12 @@ var MERGED_STREAMS = /* @__PURE__ */ new WeakMap();
 var SOURCE_LISTENERS_PER_PIPE = 2;
 var DESTINATION_LISTENERS_PER_PIPE = 1;
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/pipe/abort.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/pipe/abort.js
 import { aborted as aborted2 } from "node:util";
 var unpipeOnAbort = (unpipeSignal, unpipeContext) => unpipeSignal === void 0 ? [] : [unpipeOnSignalAbort(unpipeSignal, unpipeContext)];
 var unpipeOnSignalAbort = async (unpipeSignal, { sourceStream, mergedStream, fileDescriptors, sourceOptions, startTime }) => {
   await aborted2(unpipeSignal, sourceStream);
-  await mergedStream.remove(sourceStream);
+  await unpipeSubprocessStream(mergedStream, sourceStream);
   const error2 = new Error("Pipe canceled by `unpipeSignal` option.");
   throw createNonCommandError({
     error: error2,
@@ -25279,13 +25506,16 @@ var unpipeOnSignalAbort = async (unpipeSignal, { sourceStream, mergedStream, fil
   });
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/pipe/setup.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/pipe/setup.js
 var pipeToSubprocess = (sourceInfo, ...pipeArguments) => {
   if (isPlainObject3(pipeArguments[0])) {
     return pipeToSubprocess.bind(void 0, {
       ...sourceInfo,
       boundOptions: { ...sourceInfo.boundOptions, ...pipeArguments[0] }
     });
+  }
+  if (sourceInfo.source === void 0) {
+    return sourceInfo.sourcePromise;
   }
   const { destination, ...normalizedInfo } = normalizePipeArguments(sourceInfo, ...pipeArguments);
   const pipeFailureController = new AbortController();
@@ -25332,6 +25562,8 @@ var forwardAll = (promise, destination) => {
     get() {
       setAllProperty(promise, destination.all);
       const all = promise.readable({ from: "all" });
+      all.on("error", () => {
+      });
       setAllProperty(promise, all);
       return all;
     },
@@ -25416,6 +25648,7 @@ var abortOnSignal = (signal, controller) => {
   }, { once: true, signal: controller.signal });
 };
 var handlePipePromise = async ({
+  source,
   sourcePromise,
   sourceStream,
   sourceOptions,
@@ -25430,7 +25663,7 @@ var handlePipePromise = async ({
 }) => {
   const maxListenersController = new AbortController();
   try {
-    const subprocessPromises = getSubprocessPromises(sourcePromise, destination);
+    const subprocessPromises = getSubprocessPromises(sourcePromise, destination, source);
     handlePipeArgumentsError({
       sourceStream,
       sourceError,
@@ -25458,9 +25691,9 @@ var handlePipePromise = async ({
     maxListenersController.abort();
   }
 };
-var getSubprocessPromises = (sourcePromise, destination) => Promise.allSettled([sourcePromise, destination]);
+var getSubprocessPromises = (sourcePromise, destination, source) => Promise.allSettled([sourcePromise, destination, source]);
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/io/contents.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/io/contents.js
 import { setImmediate } from "node:timers/promises";
 var getStreamOutput = async ({ stream, onStreamEnd, fdNumber, encoding, buffer, maxBuffer, lines, allMixed, stripFinalNewline: stripFinalNewline2, allFds, verboseInfo, streamInfo }) => {
   const logPromise = logOutputAsync({
@@ -25549,7 +25782,7 @@ var getBufferedData = async (streamPromise) => {
 };
 var handleBufferedData = (error2) => isArrayBuffer(error2?.bufferedData) ? new Uint8Array(error2.bufferedData) : error2?.bufferedData;
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/resolve/stdio.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/resolve/stdio.js
 var waitForStdioStreams = ({ subprocess, encoding, buffer, maxBuffer, lines, stripFinalNewline: stripFinalNewline2, verboseInfo, streamInfo }) => subprocess.stdio.map((stream, fdNumber) => waitForSubprocessStream({
   stream,
   fdNumber,
@@ -25591,7 +25824,7 @@ var waitForSubprocessStream = async ({ stream, fdNumber, encoding, buffer, maxBu
   return output;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/resolve/all-async.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/resolve/all-async.js
 var makeAllStream = ({ stdout, stderr }, { all }) => {
   if (!all) {
     return;
@@ -25639,10 +25872,10 @@ var getAllStream = ({ stdout, stderr }, all, [, bufferStdout, bufferStderr]) => 
 };
 var getAllMixed = ({ stdout, stderr }, all) => all && stdout && stderr && stdout.readableObjectMode !== stderr.readableObjectMode;
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/resolve/wait-subprocess.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/resolve/wait-subprocess.js
 import { once as once8 } from "node:events";
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/verbose/ipc.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/verbose/ipc.js
 var shouldLogIpc = (verboseInfo) => isFullVerbose(verboseInfo, "ipc");
 var logIpcOutput = (message, verboseInfo) => {
   const verboseMessage = serializeVerboseMessage(message);
@@ -25654,7 +25887,7 @@ var logIpcOutput = (message, verboseInfo) => {
   });
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/ipc/buffer-messages.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/ipc/buffer-messages.js
 var waitForIpcOutput = async ({
   subprocess,
   buffer: bufferArray,
@@ -25700,7 +25933,7 @@ var getBufferedIpcOutput = async (ipcOutputPromise, ipcOutput) => {
   return ipcOutput;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/resolve/wait-subprocess.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/resolve/wait-subprocess.js
 var waitForSubprocessResult = async ({
   subprocess,
   kill,
@@ -25822,7 +26055,7 @@ var throwOnSubprocessError = async (subprocess, { signal }) => {
   throw error2;
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/convert/writable.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/convert/writable.js
 import { Writable as Writable4 } from "node:stream";
 import { callbackify as callbackify4 } from "node:util";
 var createWritable = ({ subprocess, concurrentStreams }, options) => {
@@ -25877,7 +26110,7 @@ var onStdinFinished = async (subprocessStdin, writable, subprocessStdout, subpro
     }
   } catch (error2) {
     await safeWaitForSubprocessStdout(subprocessStdout);
-    destroyOtherWritable(writable, await getSubprocessError(subprocess, error2));
+    destroyOtherStream(writable, !writable.writableFinished, await getSubprocessError(subprocess, error2));
   }
 };
 var getSubprocessError = async (subprocess, error2) => {
@@ -25891,24 +26124,26 @@ var getSubprocessError = async (subprocess, error2) => {
   }
   return error2;
 };
-var shouldUseSubprocessError = (error2) => error2 === void 0 || isStreamAbort(error2);
+var shouldUseSubprocessError = (error2) => error2 === void 0 || isStreamAbort(error2) || error2.code === "EPIPE";
 var onWritableDestroy = async ({ subprocessStdin, subprocess, waitWritableFinal, waitWritableDestroy }, error2) => {
   await waitForConcurrentStreams(waitWritableFinal, subprocess);
-  if (!await waitForConcurrentStreams(waitWritableDestroy, subprocess)) {
-    return;
+  if (await waitForConcurrentStreams(waitWritableDestroy, subprocess)) {
+    destroyOtherWritable(subprocessStdin, error2);
+    await subprocess;
   }
-  destroyOtherWritable(subprocessStdin, error2);
-  await waitForSubprocess(subprocess, error2);
+  throwDestroyError(error2);
 };
 var destroyOtherWritable = (stream, error2) => {
   destroyOtherStream(stream, stream.writable, error2);
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/convert/duplex.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/convert/duplex.js
 import { Duplex as Duplex4 } from "node:stream";
 import { callbackify as callbackify5 } from "node:util";
 var createDuplex = ({ subprocess, concurrentStreams, encoding }, options) => {
   const { from, to, binary: binaryOption = true, preserveNewlines = true } = copyOptions(options);
+  checkBooleanOption(binaryOption, "binary");
+  checkBooleanOption(preserveNewlines, "preserveNewlines");
   const binary = binaryOption || BINARY_ENCODINGS.has(encoding);
   const { subprocessStdout, waitReadableDestroy } = getSubprocessStdout(subprocess, from, concurrentStreams);
   const { subprocessStdin, waitWritableFinal, waitWritableDestroy } = getSubprocessStdin(subprocess, to, concurrentStreams);
@@ -25959,7 +26194,7 @@ var onDuplexDestroy = async ({ subprocessStdout, subprocessStdin, subprocess, wa
   ]);
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/convert/add.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/convert/add.js
 var addConvertedStreams = (subprocess, { encoding }) => {
   const concurrentStreams = initializeConcurrentStreams();
   subprocess.readable = createReadable.bind(void 0, { subprocess, concurrentStreams, encoding });
@@ -25972,10 +26207,10 @@ var addConvertedStreams = (subprocess, { encoding }) => {
   subprocess[Symbol.asyncIterator] = createIterable.bind(void 0, subprocess, encoding, {});
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/methods/promise.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/methods/promise.js
 var mergePromise = (promise, properties) => Object.assign(promise, properties);
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/methods/main-async.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/methods/main-async.js
 var execaCoreAsync = (rawFile, rawArguments, rawOptions, createNested) => {
   const { file, commandArguments, command, escapedCommand, startTime, verboseInfo, options, fileDescriptors } = handleAsyncArguments(rawFile, rawArguments, rawOptions);
   const { subprocess: nodeChildProcess, promise, kill, all, convertedStreams } = spawnSubprocessAsync({
@@ -26172,7 +26407,7 @@ var getAsyncResult = ({ errorInfo, exitCode, signal, stdio, all, ipcOutput, cont
   startTime
 });
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/methods/bind.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/methods/bind.js
 var mergeOptions = (boundOptions, options) => {
   const safeBoundOptions = { __proto__: null, ...boundOptions };
   const mergedOptions = Object.fromEntries(Object.entries(options).map(([optionName, optionValue]) => [
@@ -26184,7 +26419,7 @@ var mergeOptions = (boundOptions, options) => {
 var mergeOption = (optionName, boundOptionValue, optionValue) => DEEP_OPTIONS.has(optionName) && isPlainObject3(boundOptionValue) && isPlainObject3(optionValue) ? { ...boundOptionValue, ...optionValue } : optionValue;
 var DEEP_OPTIONS = /* @__PURE__ */ new Set(["env", ...FD_SPECIFIC_OPTIONS]);
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/methods/create.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/methods/create.js
 var createExeca = (mapArguments, boundOptions, deepOptions, setBoundExeca) => {
   const createNested = (mapArguments2, boundOptions2, setBoundExeca2) => createExeca(mapArguments2, boundOptions2, deepOptions, setBoundExeca2);
   const boundExeca = (...execaArguments) => callBoundExeca({
@@ -26228,7 +26463,7 @@ var parseArguments = ({ mapArguments, firstArgument, nextArguments, deepOptions,
   };
 };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/lib/methods/script.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/lib/methods/script.js
 var setScriptSync = (boundExeca, createNested, boundOptions) => {
   boundExeca.sync = createNested(mapScriptSync, boundOptions);
   boundExeca.s = boundExeca.sync;
@@ -26239,7 +26474,7 @@ var getScriptOptions = (options) => ({ options: { __proto__: null, ...getScriptS
 var getScriptStdinOption = ({ input, inputFile, stdio }) => input === void 0 && inputFile === void 0 && stdio === void 0 ? { stdin: "inherit" } : {};
 var deepScriptOptions = { preferLocal: true };
 
-// node_modules/.pnpm/execa@10.1.0/node_modules/execa/index.js
+// node_modules/.pnpm/execa@10.1.1/node_modules/execa/index.js
 var execa = createExeca(() => ({}));
 var execaSync = createExeca(() => ({ isSync: true }));
 var execaNode = createExeca(mapNode);
