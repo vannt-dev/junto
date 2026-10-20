@@ -60,13 +60,8 @@ corepack pnpm --filter @junto/core add <package>
 
 ## Current status
 
-M0 through M4 are released: core policy/storage/gates, hooks and commands, advisory multi-model
-consult/panel, API and CLI-spawned backends, deep-task panel/review phases, and repository/release
-hardening. Optional bounded source context for advisory calls, code-review-graph-aware commands, and
-RTK compatibility guidance are implemented without adding runtime dependencies. Version `0.4.0`
-adds a read-only status tool and command backed by the same transition policy and verdict evidence.
-
-The three parked M3a CLI-backend findings are resolved in the current worktree: empty successful
-responses are rejected, output is bounded to 1 MB per stream, and spawn/signal failures use stable
-CLI-backend errors. The hardening has focused tests and must retain the same full-suite/typecheck and
-committed-plugin rebuild checks as other backend changes.
+The latest release is `0.6.2` (2026-10-15). Released so far: the task lifecycle with user-only plan
+approval, hooks and commands, command and review gates bound to source hashes (OpenCodeReview and
+host CLI reviewers), config `rules` and skills, read-only status, review reports, and advisory
+consult/panel calls to Anthropic, OpenAI or a spawned CLI. `0.6.x` requires Node.js 22.12+ and
+keeps `zod` on 3.x to keep hooks small and fast. Releases follow `docs/release-checklist.md`.

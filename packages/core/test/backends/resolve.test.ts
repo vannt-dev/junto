@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { resolveBackend, resolveRoleProvider } from "../../src/backends/resolve.js"
 import type { Config } from "../../src/schema.js"
 
@@ -76,5 +76,89 @@ describe("resolveBackend — cliBackends", () => {
     process.env.JUNTO_TEST_KEY = "sk-test"
     const config: Config = { ...baseConfig, backends: { cohere: { apiKeyEnv: "JUNTO_TEST_KEY" } } }
     expect(() => resolveBackend("cohere", config, "/tmp/does-not-need-to-exist")).toThrow(/not a supported api vendor/i)
+  })
+})
+
+describe("resolveBackend — OpenAI-compatible baseUrl", () => {
+  // A developer's shell may export the override; these tests must not inherit it.
+  beforeEach(() => { delete process.env.JUNTO_OPENAI_BASE_URL })
+  afterEach(() => {
+    delete process.env.JUNTO_TEST_KEY
+    delete process.env.JUNTO_OPENAI_BASE_URL
+    vi.unstubAllGlobals()
+  })
+
+  const chatOk = () => vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ choices: [{ message: { content: "ok" } }], usage: { total_tokens: 1 }, model: "m" }),
+  })
+
+  async function calledUrl(config: Config): Promise<{ url: string, headers: Record<string, string> }> {
+    const fetchMock = chatOk()
+    vi.stubGlobal("fetch", fetchMock)
+    await resolveBackend("openai", config, "/tmp/x").backend.complete({ systemPrompt: "s", userPrompt: "u" })
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    return { url, headers: init.headers as Record<string, string> }
+  }
+
+  it("uses the configured baseUrl", async () => {
+    process.env.JUNTO_TEST_KEY = "sk-test"
+    const config: Config = {
+      ...baseConfig,
+      backends: { openai: { apiKeyEnv: "JUNTO_TEST_KEY", baseUrl: "https://openrouter.ai/api/v1/" } },
+    }
+    const { url, headers } = await calledUrl(config)
+    expect(url).toBe("https://openrouter.ai/api/v1/chat/completions")
+    expect(headers.Authorization).toBe("Bearer sk-test")
+  })
+
+  it("keeps api.openai.com when no baseUrl is set", async () => {
+    process.env.JUNTO_TEST_KEY = "sk-test"
+    const config: Config = { ...baseConfig, backends: { openai: { apiKeyEnv: "JUNTO_TEST_KEY" } } }
+    expect((await calledUrl(config)).url).toBe("https://api.openai.com/v1/chat/completions")
+  })
+
+  it("lets JUNTO_OPENAI_BASE_URL override the configured baseUrl", async () => {
+    process.env.JUNTO_TEST_KEY = "sk-test"
+    process.env.JUNTO_OPENAI_BASE_URL = "http://localhost:1234/v1"
+    const config: Config = {
+      ...baseConfig,
+      backends: { openai: { apiKeyEnv: "JUNTO_TEST_KEY", baseUrl: "https://openrouter.ai/api/v1" } },
+    }
+    expect((await calledUrl(config)).url).toBe("http://localhost:1234/v1/chat/completions")
+  })
+
+  it("resolves a local server without a key and sends no Authorization header", async () => {
+    const config: Config = {
+      ...baseConfig,
+      backends: { openai: { apiKeyEnv: "JUNTO_TEST_KEY", baseUrl: "http://localhost:11434/v1" } },
+    }
+    const { url, headers } = await calledUrl(config)
+    expect(url).toBe("http://localhost:11434/v1/chat/completions")
+    expect(Object.keys(headers).map(h => h.toLowerCase())).not.toContain("authorization")
+  })
+
+  it("still requires the key for a remote baseUrl", () => {
+    const config: Config = {
+      ...baseConfig,
+      backends: { openai: { apiKeyEnv: "JUNTO_TEST_KEY", baseUrl: "https://openrouter.ai/api/v1" } },
+    }
+    expect(() => resolveBackend("openai", config, "/tmp/x")).toThrow(/JUNTO_TEST_KEY/)
+  })
+
+  it("rejects a non-http(s) JUNTO_OPENAI_BASE_URL, naming the variable", () => {
+    process.env.JUNTO_TEST_KEY = "sk-test"
+    process.env.JUNTO_OPENAI_BASE_URL = "file:///etc/passwd"
+    const config: Config = { ...baseConfig, backends: { openai: { apiKeyEnv: "JUNTO_TEST_KEY" } } }
+    expect(() => resolveBackend("openai", config, "/tmp/x")).toThrow(/JUNTO_OPENAI_BASE_URL.*http/is)
+  })
+
+  it("rejects baseUrl on the anthropic backend", () => {
+    process.env.JUNTO_TEST_KEY = "sk-test"
+    const config: Config = {
+      ...baseConfig,
+      backends: { anthropic: { apiKeyEnv: "JUNTO_TEST_KEY", baseUrl: "https://example.com/v1" } },
+    }
+    expect(() => resolveBackend("anthropic", config, "/tmp/x")).toThrow(/baseUrl.*openai/i)
   })
 })

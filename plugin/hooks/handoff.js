@@ -4050,6 +4050,26 @@ var coerce = {
 };
 var NEVER = INVALID;
 
+// packages/core/src/backends/openai.ts
+function normalizeBaseUrl(raw, label = "baseUrl") {
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`${label} "${raw}" is not a valid URL. Use an http(s) URL such as https://openrouter.ai/api/v1.`);
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`${label} must use http or https, not "${url.protocol}".`);
+  }
+  if (url.username !== "" || url.password !== "") {
+    throw new Error(`${label} must not contain credentials. Put the key in the environment variable named by apiKeyEnv.`);
+  }
+  if (url.search !== "" || url.hash !== "") {
+    throw new Error(`${label} must not contain a query string or fragment.`);
+  }
+  return `${url.origin}${url.pathname}`.replace(/\/+$/, "");
+}
+
 // packages/core/src/schema.ts
 var DEFAULT_STALE_IGNORE = ["**/*.md", "docs/**", ".junto/**"];
 var phaseSchema = external_exports.enum(["brief", "plan", "panel", "build", "review", "verify", "done"]);
@@ -4113,8 +4133,16 @@ var providerSchema = external_exports.enum(["anthropic", "openai"]);
 var backendSpecSchema = external_exports.object({
   apiKeyEnv: external_exports.string().min(1),
   model: external_exports.string().optional(),
-  timeoutMs: external_exports.number().int().positive().optional()
-}).strict();
+  timeoutMs: external_exports.number().int().positive().optional(),
+  baseUrl: external_exports.string().min(1).optional()
+}).strict().superRefine((spec, ctx) => {
+  if (spec.baseUrl === void 0) return;
+  try {
+    normalizeBaseUrl(spec.baseUrl);
+  } catch (error) {
+    ctx.addIssue({ code: external_exports.ZodIssueCode.custom, message: error.message, path: ["baseUrl"] });
+  }
+});
 var cliBackendSpecSchema = external_exports.object({
   argv: external_exports.array(external_exports.string()).min(1),
   timeoutMs: external_exports.number().int().positive().optional()
