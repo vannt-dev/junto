@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { resolveBackend, resolveRoleProvider } from "../../src/backends/resolve.js"
 import type { Config } from "../../src/schema.js"
 
@@ -80,6 +80,8 @@ describe("resolveBackend — cliBackends", () => {
 })
 
 describe("resolveBackend — OpenAI-compatible baseUrl", () => {
+  // A developer's shell may export the override; these tests must not inherit it.
+  beforeEach(() => { delete process.env.JUNTO_OPENAI_BASE_URL })
   afterEach(() => {
     delete process.env.JUNTO_TEST_KEY
     delete process.env.JUNTO_OPENAI_BASE_URL
