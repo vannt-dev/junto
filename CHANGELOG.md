@@ -2,6 +2,19 @@
 
 All notable changes to junto are documented in this file. The project follows Semantic Versioning.
 
+## [0.7.0] - 2026-10-21
+
+### Added
+
+- The `openai` advisory backend can talk to any OpenAI-compatible server (OpenRouter, Ollama, LM Studio, Gemini's OpenAI endpoint and similar) through the new optional `backends.openai.baseUrl`. The default stays `https://api.openai.com/v1`; `JUNTO_OPENAI_BASE_URL` overrides it per machine or shell.
+- For a local server (`localhost`, `127.0.0.1` or `[::1]`) the API key is optional, and no `Authorization` header is sent without one. Remote endpoints still need the key.
+
+### Changed
+
+- Responses without `usage` or `model`, which some compatible servers send, no longer fail; they count as 0 tokens.
+- Errors name the endpoint host, never the key. `baseUrl` on `backends.anthropic` is rejected.
+- Update `execa` to 10.1.1 and Vitest to 5.0.4.
+
 ## [0.6.2] - 2026-10-15
 
 ### Security
@@ -114,6 +127,8 @@ All notable changes to junto are documented in this file. The project follows Se
 
 - Initial task lifecycle, durable project-local state, hooks, MCP tools, and evidence-based gates.
 
+[0.7.0]: https://github.com/vannt-dev/junto/compare/v0.6.2...v0.7.0
+[0.6.2]: https://github.com/vannt-dev/junto/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/vannt-dev/junto/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/vannt-dev/junto/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/vannt-dev/junto/compare/v0.4.0...v0.5.0

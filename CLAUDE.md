@@ -60,8 +60,9 @@ corepack pnpm --filter @junto/core add <package>
 
 ## Current status
 
-The latest release is `0.6.2` (2026-10-15). Released so far: the task lifecycle with user-only plan
+The latest release is `0.7.0` (2026-10-21). Released so far: the task lifecycle with user-only plan
 approval, hooks and commands, command and review gates bound to source hashes (OpenCodeReview and
 host CLI reviewers), config `rules` and skills, read-only status, review reports, and advisory
-consult/panel calls to Anthropic, OpenAI or a spawned CLI. `0.6.x` requires Node.js 22.12+ and
-keeps `zod` on 3.x to keep hooks small and fast. Releases follow `docs/release-checklist.md`.
+consult/panel calls to Anthropic, OpenAI (or a compatible server) or a spawned CLI. `0.7.x` requires
+Node.js 22.12+ and keeps `zod` on 3.x to keep hooks small and fast. Releases follow
+`docs/release-checklist.md`.
