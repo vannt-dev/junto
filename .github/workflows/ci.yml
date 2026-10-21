@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-26.04, windows-latest]
         node: [22.12.0, 24]
     runs-on: ${{ matrix.os }}
     steps:
@@ -34,7 +34,7 @@ jobs:
       - run: pnpm test
 
   artifacts-in-sync:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
