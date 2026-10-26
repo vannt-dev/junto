@@ -2,6 +2,17 @@
 
 All notable changes to junto are documented in this file. The project follows Semantic Versioning.
 
+## [0.7.1] - 2026-10-26
+
+### Security
+
+- Update `fast-uri` to 3.1.9 in the bundled MCP server. It comes in through the MCP SDK's `ajv`; 3.1.9 fixes four low and medium advisories in URI parsing.
+
+### Changed
+
+- Update `execa` to 10.2.
+- `zod` stays on 3.x. Its advisory on very large arrays is fixed only in 4.6.6; junto validates only data from the local agent and its own `.junto` files, so it keeps 3.x for small, fast hooks.
+
 ## [0.7.0] - 2026-10-21
 
 ### Added
@@ -127,6 +138,7 @@ All notable changes to junto are documented in this file. The project follows Se
 
 - Initial task lifecycle, durable project-local state, hooks, MCP tools, and evidence-based gates.
 
+[0.7.1]: https://github.com/vannt-dev/junto/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/vannt-dev/junto/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/vannt-dev/junto/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/vannt-dev/junto/compare/v0.6.0...v0.6.1
