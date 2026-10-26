@@ -60,7 +60,7 @@ corepack pnpm --filter @junto/core add <package>
 
 ## Current status
 
-The latest release is `0.7.0` (2026-10-21). Released so far: the task lifecycle with user-only plan
+The latest release is `0.7.1` (2026-10-26). Released so far: the task lifecycle with user-only plan
 approval, hooks and commands, command and review gates bound to source hashes (OpenCodeReview and
 host CLI reviewers), config `rules` and skills, read-only status, review reports, and advisory
 consult/panel calls to Anthropic, OpenAI (or a compatible server) or a spawned CLI. `0.7.x` requires
