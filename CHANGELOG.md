@@ -2,6 +2,12 @@
 
 All notable changes to junto are documented in this file. The project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- `/junto:abandon <reason>` drops a task that is stuck or no longer wanted. Before, a task whose required gate could not pass blocked every new task, and the only way out was deleting `.junto` state by hand. Like `/junto:approve`, only the user can do it: the hook records the request and `junto__task` refuses `abandon` without it. The task is archived with an "Abandoned" summary that gives the reason, the phase it stopped in and each gate's state.
+
 ## [0.7.1] - 2026-10-26
 
 ### Security

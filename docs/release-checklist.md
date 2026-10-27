@@ -17,6 +17,7 @@
 4. Exercise one deep task through `brief -> plan -> panel -> build -> review -> verify -> done`.
 5. Confirm an edit after verification marks gate evidence stale.
 6. Confirm `/junto:finish` archives only a task in `done`.
+7. Confirm `junto__task` refuses `abandon` until the user types `/junto:abandon <reason>`, then archives the task as abandoned.
 
 Installing the plugin changes user-level Claude Code state, so these steps are intentionally not
 part of automated CI.

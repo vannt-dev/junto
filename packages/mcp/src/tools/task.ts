@@ -13,6 +13,7 @@ export type TaskToolInput =
   | { action: "start", title: string, size: Size, gates?: string[] }
   | { action: "switch", id: string }
   | { action: "finish" }
+  | { action: "abandon", reason: string }
 
 const MAX_SLUG = 40
 
@@ -47,7 +48,7 @@ async function start(ctx: ToolContext, input: Extract<TaskToolInput, { action: "
   if (readActiveId(ctx.root) !== null) {
     throw new Error(
       "A task is already active. junto supports one active task at a time; "
-      + "run /junto:finish for the current task first.",
+      + "run /junto:finish for the current task first, or the user can type /junto:abandon <reason> to drop it.",
     )
   }
 
@@ -163,6 +164,53 @@ function finish(ctx: ToolContext): string {
   return `Archived task "${id}" at .junto/archive/${id}/.`
 }
 
+/**
+ * Archives the active task without its gates passing. Only the user can ask for this: the hook
+ * records /junto:abandon in task.json, which the model cannot write.
+ */
+function abandon(ctx: ToolContext, reason: string): string {
+  const id = readActiveId(ctx.root)
+  if (id === null) throw new Error("There is no active task to abandon.")
+
+  const task = readTask(ctx.root, id)
+  if (task.abandonRequest?.by !== "user") {
+    throw new Error(
+      `Only the user can abandon task "${id}": they must type /junto:abandon <reason>. `
+      + "Do not abandon a task to get past a gate; fix the cause or ask the user.",
+    )
+  }
+  const why = reason.trim()
+  if (why === "") throw new Error("Give the reason the user stated for abandoning the task.")
+
+  const from = taskDir(ctx.root, id)
+  const to = join(juntoDir(ctx.root), "archive", id)
+  if (existsSync(to)) {
+    throw new Error(
+      `Task "${id}" already exists in .junto/archive/. junto will not overwrite it; `
+      + "inspect the archive directory before trying again.",
+    )
+  }
+  mkdirSync(join(juntoDir(ctx.root), "archive"), { recursive: true })
+
+  const gateLines = Object.entries(task.gates)
+    .map(([n, g]) => `- ${n}: ${g.verdict === null ? "not run" : g.stale ? "stale" : "run"}${g.required ? " (required)" : ""}`)
+    .join("\n")
+  const summary = `# Abandoned: ${task.title}\n\n`
+    + "This task was abandoned at the user's request. It was not finished and its gates were not required to pass.\n\n"
+    + `- id: ${task.id}\n- size: ${task.size}\n- stopped in phase: ${task.phase}\n`
+    + `- created: ${task.createdAt}\n- abandon requested by the user: ${task.abandonRequest.at}\n`
+    + `- abandoned: ${new Date().toISOString()}\n\n`
+    + `## Reason\n\n${why}\n\n`
+    + `## Gates\n\n${gateLines || "(none)"}\n\n`
+    + `## Decisions\n\n${task.decisions.map(d => `- ${d.what} - ${d.why}`).join("\n") || "(none)"}\n`
+
+  writeFileSync(join(from, "summary.md"), summary, "utf-8")
+  renameSync(from, to)
+  setActiveId(ctx.root, null)
+
+  return `Abandoned task "${id}" in phase ${task.phase}; it is archived at .junto/archive/${id}/ and was not finished.`
+}
+
 function switchTo(ctx: ToolContext, id: string): string {
   // The ID comes directly from an MCP call; validate it before using it in a path.
   if (!TASK_ID_PATTERN.test(id)) {
@@ -180,6 +228,7 @@ export async function taskTool(ctx: ToolContext, input: TaskToolInput): Promise<
   switch (input.action) {
     case "start": return start(ctx, input)
     case "finish": return finish(ctx)
+    case "abandon": return abandon(ctx, input.reason)
     case "switch": return switchTo(ctx, input.id)
   }
 }

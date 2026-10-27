@@ -4121,7 +4121,9 @@ var taskSchema = external_exports.object({
   gates: external_exports.record(external_exports.string(), gateStatusSchema),
   decisions: external_exports.array(decisionSchema),
   consults: external_exports.array(external_exports.string()),
-  consultTokensUsed: external_exports.number().int().min(0).default(0)
+  consultTokensUsed: external_exports.number().int().min(0).default(0),
+  /** Recorded only by the UserPromptSubmit hook when the user types /junto:abandon. */
+  abandonRequest: external_exports.object({ by: external_exports.literal("user"), at: external_exports.string() }).optional()
 });
 var reviewSeveritySchema = external_exports.enum(["critical", "high", "medium", "low", "info"]);
 var gateSpecSchema = external_exports.object({
@@ -4363,6 +4365,11 @@ var RAW_APPROVE = /^\s*\/junto:approve\s*$/;
 function isApproval(prompt) {
   return RAW_APPROVE.test(prompt) || prompt.includes(APPROVE_SENTINEL);
 }
+var ABANDON_SENTINEL = "JUNTO-ABANDON-SENTINEL-c41e8b";
+var RAW_ABANDON = /^\s*\/junto:abandon(?:\s[\s\S]*)?$/;
+function isAbandon(prompt) {
+  return RAW_ABANDON.test(prompt) || prompt.includes(ABANDON_SENTINEL);
+}
 function renderStateBlock(task) {
   const gates = Object.entries(task.gates).map(([name, gate]) => {
     if (gate.verdict === null) return `${name}(not-run)`;
@@ -4389,6 +4396,15 @@ function handleState(input) {
   } catch {
     return "";
   }
+  if (isAbandon(input.prompt ?? "")) {
+    const at = (/* @__PURE__ */ new Date()).toISOString();
+    updateTask(root, id, (current) => {
+      current.abandonRequest = { by: "user", at };
+    });
+    return contextOutput(
+      `The user asked to abandon task "${id}" (phase "${task.phase}"). Call junto__task with action="abandon" and the reason the user gave. The task is archived as abandoned, not finished.`
+    );
+  }
   if (isApproval(input.prompt ?? "")) {
     const ruleCheckpoint = task.ruleApprovalRequired && task.phase !== "done";
     if (task.phase !== "plan" && !ruleCheckpoint) {
@@ -4411,6 +4427,7 @@ if (process.argv[1]?.replace(/\\/g, "/").endsWith("/state.js")) {
   await runHook((input) => handleState(input));
 }
 export {
+  ABANDON_SENTINEL,
   APPROVE_SENTINEL,
   handleState,
   renderStateBlock
