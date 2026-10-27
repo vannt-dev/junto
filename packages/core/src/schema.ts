@@ -57,6 +57,8 @@ export const taskSchema = z.object({
   decisions: z.array(decisionSchema),
   consults: z.array(z.string()),
   consultTokensUsed: z.number().int().min(0).default(0),
+  /** Recorded only by the UserPromptSubmit hook when the user types /junto:abandon. */
+  abandonRequest: z.object({ by: z.literal("user"), at: z.string() }).optional(),
 })
 
 export const reviewSeveritySchema = z.enum(["critical", "high", "medium", "low", "info"])

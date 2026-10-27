@@ -58,6 +58,8 @@ Small and standard tasks skip the two panel calls in this example. A deep task e
 advisory and never replace quality-gate evidence.
 
 `/junto:finish` only archives tasks in the `done` phase, so required gates cannot be bypassed by finishing early.
+To drop a task that is stuck or no longer wanted, type `/junto:abandon <reason>`. Only the user can do this; the
+task is archived as abandoned with the reason, the phase it stopped in and each gate's state, and a new task can start.
 `/junto:status` is read-only and uses the same transition policy and verdict files as the lifecycle tools.
 
 ## Five principles

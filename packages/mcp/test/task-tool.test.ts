@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
@@ -200,5 +200,42 @@ describe("action: switch", () => {
   it("rejects an invalid task ID containing path traversal", async () => {
     await expect(taskTool(ctx(), { action: "switch", id: "../../../secrets" }))
       .rejects.toThrow(/invalid/i)
+  })
+})
+
+describe("abandon", () => {
+  it("refuses unless the user typed /junto:abandon", async () => {
+    await taskTool(ctx(), { action: "start", title: "Stuck work", size: "standard" })
+    await expect(taskTool(ctx(), { action: "abandon", reason: "gates keep failing" }))
+      .rejects.toThrow(/Only the user can abandon task .*\/junto:abandon/)
+    expect(readActiveId(root)).not.toBeNull()
+  })
+
+  it("archives the unfinished task with the reason once the user asked", async () => {
+    await taskTool(ctx(), { action: "start", title: "Stuck work", size: "standard" })
+    const id = activeId()
+    const task = readTask(root, id)
+    task.abandonRequest = { by: "user", at: "2026-10-27T10:00:00Z" }
+    writeTask(root, task)
+
+    await expect(taskTool(ctx(), { action: "abandon", reason: "  " })).rejects.toThrow(/reason/)
+    const out = await taskTool(ctx(), { action: "abandon", reason: "Requirement dropped by the client." })
+
+    expect(out).toContain("was not finished")
+    expect(readActiveId(root)).toBeNull()
+    expect(existsSync(join(root, ".junto", "tasks", id))).toBe(false)
+    const summary = readFileSync(join(root, ".junto", "archive", id, "summary.md"), "utf-8")
+    expect(summary).toMatch(/^# Abandoned: Stuck work/)
+    expect(summary).toContain("stopped in phase: brief")
+    expect(summary).toContain("Requirement dropped by the client.")
+    expect(summary).toContain("- tests: not run (required)")
+
+    // The lockout is gone: a new task can start.
+    await taskTool(ctx(), { action: "start", title: "Next work", size: "small" })
+    expect(readActiveId(root)).not.toBeNull()
+  })
+
+  it("fails when there is no active task", async () => {
+    await expect(taskTool(ctx(), { action: "abandon", reason: "x" })).rejects.toThrow(/no active task/)
   })
 })

@@ -98,7 +98,8 @@ Only the `UserPromptSubmit` hook may record `approvedBy: "user"`; no MCP tool ma
 
 M1 exposes:
 
-- `junto__task`: start, switch, and finish task lifecycle operations.
+- `junto__task`: start, switch, finish, and abandon task lifecycle operations. `abandon` archives an unfinished
+  task only after the user typed `/junto:abandon`, which the `UserPromptSubmit` hook records in `task.json`.
 - `junto__advance`: request the next phase through the core transition policy.
 - `junto__verify`: execute configured gates and persist evidence.
 
@@ -138,7 +139,8 @@ must never break the user's session.
 
 ## 9. Commands
 
-M1 commands are `start`, `plan`, `approve`, `verify`, and `finish`. M2 adds `panel`.
+M1 commands are `start`, `plan`, `approve`, `verify`, and `finish`. M2 adds `panel`. `abandon` lets the user drop a
+stuck task: like `approve`, it carries a fixed sentinel and only the hook may record the request.
 
 `/junto:approve` contains a fixed sentinel so approval remains attributable to a user-submitted command even
 when slash commands are expanded before `UserPromptSubmit` runs.

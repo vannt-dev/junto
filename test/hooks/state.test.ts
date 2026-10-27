@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { readActiveId, readTask, setActiveId, taskDir, writeTask, type Task } from "@junto/core"
 import { readHookInput } from "../../src-hooks/lib/io.js"
 import { contextOutput } from "../../src-hooks/lib/render.js"
-import { APPROVE_SENTINEL, handleState, renderStateBlock } from "../../src-hooks/state.js"
+import { ABANDON_SENTINEL, APPROVE_SENTINEL, handleState, renderStateBlock } from "../../src-hooks/state.js"
 
 let root: string
 const temporaryRoots: string[] = []
@@ -152,5 +152,32 @@ describe("handleState - approval recording", () => {
     expect(handleState({ prompt: "/junto:approve", cwd: root })).toMatch(/checkpoint is satisfied/)
     expect(readTask(root, task.id).phases.plan?.approvedBy).toBe("user")
     expect(readTask(root, task.id).phase).toBe("build")
+  })
+})
+
+describe("handleState - abandon request recording", () => {
+  it("records the raw /junto:abandon command with a reason", () => {
+    seed()
+    const output = JSON.parse(handleState({ prompt: "/junto:abandon the client dropped it", cwd: root }))
+    expect(readTask(root, activeId()).abandonRequest?.by).toBe("user")
+    expect(output.hookSpecificOutput.additionalContext).toMatch(/action="abandon"/)
+  })
+
+  it("records the request when the expanded prompt contains the sentinel", () => {
+    seed()
+    handleState({ prompt: `${ABANDON_SENTINEL}\n\nThe user asked to abandon the active junto task.`, cwd: root })
+    expect(readTask(root, activeId()).abandonRequest?.by).toBe("user")
+  })
+
+  it("does not record a mention of the command inside a sentence", () => {
+    seed()
+    handleState({ prompt: "should I run /junto:abandon here?", cwd: root })
+    expect(readTask(root, activeId()).abandonRequest).toBeUndefined()
+  })
+
+  it("does not approve the plan", () => {
+    seed()
+    handleState({ prompt: "/junto:abandon", cwd: root })
+    expect(readTask(root, activeId()).phases.plan?.approvedBy).toBeUndefined()
   })
 })

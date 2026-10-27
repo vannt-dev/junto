@@ -13,6 +13,15 @@ function isApproval(prompt: string): boolean {
   return RAW_APPROVE.test(prompt) || prompt.includes(APPROVE_SENTINEL)
 }
 
+export const ABANDON_SENTINEL = "JUNTO-ABANDON-SENTINEL-c41e8b"
+
+/** The command must open the prompt; a reason may follow it. */
+const RAW_ABANDON = /^\s*\/junto:abandon(?:\s[\s\S]*)?$/
+
+function isAbandon(prompt: string): boolean {
+  return RAW_ABANDON.test(prompt) || prompt.includes(ABANDON_SENTINEL)
+}
+
 export function renderStateBlock(task: Task): string {
   const gates = Object.entries(task.gates).map(([name, gate]) => {
     if (gate.verdict === null) return `${name}(not-run)`
@@ -43,6 +52,18 @@ export function handleState(input: { prompt?: string, cwd?: string }): string {
     task = readTask(root, id)
   } catch {
     return ""
+  }
+
+  // Abandoning skips the gates, so like approval it must come from the user, never the model.
+  if (isAbandon(input.prompt ?? "")) {
+    const at = new Date().toISOString()
+    updateTask(root, id, (current) => {
+      current.abandonRequest = { by: "user", at }
+    })
+    return contextOutput(
+      `The user asked to abandon task "${id}" (phase "${task.phase}"). `
+      + "Call junto__task with action=\"abandon\" and the reason the user gave. The task is archived as abandoned, not finished.",
+    )
   }
 
   if (isApproval(input.prompt ?? "")) {

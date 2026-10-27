@@ -22,6 +22,7 @@ const taskInput = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.literal("switch"), id: z.string() }),
   z.object({ action: z.literal("finish") }),
+  z.object({ action: z.literal("abandon"), reason: z.string() }),
 ])
 const verifyInput = z.object({ gates: z.array(z.string()).optional() })
 const advanceInput = z.object({ to: z.enum(["brief", "plan", "panel", "build", "review", "verify", "done"]) })
@@ -50,14 +51,16 @@ const TOOLS = [
     name: "junto__task",
     description:
       "Manage the junto task lifecycle: start creates a task, switch changes the active task, "
-      + "and finish archives a completed task. This tool cannot approve plans.",
+      + "finish archives a completed task, and abandon archives an unfinished task after the user typed "
+      + "/junto:abandon. This tool cannot approve plans or abandon a task on its own.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        action: { type: "string", enum: ["start", "switch", "finish"] },
+        action: { type: "string", enum: ["start", "switch", "finish", "abandon"] },
         title: { type: "string", description: "Required when action=start" },
         size: { type: "string", enum: ["small", "standard", "deep"], description: "Required when action=start" },
         id: { type: "string", description: "Required when action=switch" },
+        reason: { type: "string", description: "Required when action=abandon: the reason the user gave" },
         gates: { type: "array", items: { type: "string" }, description: "Optional: enable only these gates" },
       },
       required: ["action"],

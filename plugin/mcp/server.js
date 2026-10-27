@@ -18535,7 +18535,9 @@ var taskSchema = external_exports.object({
   gates: external_exports.record(external_exports.string(), gateStatusSchema),
   decisions: external_exports.array(decisionSchema),
   consults: external_exports.array(external_exports.string()),
-  consultTokensUsed: external_exports.number().int().min(0).default(0)
+  consultTokensUsed: external_exports.number().int().min(0).default(0),
+  /** Recorded only by the UserPromptSubmit hook when the user types /junto:abandon. */
+  abandonRequest: external_exports.object({ by: external_exports.literal("user"), at: external_exports.string() }).optional()
 });
 var reviewSeveritySchema = external_exports.enum(["critical", "high", "medium", "low", "info"]);
 var gateSpecSchema = external_exports.object({
@@ -28605,7 +28607,7 @@ async function currentCommit(root) {
 async function start(ctx, input) {
   if (readActiveId(ctx.root) !== null) {
     throw new Error(
-      "A task is already active. junto supports one active task at a time; run /junto:finish for the current task first."
+      "A task is already active. junto supports one active task at a time; run /junto:finish for the current task first, or the user can type /junto:abandon <reason> to drop it."
     );
   }
   const config2 = readConfig(ctx.root);
@@ -28705,6 +28707,54 @@ ${task.decisions.map((d) => `- ${d.what} - ${d.why}`).join("\n") || "(none)"}
   setActiveId(ctx.root, null);
   return `Archived task "${id}" at .junto/archive/${id}/.`;
 }
+function abandon(ctx, reason) {
+  const id = readActiveId(ctx.root);
+  if (id === null) throw new Error("There is no active task to abandon.");
+  const task = readTask(ctx.root, id);
+  if (task.abandonRequest?.by !== "user") {
+    throw new Error(
+      `Only the user can abandon task "${id}": they must type /junto:abandon <reason>. Do not abandon a task to get past a gate; fix the cause or ask the user.`
+    );
+  }
+  const why = reason.trim();
+  if (why === "") throw new Error("Give the reason the user stated for abandoning the task.");
+  const from = taskDir(ctx.root, id);
+  const to = join15(juntoDir(ctx.root), "archive", id);
+  if (existsSync13(to)) {
+    throw new Error(
+      `Task "${id}" already exists in .junto/archive/. junto will not overwrite it; inspect the archive directory before trying again.`
+    );
+  }
+  mkdirSync9(join15(juntoDir(ctx.root), "archive"), { recursive: true });
+  const gateLines = Object.entries(task.gates).map(([n2, g]) => `- ${n2}: ${g.verdict === null ? "not run" : g.stale ? "stale" : "run"}${g.required ? " (required)" : ""}`).join("\n");
+  const summary = `# Abandoned: ${task.title}
+
+This task was abandoned at the user's request. It was not finished and its gates were not required to pass.
+
+- id: ${task.id}
+- size: ${task.size}
+- stopped in phase: ${task.phase}
+- created: ${task.createdAt}
+- abandon requested by the user: ${task.abandonRequest.at}
+- abandoned: ${(/* @__PURE__ */ new Date()).toISOString()}
+
+## Reason
+
+${why}
+
+## Gates
+
+${gateLines || "(none)"}
+
+## Decisions
+
+${task.decisions.map((d) => `- ${d.what} - ${d.why}`).join("\n") || "(none)"}
+`;
+  writeFileSync10(join15(from, "summary.md"), summary, "utf-8");
+  renameSync2(from, to);
+  setActiveId(ctx.root, null);
+  return `Abandoned task "${id}" in phase ${task.phase}; it is archived at .junto/archive/${id}/ and was not finished.`;
+}
 function switchTo(ctx, id) {
   if (!TASK_ID_PATTERN.test(id)) {
     throw new Error(`Invalid task ID "${id}". Expected YYYY-MM-DD-slug.`);
@@ -28722,6 +28772,8 @@ async function taskTool(ctx, input) {
       return start(ctx, input);
     case "finish":
       return finish(ctx);
+    case "abandon":
+      return abandon(ctx, input.reason);
     case "switch":
       return switchTo(ctx, input.id);
   }
@@ -28833,7 +28885,8 @@ var taskInput = external_exports.discriminatedUnion("action", [
     gates: external_exports.array(external_exports.string()).optional()
   }),
   external_exports.object({ action: external_exports.literal("switch"), id: external_exports.string() }),
-  external_exports.object({ action: external_exports.literal("finish") })
+  external_exports.object({ action: external_exports.literal("finish") }),
+  external_exports.object({ action: external_exports.literal("abandon"), reason: external_exports.string() })
 ]);
 var verifyInput = external_exports.object({ gates: external_exports.array(external_exports.string()).optional() });
 var advanceInput = external_exports.object({ to: external_exports.enum(["brief", "plan", "panel", "build", "review", "verify", "done"]) });
@@ -28858,14 +28911,15 @@ var TOOLS = [
   },
   {
     name: "junto__task",
-    description: "Manage the junto task lifecycle: start creates a task, switch changes the active task, and finish archives a completed task. This tool cannot approve plans.",
+    description: "Manage the junto task lifecycle: start creates a task, switch changes the active task, finish archives a completed task, and abandon archives an unfinished task after the user typed /junto:abandon. This tool cannot approve plans or abandon a task on its own.",
     inputSchema: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["start", "switch", "finish"] },
+        action: { type: "string", enum: ["start", "switch", "finish", "abandon"] },
         title: { type: "string", description: "Required when action=start" },
         size: { type: "string", enum: ["small", "standard", "deep"], description: "Required when action=start" },
         id: { type: "string", description: "Required when action=switch" },
+        reason: { type: "string", description: "Required when action=abandon: the reason the user gave" },
         gates: { type: "array", items: { type: "string" }, description: "Optional: enable only these gates" }
       },
       required: ["action"]

@@ -4121,7 +4121,9 @@ var taskSchema = external_exports.object({
   gates: external_exports.record(external_exports.string(), gateStatusSchema),
   decisions: external_exports.array(decisionSchema),
   consults: external_exports.array(external_exports.string()),
-  consultTokensUsed: external_exports.number().int().min(0).default(0)
+  consultTokensUsed: external_exports.number().int().min(0).default(0),
+  /** Recorded only by the UserPromptSubmit hook when the user types /junto:abandon. */
+  abandonRequest: external_exports.object({ by: external_exports.literal("user"), at: external_exports.string() }).optional()
 });
 var reviewSeveritySchema = external_exports.enum(["critical", "high", "medium", "low", "info"]);
 var gateSpecSchema = external_exports.object({
