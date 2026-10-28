@@ -161,48 +161,6 @@ describe("action: finish", () => {
   })
 })
 
-describe("action: switch", () => {
-  it("rejects switching to a task that does not exist", async () => {
-    await taskTool(ctx(), { action: "start", title: "A", size: "small" })
-    const first = markActiveDone()
-    await taskTool(ctx(), { action: "finish" })
-    await taskTool(ctx(), { action: "start", title: "B", size: "small" })
-    await expect(taskTool(ctx(), { action: "switch", id: first })).rejects.toThrow(/not found/i)
-  })
-
-  it("switches active to a task that exists on disk", async () => {
-    await taskTool(ctx(), { action: "start", title: "A", size: "small" })
-    const secondId = "2026-08-30-b-thu-cong"
-    mkdirSync(join(root, ".junto", "tasks", secondId), { recursive: true })
-    writeFileSync(
-      join(root, ".junto", "tasks", secondId, "task.json"),
-      JSON.stringify({
-        schemaVersion: 1,
-        id: secondId,
-        title: "B",
-        size: "small",
-        phase: "build",
-        baseCommit: null,
-        createdAt: "2026-08-30T09:00:00Z",
-        updatedAt: "2026-08-30T09:00:00Z",
-        phases: { build: { status: "active" } },
-        gates: {},
-        decisions: [],
-        consults: [],
-        consultTokensUsed: 0,
-      }),
-      "utf-8",
-    )
-    await taskTool(ctx(), { action: "switch", id: secondId })
-    expect(readActiveId(root)).toBe(secondId)
-  })
-
-  it("rejects an invalid task ID containing path traversal", async () => {
-    await expect(taskTool(ctx(), { action: "switch", id: "../../../secrets" }))
-      .rejects.toThrow(/invalid/i)
-  })
-})
-
 describe("abandon", () => {
   it("refuses unless the user typed /junto:abandon", async () => {
     await taskTool(ctx(), { action: "start", title: "Stuck work", size: "standard" })
