@@ -28125,7 +28125,7 @@ function captureSourceFingerprint(root, config2, spec) {
 }
 
 // packages/mcp/src/version.ts
-var VERSION = "0.7.1";
+var VERSION = "0.8.0";
 
 // packages/mcp/src/context.ts
 var RUNNER = `@junto/mcp@${VERSION}`;
