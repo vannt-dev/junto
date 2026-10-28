@@ -28363,9 +28363,12 @@ async function runConsult(ctx, role, question, context) {
     const task = readTask(ctx.root, id);
     const cap = config2.consultBudget?.maxTokensPerTask;
     if (cap !== void 0 && task.consultTokensUsed >= cap) {
-      throw new Error(
-        `Consult budget exhausted for this task: ${task.consultTokensUsed}/${cap} tokens used. Raise consultBudget.maxTokensPerTask in .junto/config.json to continue.`
-      );
+      return {
+        role,
+        ok: false,
+        skipped: true,
+        error: `Consult budget exhausted for this task: ${task.consultTokensUsed}/${cap} tokens used. Raise consultBudget.maxTokensPerTask in .junto/config.json to continue.`
+      };
     }
     const prompt = resolveRolePrompt(ctx.root, role);
     const provider = resolveRoleProvider(role, config2);
@@ -28440,7 +28443,7 @@ async function panelTool(ctx, input) {
   const sections = context?.path === void 0 ? [] : [`Context: ${context.path}.`];
   for (const role of roles) {
     const result = await runConsult(ctx, role, input.question, context);
-    const label = result.ok ? "ok" : result.error?.includes("budget exhausted") ? "skipped" : "failed";
+    const label = result.ok ? "ok" : result.skipped === true ? "skipped" : "failed";
     sections.push(
       result.ok ? `## ${role} - ${label}
 Saved to ${result.path}. Tokens used: ${result.tokensUsed}.` : `## ${role} - ${label}
@@ -28590,7 +28593,6 @@ ${gates.join("\n") || "(none)"}`;
 import { existsSync as existsSync13, mkdirSync as mkdirSync9, renameSync as renameSync2, writeFileSync as writeFileSync10 } from "node:fs";
 import { join as join15 } from "node:path";
 var MAX_SLUG = 40;
-var TASK_ID_PATTERN = /^\d{4}-\d{2}-\d{2}-[a-z0-9-]+$/;
 function newTaskId(title, now) {
   const date3 = now.toISOString().slice(0, 10);
   const slug = title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\u0111/g, "d").replace(/\u0110/g, "D").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, MAX_SLUG).replace(/-+$/, "");
@@ -28755,17 +28757,6 @@ ${task.decisions.map((d) => `- ${d.what} - ${d.why}`).join("\n") || "(none)"}
   setActiveId(ctx.root, null);
   return `Abandoned task "${id}" in phase ${task.phase}; it is archived at .junto/archive/${id}/ and was not finished.`;
 }
-function switchTo(ctx, id) {
-  if (!TASK_ID_PATTERN.test(id)) {
-    throw new Error(`Invalid task ID "${id}". Expected YYYY-MM-DD-slug.`);
-  }
-  if (!existsSync13(join15(taskDir(ctx.root, id), "task.json"))) {
-    throw new Error(`Task "${id}" was not found in .junto/tasks/.`);
-  }
-  setActiveId(ctx.root, id);
-  const task = readTask(ctx.root, id);
-  return `Switched to task "${id}" (phase ${task.phase}).`;
-}
 async function taskTool(ctx, input) {
   switch (input.action) {
     case "start":
@@ -28774,8 +28765,6 @@ async function taskTool(ctx, input) {
       return finish(ctx);
     case "abandon":
       return abandon(ctx, input.reason);
-    case "switch":
-      return switchTo(ctx, input.id);
   }
 }
 
@@ -28884,7 +28873,6 @@ var taskInput = external_exports.discriminatedUnion("action", [
     size: external_exports.enum(["small", "standard", "deep"]),
     gates: external_exports.array(external_exports.string()).optional()
   }),
-  external_exports.object({ action: external_exports.literal("switch"), id: external_exports.string() }),
   external_exports.object({ action: external_exports.literal("finish") }),
   external_exports.object({ action: external_exports.literal("abandon"), reason: external_exports.string() })
 ]);
@@ -28911,14 +28899,13 @@ var TOOLS = [
   },
   {
     name: "junto__task",
-    description: "Manage the junto task lifecycle: start creates a task, switch changes the active task, finish archives a completed task, and abandon archives an unfinished task after the user typed /junto:abandon. This tool cannot approve plans or abandon a task on its own.",
+    description: "Manage the junto task lifecycle: start creates a task, finish archives a completed task, and abandon archives an unfinished task after the user typed /junto:abandon. This tool cannot approve plans or abandon a task on its own.",
     inputSchema: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["start", "switch", "finish", "abandon"] },
+        action: { type: "string", enum: ["start", "finish", "abandon"] },
         title: { type: "string", description: "Required when action=start" },
         size: { type: "string", enum: ["small", "standard", "deep"], description: "Required when action=start" },
-        id: { type: "string", description: "Required when action=switch" },
         reason: { type: "string", description: "Required when action=abandon: the reason the user gave" },
         gates: { type: "array", items: { type: "string" }, description: "Optional: enable only these gates" }
       },

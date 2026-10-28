@@ -12,6 +12,8 @@ export interface ConsultResult {
   tokensUsed?: number
   consultTokensUsedTotal?: number
   error?: string
+  /** junto's own per-task budget stopped the call before it was sent. A provider error never sets this. */
+  skipped?: boolean
 }
 
 function readIfExists(path: string): string {
@@ -57,10 +59,13 @@ export async function runConsult(
     const task = readTask(ctx.root, id)
     const cap = config.consultBudget?.maxTokensPerTask
     if (cap !== undefined && task.consultTokensUsed >= cap) {
-      throw new Error(
-        `Consult budget exhausted for this task: ${task.consultTokensUsed}/${cap} tokens used. `
-        + "Raise consultBudget.maxTokensPerTask in .junto/config.json to continue.",
-      )
+      return {
+        role,
+        ok: false,
+        skipped: true,
+        error: `Consult budget exhausted for this task: ${task.consultTokensUsed}/${cap} tokens used. `
+          + "Raise consultBudget.maxTokensPerTask in .junto/config.json to continue.",
+      }
     }
 
     const prompt = resolveRolePrompt(ctx.root, role)

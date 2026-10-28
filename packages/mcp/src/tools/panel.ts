@@ -19,7 +19,7 @@ export async function panelTool(
   // both pass the check against the same stale reading before either writes back its spend.
   for (const role of roles) {
     const result = await runConsult(ctx, role, input.question, context)
-    const label = result.ok ? "ok" : result.error?.includes("budget exhausted") ? "skipped" : "failed"
+    const label = result.ok ? "ok" : result.skipped === true ? "skipped" : "failed"
     sections.push(
       result.ok
         ? `## ${role} - ${label}\nSaved to ${result.path}. Tokens used: ${result.tokensUsed}.`
