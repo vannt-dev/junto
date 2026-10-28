@@ -28363,9 +28363,12 @@ async function runConsult(ctx, role, question, context) {
     const task = readTask(ctx.root, id);
     const cap = config2.consultBudget?.maxTokensPerTask;
     if (cap !== void 0 && task.consultTokensUsed >= cap) {
-      throw new Error(
-        `Consult budget exhausted for this task: ${task.consultTokensUsed}/${cap} tokens used. Raise consultBudget.maxTokensPerTask in .junto/config.json to continue.`
-      );
+      return {
+        role,
+        ok: false,
+        skipped: true,
+        error: `Consult budget exhausted for this task: ${task.consultTokensUsed}/${cap} tokens used. Raise consultBudget.maxTokensPerTask in .junto/config.json to continue.`
+      };
     }
     const prompt = resolveRolePrompt(ctx.root, role);
     const provider = resolveRoleProvider(role, config2);
@@ -28440,7 +28443,7 @@ async function panelTool(ctx, input) {
   const sections = context?.path === void 0 ? [] : [`Context: ${context.path}.`];
   for (const role of roles) {
     const result = await runConsult(ctx, role, input.question, context);
-    const label = result.ok ? "ok" : result.error?.includes("budget exhausted") ? "skipped" : "failed";
+    const label = result.ok ? "ok" : result.skipped === true ? "skipped" : "failed";
     sections.push(
       result.ok ? `## ${role} - ${label}
 Saved to ${result.path}. Tokens used: ${result.tokensUsed}.` : `## ${role} - ${label}

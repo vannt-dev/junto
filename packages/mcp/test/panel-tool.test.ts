@@ -78,6 +78,16 @@ describe("panelTool", () => {
     expect(out).toMatch(/budget/i)
   })
 
+  it("reports a provider error that mentions a budget as failed, not as junto's own skip", async () => {
+    await taskTool(ctx(), { action: "start", title: "X", size: "deep" })
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: false, status: 429, text: async () => "Your organization's monthly budget exhausted",
+    })))
+    const out = await panelTool(ctx(), { question: "?", roles: ["architect"] })
+    expect(out).toMatch(/architect - failed/)
+    expect(out).not.toMatch(/skipped/)
+  })
+
   it("reports a single clear error when there is no active task", async () => {
     await expect(panelTool(ctx(), { question: "?" })).rejects.toThrow(/no active task/i)
   })
