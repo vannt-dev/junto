@@ -4,7 +4,15 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Website](https://img.shields.io/badge/website-vannt--dev.github.io%2Fjunto-c6f36b)](https://vannt-dev.github.io/junto/)
 
-Workflow engine for Claude Code with durable on-disk state, evidence-based quality gates, and no runtime downloads.
+Workflow engine for Claude Code whose quality gates run real commands. junto starts each gate
+command itself, and a command gate passes only when the process exits with code 0; the model's word
+is not enough. The command, exit code, duration and output are written to
+`.junto/tasks/<id>/verdicts/`, and a task cannot reach `done` while a required gate has not passed
+or its evidence is stale because the code changed.
+
+Task state is kept on disk under `.junto/`. By default, standard and deep tasks need a plan that only
+the user can approve. Nothing is downloaded at runtime. Review gates and an advisory multi-model
+panel are optional extras, described below.
 
 [Explore the public site](https://vannt-dev.github.io/junto/) or install directly from the GitHub-backed marketplace below.
 
