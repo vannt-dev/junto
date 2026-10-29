@@ -77,7 +77,9 @@ task is archived as abandoned with the reason, the phase it stopped in and each 
 2. **Never download code to execute.** No runtime binary, CDN, or `npx` bootstrap.
 3. **Never store secrets.** Configuration stores environment variable names, never their values.
 4. **No bypass skills.** junto never edits transcripts or circumvents a model refusal.
-5. **Deterministic gates, advisory panels.** Only the exit code of a real command can block completion.
+5. **Deterministic gates, advisory panels.** Only the exit code of a real command, or the
+   findings of a required review gate under its severity policy, can block completion. Advisory consult and
+   panel opinions can neither pass nor block a gate.
 
 ## Evidence, not promises
 
