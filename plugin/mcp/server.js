@@ -28558,7 +28558,7 @@ async function planTool(ctx) {
 }
 
 // packages/mcp/src/tools/task.ts
-import { existsSync as existsSync13, mkdirSync as mkdirSync9, renameSync as renameSync2, writeFileSync as writeFileSync10 } from "node:fs";
+import { existsSync as existsSync13, mkdirSync as mkdirSync9, readFileSync as readFileSync12, renameSync as renameSync2, writeFileSync as writeFileSync10 } from "node:fs";
 import { join as join15 } from "node:path";
 var MAX_SLUG = 40;
 function newTaskId(title, now) {
@@ -28636,6 +28636,22 @@ async function start(ctx, input) {
   if (!existsSync13(ignore)) writeFileSync10(ignore, "*.log\n", "utf-8");
   return `Created task "${id}" (size ${input.size}) in phase ${firstPhase}. Gates: ${Object.keys(gates).join(", ") || "none"}.`;
 }
+function readManualChecks(dir) {
+  const path10 = join15(dir, "plan.md");
+  if (!existsSync13(path10)) return [];
+  const checks = [];
+  let inSection = false;
+  for (const line of readFileSync12(path10, "utf-8").split(/\r?\n/)) {
+    const heading = /^#{1,6}\s+(.*?)\s*#*\s*$/.exec(line);
+    if (heading) {
+      inSection = /^manual checks$/i.test(heading[1] ?? "");
+      continue;
+    }
+    const item = inSection ? /^\s*[-*]\s+\[([ xX])\]\s+(.+?)\s*$/.exec(line) : null;
+    if (item) checks.push({ text: item[2] ?? "", done: item[1] !== " " });
+  }
+  return checks;
+}
 function finish(ctx) {
   const id = readActiveId(ctx.root);
   if (id === null) throw new Error("There is no active task to finish.");
@@ -28660,6 +28676,12 @@ function finish(ctx) {
   }
   mkdirSync9(join15(juntoDir(ctx.root), "archive"), { recursive: true });
   const gateLines = Object.entries(task.gates).map(([n2, g]) => `- ${n2}: ${g.verdict === null ? "not run" : g.stale ? "stale" : "run"}${g.required ? " (required)" : ""}`).join("\n");
+  const manual = readManualChecks(from);
+  const manualSection = manual.length === 0 ? "" : `
+## Manual checks
+
+${manual.map((c3) => `- ${c3.done ? "done" : "NOT DONE"}: ${c3.text}`).join("\n")}
+`;
   const summary = `# ${task.title}
 
 - id: ${task.id}
@@ -28675,11 +28697,13 @@ ${gateLines || "(none)"}
 ## Decisions
 
 ${task.decisions.map((d) => `- ${d.what} - ${d.why}`).join("\n") || "(none)"}
-`;
+` + manualSection;
   writeFileSync10(join15(from, "summary.md"), summary, "utf-8");
   renameSync2(from, to);
   setActiveId(ctx.root, null);
-  return `Archived task "${id}" at .junto/archive/${id}/.`;
+  const notDone = manual.filter((c3) => !c3.done).map((c3) => c3.text);
+  const warning = notDone.length === 0 ? "" : ` ${notDone.length} manual check${notDone.length === 1 ? " was" : "s were"} not done: ${notDone.join("; ")}. Tell the user; summary.md records them.`;
+  return `Archived task "${id}" at .junto/archive/${id}/.${warning}`;
 }
 function abandon(ctx, reason) {
   const id = readActiveId(ctx.root);

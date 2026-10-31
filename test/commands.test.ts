@@ -38,6 +38,33 @@ describe("command allowed-tools", () => {
   }
 })
 
+describe("start command runs in one turn", () => {
+  const start = readFileSync(join(COMMANDS, "start.md"), "utf8")
+
+  it("shows the config format instead of leaving it to a guess", () => {
+    for (const marker of ['"schemaVersion": 1', '"argv"', '"required"', "examples/config.basic.json"]) {
+      expect(start).toContain(marker)
+    }
+  })
+
+  it("pre-allows the status tool the model reaches for first", () => {
+    expect(allowedTools("start.md")).toContain(`${PLUGIN_PREFIX}junto__status`)
+  })
+
+  it("does not stop for a confirmation that would move the start into a turn without its permissions", () => {
+    expect(start).not.toMatch(/ask the user to confirm before writing/i)
+    expect(start).toMatch(/same turn/i)
+  })
+})
+
+describe("manual checks", () => {
+  it("are written by plan and reported by verify and finish", () => {
+    for (const file of ["plan.md", "verify.md", "finish.md"]) {
+      expect(readFileSync(join(COMMANDS, file), "utf8"), file).toContain("## Manual checks")
+    }
+  })
+})
+
 describe("start command gate detection", () => {
   it("looks at Python projects too", () => {
     const start = readFileSync(join(COMMANDS, "start.md"), "utf8")

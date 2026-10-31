@@ -4,6 +4,14 @@ All notable changes to junto are documented in this file. The project follows Se
 
 ## [Unreleased]
 
+### Added
+
+- Manual checks. `/junto:plan` puts checks no gate can run (a real browser, a server restart, a device) in a `## Manual checks` list in `plan.md`; `/junto:verify` names the unticked ones, and `/junto:finish` records each as done or NOT DONE in `summary.md` and names the ones not done. They are self-reported, so they are recorded rather than blocking.
+
+### Fixed
+
+- `/junto:start` runs in one turn: it writes the gates it found and starts the task instead of stopping to ask, which moved the start into a turn where the junto tools were not pre-allowed and caused permission prompts. Gates run only at `/junto:verify`, so they can still be edited before then. It also shows the config format (`schemaVersion`, `argv` arrays) instead of leaving it to a guess, and pre-allows `junto__status`.
+
 ## [0.9.1] - 2026-10-31
 
 ### Fixed

@@ -1,7 +1,7 @@
 ---
 description: Run quality gates for the active junto task
 argument-hint: [gate name; omit to run all]
-allowed-tools: mcp__plugin_junto_junto__junto__verify, mcp__junto__junto__verify, mcp__plugin_junto_junto__junto__advance, mcp__junto__junto__advance
+allowed-tools: Read, Edit, mcp__plugin_junto_junto__junto__verify, mcp__junto__junto__verify, mcp__plugin_junto_junto__junto__advance, mcp__junto__junto__advance
 ---
 
 Run gates: $ARGUMENTS
@@ -10,7 +10,9 @@ If a standard or small task is in `build`, first call `junto__advance` with `to:
 task must pass through its `review` phase first; ask the user to run `/junto:panel` there. Then call
 `junto__verify`; do not run tests through Bash because self-reported output is not evidence.
 
-- `pass`: when every required gate passes, call `junto__advance` with `to: "done"`.
+- `pass`: when every required gate passes, call `junto__advance` with `to: "done"`. Then read the
+  `## Manual checks` section of `plan.md`, if there is one, and tell the user which items are still
+  unticked: do the ones you can actually carry out and tick them, and name the rest as not done.
 - `fail`: fix the cause and rerun `junto__verify`; code changes invalidate old verdicts.
 - `skipped`: explain which tool is missing and how to install it; this is not a pass.
 
