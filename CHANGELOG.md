@@ -4,6 +4,8 @@ All notable changes to junto are documented in this file. The project follows Se
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-01
+
 ### Added
 
 - Manual checks. `/junto:plan` puts checks no gate can run (a real browser, a server restart, a device) in a `## Manual checks` list in `plan.md`; `/junto:verify` names the unticked ones, and `/junto:finish` records each as done or NOT DONE in `summary.md` and names the ones not done. They are self-reported, so they are recorded rather than blocking.
@@ -179,6 +181,7 @@ All notable changes to junto are documented in this file. The project follows Se
 
 - Initial task lifecycle, durable project-local state, hooks, MCP tools, and evidence-based gates.
 
+[0.10.0]: https://github.com/vannt-dev/junto/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/vannt-dev/junto/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/vannt-dev/junto/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/vannt-dev/junto/compare/v0.7.1...v0.8.0
