@@ -1,7 +1,7 @@
 ---
 description: Abandon the active junto task without finishing it (user-only action)
 argument-hint: <reason>
-allowed-tools: mcp__junto__junto__task
+allowed-tools: mcp__plugin_junto_junto__junto__task, mcp__junto__junto__task
 ---
 
 JUNTO-ABANDON-SENTINEL-c41e8b

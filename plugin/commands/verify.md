@@ -1,7 +1,7 @@
 ---
 description: Run quality gates for the active junto task
 argument-hint: [gate name; omit to run all]
-allowed-tools: mcp__junto__junto__verify, mcp__junto__junto__advance
+allowed-tools: mcp__plugin_junto_junto__junto__verify, mcp__junto__junto__verify, mcp__plugin_junto_junto__junto__advance, mcp__junto__junto__advance
 ---
 
 Run gates: $ARGUMENTS

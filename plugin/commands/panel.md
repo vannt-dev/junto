@@ -1,7 +1,7 @@
 ---
 description: Run an advisory multi-model panel review for the active junto task
 argument-hint: [question for the panel]
-allowed-tools: Read, mcp__junto__junto__panel, mcp__junto__junto__advance, mcp__code-review-graph__detect_changes_tool, mcp__code-review-graph__get_review_context_tool, mcp__code-review-graph__traverse_graph_tool, mcp__code-review-graph__get_impact_radius_tool
+allowed-tools: Read, mcp__plugin_junto_junto__junto__panel, mcp__junto__junto__panel, mcp__plugin_junto_junto__junto__advance, mcp__junto__junto__advance, mcp__code-review-graph__detect_changes_tool, mcp__code-review-graph__get_review_context_tool, mcp__code-review-graph__traverse_graph_tool, mcp__code-review-graph__get_impact_radius_tool
 ---
 
 Ask the panel: $ARGUMENTS
