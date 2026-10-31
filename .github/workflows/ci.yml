@@ -2,12 +2,9 @@ name: CI
 
 on:
   push: { branches: [main] }
+  # No paths-ignore: main requires these checks, so they must report on docs-only pull requests too.
   pull_request:
     branches: [main]
-    paths-ignore:
-      - '*.md'
-      - 'docs/**'
-      - LICENSE
 
 permissions:
   contents: read
