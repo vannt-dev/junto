@@ -34,7 +34,7 @@ claude plugin details junto@junto
 claude plugin update junto@junto
 ```
 
-This release is **0.8.0** and requires Node.js 22.12 or newer on `PATH`. After updating, restart
+This release is **0.9.0** and requires Node.js 22.12 or newer on `PATH`. After updating, restart
 Claude Code and confirm the version with `claude plugin details junto@junto`. Since 0.6.0, command
 gate verdicts in a Git repository root are bound to source contents; when upgrading from 0.5.x or
 earlier, rerun required gates before finishing a task. See [release notes](CHANGELOG.md).
