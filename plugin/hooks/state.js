@@ -4107,6 +4107,13 @@ var gateStatusSchema = external_exports.object({
   failStreak: external_exports.number().int().min(0)
 });
 var decisionSchema = external_exports.object({ at: external_exports.string(), what: external_exports.string(), why: external_exports.string() });
+var sizeChangeSchema = external_exports.object({
+  from: sizeSchema,
+  to: sizeSchema,
+  at: external_exports.string(),
+  phase: phaseSchema,
+  reason: external_exports.string()
+});
 var taskSchema = external_exports.object({
   schemaVersion: external_exports.number().int(),
   id: external_exports.string().min(1),
@@ -4120,6 +4127,8 @@ var taskSchema = external_exports.object({
   phases: external_exports.record(external_exports.string(), phaseStatusSchema),
   gates: external_exports.record(external_exports.string(), gateStatusSchema),
   decisions: external_exports.array(decisionSchema),
+  /** Absent on tasks whose size never changed, including tasks written by older versions. */
+  sizeChanges: external_exports.array(sizeChangeSchema).optional(),
   consults: external_exports.array(external_exports.string()),
   consultTokensUsed: external_exports.number().int().min(0).default(0),
   /** Recorded only by the UserPromptSubmit hook when the user types /junto:abandon. */
@@ -4320,6 +4329,11 @@ function updateTask(root, id, update) {
   });
 }
 
+// packages/core/src/transitions.ts
+function sizeRaisedPastPlan(task) {
+  return (task.sizeChanges ?? []).some((change) => change.phase !== "brief" && change.phase !== "plan");
+}
+
 // packages/core/src/review.ts
 var MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 
@@ -4380,7 +4394,9 @@ function renderStateBlock(task) {
   const step = task.phases[task.phase]?.step;
   const of = task.phases[task.phase]?.of;
   const progress = step !== void 0 && of !== void 0 ? ` Step ${step}/${of}.` : "";
-  return `<junto task="${task.id}" phase="${task.phase}" size="${task.size}">
+  const from = task.sizeChanges?.[0]?.from;
+  const escalated = from === void 0 ? "" : ` escalated-from="${from}"`;
+  return `<junto task="${task.id}" phase="${task.phase}" size="${task.size}"${escalated}>
 ${plan}${progress}
 Gates: ${gates || "not configured"}
 </junto>`;
@@ -4406,19 +4422,20 @@ function handleState(input) {
     );
   }
   if (isApproval(input.prompt ?? "")) {
-    const ruleCheckpoint = task.ruleApprovalRequired && task.phase !== "done";
-    if (task.phase !== "plan" && !ruleCheckpoint) {
+    const checkpoint = (task.ruleApprovalRequired || sizeRaisedPastPlan(task)) && task.phase !== "done";
+    if (task.phase !== "plan" && !checkpoint) {
       return contextOutput(`Task "${id}" is not in the plan phase (current: "${task.phase}"); there is nothing to approve.`);
     }
-    if (ruleCheckpoint && !existsSync3(join3(taskDir(root, id), "plan.md"))) {
-      return contextOutput("A matched rule requires a plan. Write plan.md before requesting /junto:approve.");
+    if (checkpoint && !existsSync3(join3(taskDir(root, id), "plan.md"))) {
+      const cause = task.ruleApprovalRequired ? "A matched rule" : "The raised task size";
+      return contextOutput(`${cause} requires a plan. Write plan.md before requesting /junto:approve.`);
     }
     updateTask(root, id, (current) => {
       if (current.phase !== task.phase) throw new Error("The task changed phase while approval was being recorded.");
       current.phases.plan = { ...current.phases.plan ?? { status: "done" }, approvedBy: "user" };
     });
     return contextOutput(
-      `The user approved the plan for task "${id}". ` + (task.phase === "plan" ? `Call junto__advance with to="${task.size === "deep" ? "panel" : "build"}" to enter the next phase.` : "The rule's human approval checkpoint is satisfied. Continue the current phase.")
+      `The user approved the plan for task "${id}". ` + (task.phase === "plan" ? `Call junto__advance with to="${task.size === "deep" ? "panel" : "build"}" to enter the next phase.` : "The human approval checkpoint is satisfied. Continue the current phase.")
     );
   }
   return contextOutput(renderStateBlock(task));

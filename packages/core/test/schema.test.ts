@@ -52,6 +52,16 @@ describe("parseTask", () => {
     expect(parseTask({ ...validTask, size: "deep", phase: "panel" }).phase).toBe("panel")
     expect(parseTask({ ...validTask, size: "deep", phase: "review" }).phase).toBe("review")
   })
+
+  it("reads tasks written before size changes were recorded", () => {
+    expect(parseTask(validTask).sizeChanges).toBeUndefined()
+  })
+
+  it("keeps the recorded size changes", () => {
+    const change = { from: "small", to: "standard", at: "2026-08-30T10:00:00Z", phase: "build", reason: "bigger" }
+    expect(parseTask({ ...validTask, sizeChanges: [change] }).sizeChanges).toEqual([change])
+    expect(() => parseTask({ ...validTask, sizeChanges: [{ ...change, to: "huge" }] })).toThrow()
+  })
 })
 
 describe("parseConfig", () => {

@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs"
 import { join } from "node:path"
-import { findProjectRoot, readActiveId, readTask, taskDir, updateTask, type Task } from "@junto/core"
+import { findProjectRoot, readActiveId, readTask, sizeRaisedPastPlan, taskDir, updateTask, type Task } from "@junto/core"
 import { runHook } from "./lib/io.js"
 import { contextOutput } from "./lib/render.js"
 
@@ -34,7 +34,9 @@ export function renderStateBlock(task: Task): string {
   const of = task.phases[task.phase]?.of
   const progress = step !== undefined && of !== undefined ? ` Step ${step}/${of}.` : ""
 
-  return `<junto task="${task.id}" phase="${task.phase}" size="${task.size}">\n`
+  const from = task.sizeChanges?.[0]?.from
+  const escalated = from === undefined ? "" : ` escalated-from="${from}"`
+  return `<junto task="${task.id}" phase="${task.phase}" size="${task.size}"${escalated}>\n`
     + `${plan}${progress}\n`
     + `Gates: ${gates || "not configured"}\n`
     + "</junto>"
@@ -67,12 +69,14 @@ export function handleState(input: { prompt?: string, cwd?: string }): string {
   }
 
   if (isApproval(input.prompt ?? "")) {
-    const ruleCheckpoint = task.ruleApprovalRequired && task.phase !== "done"
-    if (task.phase !== "plan" && !ruleCheckpoint) {
+    // A matched rule or a size raised past the plan step owes an approval outside the plan phase.
+    const checkpoint = (task.ruleApprovalRequired || sizeRaisedPastPlan(task)) && task.phase !== "done"
+    if (task.phase !== "plan" && !checkpoint) {
       return contextOutput(`Task "${id}" is not in the plan phase (current: "${task.phase}"); there is nothing to approve.`)
     }
-    if (ruleCheckpoint && !existsSync(join(taskDir(root, id), "plan.md"))) {
-      return contextOutput("A matched rule requires a plan. Write plan.md before requesting /junto:approve.")
+    if (checkpoint && !existsSync(join(taskDir(root, id), "plan.md"))) {
+      const cause = task.ruleApprovalRequired ? "A matched rule" : "The raised task size"
+      return contextOutput(`${cause} requires a plan. Write plan.md before requesting /junto:approve.`)
     }
     updateTask(root, id, (current) => {
       if (current.phase !== task.phase) throw new Error("The task changed phase while approval was being recorded.")
@@ -82,7 +86,7 @@ export function handleState(input: { prompt?: string, cwd?: string }): string {
       `The user approved the plan for task "${id}". `
       + (task.phase === "plan"
         ? `Call junto__advance with to="${task.size === "deep" ? "panel" : "build"}" to enter the next phase.`
-        : "The rule's human approval checkpoint is satisfied. Continue the current phase."),
+        : "The human approval checkpoint is satisfied. Continue the current phase."),
     )
   }
 

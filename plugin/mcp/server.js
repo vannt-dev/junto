@@ -18521,6 +18521,13 @@ var gateStatusSchema = external_exports.object({
   failStreak: external_exports.number().int().min(0)
 });
 var decisionSchema = external_exports.object({ at: external_exports.string(), what: external_exports.string(), why: external_exports.string() });
+var sizeChangeSchema = external_exports.object({
+  from: sizeSchema,
+  to: sizeSchema,
+  at: external_exports.string(),
+  phase: phaseSchema,
+  reason: external_exports.string()
+});
 var taskSchema = external_exports.object({
   schemaVersion: external_exports.number().int(),
   id: external_exports.string().min(1),
@@ -18534,6 +18541,8 @@ var taskSchema = external_exports.object({
   phases: external_exports.record(external_exports.string(), phaseStatusSchema),
   gates: external_exports.record(external_exports.string(), gateStatusSchema),
   decisions: external_exports.array(decisionSchema),
+  /** Absent on tasks whose size never changed, including tasks written by older versions. */
+  sizeChanges: external_exports.array(sizeChangeSchema).optional(),
   consults: external_exports.array(external_exports.string()),
   consultTokensUsed: external_exports.number().int().min(0).default(0),
   /** Recorded only by the UserPromptSubmit hook when the user types /junto:abandon. */
@@ -18766,6 +18775,17 @@ function requiredPhases(size) {
   if (size === "standard") return [...STANDARD_PHASES];
   return [...DEEP_PHASES];
 }
+var SIZE_ORDER = ["small", "standard", "deep"];
+function canRaiseSize(from, to) {
+  if (SIZE_ORDER.indexOf(to) > SIZE_ORDER.indexOf(from)) return { ok: true };
+  return {
+    ok: false,
+    reason: `The task size can only be raised (small -> standard -> deep); it is "${from}" and "${to}" is not larger. Lowering the size would drop steps the task already promised. Finish the task or ask the user to abandon it.`
+  };
+}
+function sizeRaisedPastPlan(task) {
+  return (task.sizeChanges ?? []).some((change) => change.phase !== "brief" && change.phase !== "plan");
+}
 function canEnter(task, to, ctx) {
   const order = requiredPhases(task.size);
   const from = order.indexOf(task.phase);
@@ -18782,6 +18802,14 @@ function canEnter(task, to, ctx) {
     if (!ctx.planExists) return { ok: false, reason: "A matched rule requires a plan and human approval. Write plan.md, then ask the user to type /junto:approve." };
     if (task.phases.plan?.approvedBy !== "user") {
       return { ok: false, reason: "A matched rule requires human approval, including auto-approved task sizes. The user must type /junto:approve." };
+    }
+  }
+  if (sizeRaisedPastPlan(task) && to !== "plan") {
+    if (!ctx.planExists) {
+      return { ok: false, reason: `The task size was raised to "${task.size}" after the plan step. Write plan.md (/junto:plan) before moving on.` };
+    }
+    if (!ctx.autoApprove.includes(task.size) && task.phases.plan?.approvedBy !== "user") {
+      return { ok: false, reason: `The task size was raised to "${task.size}", which needs an approved plan. The user must type /junto:approve.` };
     }
   }
   if (task.phase === "brief" && to === "plan") {
@@ -28529,66 +28557,6 @@ async function planTool(ctx) {
   return lines.join("\n");
 }
 
-// packages/mcp/src/tools/status.ts
-function nextAction(task) {
-  if (task.ruleApprovalRequired && task.phases.plan?.approvedBy !== "user") return "/junto:plan, then /junto:approve";
-  switch (task.phase) {
-    case "brief":
-      return "/junto:plan";
-    case "plan":
-      return "/junto:approve";
-    case "panel":
-      return "/junto:panel";
-    case "build":
-      return task.size === "deep" ? "advance to review, then run /junto:panel" : "/junto:verify";
-    case "review":
-      return "/junto:panel";
-    case "verify":
-      return "/junto:verify";
-    case "done":
-      return "/junto:finish";
-  }
-}
-function gateState(gate, verdictState) {
-  if (gate.verdict === null) return "not run";
-  if (gate.stale) return "stale";
-  return verdictState ?? "unreadable verdict";
-}
-async function statusTool(ctx) {
-  const id = readActiveId(ctx.root);
-  if (id === null) return "No active task. Run /junto:start to create one.";
-  const config2 = readConfig(ctx.root);
-  const { task, unknownGates } = await resolveTaskPolicy(ctx.root, readTask(ctx.root, id), config2);
-  const transitionContext = { ...buildTransitionContext(ctx.root, task, config2), unknownRuleGates: unknownGates };
-  const phases = requiredPhases(task.size);
-  const phaseIndex = phases.indexOf(task.phase);
-  const nextPhase = phaseIndex >= 0 ? phases[phaseIndex + 1] : void 0;
-  let blocker = "none";
-  if (nextPhase !== void 0) {
-    const check2 = canEnter(task, nextPhase, transitionContext);
-    if (!check2.ok) blocker = check2.reason;
-  }
-  const gates = Object.entries(task.gates).map(([name, gate]) => {
-    const requirement = gate.required ? "required" : "optional";
-    return `- ${name}: ${requirement}, ${gateState(gate, transitionContext.verdictStates[name] ?? null)}`;
-  });
-  const cap = config2.consultBudget?.maxTokensPerTask;
-  const budget = cap === void 0 ? `${task.consultTokensUsed} tokens recorded (no cap configured)` : `${task.consultTokensUsed}/${cap} tokens`;
-  return `# Junto status
-
-Task: ${task.id} \u2014 ${task.title}
-Size: ${task.size}
-Phase: ${task.phase}
-Next: ${nextAction(task)}
-Next phase: ${nextPhase ?? "none"}
-Blockers: ${blocker}
-Consult budget: ${budget}
-
-## Gates
-
-${gates.join("\n") || "(none)"}`;
-}
-
 // packages/mcp/src/tools/task.ts
 import { existsSync as existsSync13, mkdirSync as mkdirSync9, renameSync as renameSync2, writeFileSync as writeFileSync10 } from "node:fs";
 import { join as join15 } from "node:path";
@@ -28597,6 +28565,10 @@ function newTaskId(title, now) {
   const date3 = now.toISOString().slice(0, 10);
   const slug = title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\u0111/g, "d").replace(/\u0110/g, "D").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, MAX_SLUG).replace(/-+$/, "");
   return `${date3}-${slug === "" ? "task" : slug}`;
+}
+function sizeLabel(task) {
+  const first = task.sizeChanges?.[0];
+  return first === void 0 ? task.size : `${task.size} (escalated from ${first.from})`;
 }
 async function currentCommit(root) {
   try {
@@ -28691,7 +28663,7 @@ function finish(ctx) {
   const summary = `# ${task.title}
 
 - id: ${task.id}
-- size: ${task.size}
+- size: ${sizeLabel(task)}
 - final phase: ${task.phase}
 - created: ${task.createdAt}
 - finished: ${(/* @__PURE__ */ new Date()).toISOString()}
@@ -28734,7 +28706,7 @@ function abandon(ctx, reason) {
 This task was abandoned at the user's request. It was not finished and its gates were not required to pass.
 
 - id: ${task.id}
-- size: ${task.size}
+- size: ${sizeLabel(task)}
 - stopped in phase: ${task.phase}
 - created: ${task.createdAt}
 - abandon requested by the user: ${task.abandonRequest.at}
@@ -28757,6 +28729,45 @@ ${task.decisions.map((d) => `- ${d.what} - ${d.why}`).join("\n") || "(none)"}
   setActiveId(ctx.root, null);
   return `Abandoned task "${id}" in phase ${task.phase}; it is archived at .junto/archive/${id}/ and was not finished.`;
 }
+function escalate(ctx, input) {
+  const id = readActiveId(ctx.root);
+  if (id === null) throw new Error("There is no active task to escalate. Run /junto:start with the larger size.");
+  const task = readTask(ctx.root, id);
+  const why = input.reason.trim();
+  if (why === "") throw new Error("Give the reason the task needs a larger size.");
+  if (task.phase === "done") {
+    throw new Error(`Task "${id}" is done; there are no steps left to make stricter. Run /junto:finish.`);
+  }
+  const check2 = canRaiseSize(task.size, input.size);
+  if (!check2.ok) throw new Error(check2.reason);
+  const config2 = readConfig(ctx.root);
+  const at = (/* @__PURE__ */ new Date()).toISOString();
+  const change = { from: task.size, to: input.size, at, phase: task.phase, reason: why };
+  updateTask(ctx.root, id, (current) => {
+    if (current.size !== task.size || current.phase !== task.phase) {
+      throw new Error("The task changed while its size was being raised; retry.");
+    }
+    current.size = input.size;
+    current.sizeChanges = [...current.sizeChanges ?? [], change];
+    current.decisions.push({ at, what: `Raised size from ${task.size} to ${input.size} in phase ${task.phase}`, why });
+  });
+  const pastPlan = task.phase !== "brief" && task.phase !== "plan";
+  const notes = [];
+  if (pastPlan) {
+    const approval = config2.autoApprove.includes(input.size) || task.phases.plan?.approvedBy === "user" ? "" : " and the user must type /junto:approve";
+    notes.push(
+      `The ${input.size} lifecycle has a plan step this task skipped: fill brief.md, write plan.md (/junto:plan)${approval} before the task can leave phase ${task.phase}. The task stays in ${task.phase}.`
+    );
+  }
+  if (input.size === "deep") {
+    if (pastPlan) notes.push("Run /junto:panel on the plan now; deep tasks review the plan before building (advisory).");
+    else notes.push("The deep lifecycle adds a panel phase after plan approval and a review phase after build.");
+    if (task.phase === "build") notes.push("After build, advance to review and run /junto:panel on the implementation.");
+    if (task.phase === "verify") notes.push("Run /junto:panel on the implementation before finishing (advisory).");
+  }
+  notes.push("Gate evidence already recorded is kept.");
+  return `Raised task "${id}" from ${task.size} to ${input.size} in phase ${task.phase}. ${notes.join(" ")}`;
+}
 async function taskTool(ctx, input) {
   switch (input.action) {
     case "start":
@@ -28765,7 +28776,74 @@ async function taskTool(ctx, input) {
       return finish(ctx);
     case "abandon":
       return abandon(ctx, input.reason);
+    case "escalate":
+      return escalate(ctx, input);
   }
+}
+
+// packages/mcp/src/tools/status.ts
+function nextAction(task, autoApprove, planExists) {
+  const approved = task.phases.plan?.approvedBy === "user";
+  if (task.ruleApprovalRequired && !approved) return "/junto:plan, then /junto:approve";
+  if (sizeRaisedPastPlan(task) && !approved && !autoApprove.includes(task.size)) {
+    return planExists ? "/junto:approve" : "/junto:plan, then /junto:approve";
+  }
+  if (sizeRaisedPastPlan(task) && !planExists) return "/junto:plan";
+  switch (task.phase) {
+    case "brief":
+      return "/junto:plan";
+    case "plan":
+      return "/junto:approve";
+    case "panel":
+      return "/junto:panel";
+    case "build":
+      return task.size === "deep" ? "advance to review, then run /junto:panel" : "/junto:verify";
+    case "review":
+      return "/junto:panel";
+    case "verify":
+      return "/junto:verify";
+    case "done":
+      return "/junto:finish";
+  }
+}
+function gateState(gate, verdictState) {
+  if (gate.verdict === null) return "not run";
+  if (gate.stale) return "stale";
+  return verdictState ?? "unreadable verdict";
+}
+async function statusTool(ctx) {
+  const id = readActiveId(ctx.root);
+  if (id === null) return "No active task. Run /junto:start to create one.";
+  const config2 = readConfig(ctx.root);
+  const { task, unknownGates } = await resolveTaskPolicy(ctx.root, readTask(ctx.root, id), config2);
+  const transitionContext = { ...buildTransitionContext(ctx.root, task, config2), unknownRuleGates: unknownGates };
+  const phases = requiredPhases(task.size);
+  const phaseIndex = phases.indexOf(task.phase);
+  const nextPhase = phaseIndex >= 0 ? phases[phaseIndex + 1] : void 0;
+  let blocker = "none";
+  if (nextPhase !== void 0) {
+    const check2 = canEnter(task, nextPhase, transitionContext);
+    if (!check2.ok) blocker = check2.reason;
+  }
+  const gates = Object.entries(task.gates).map(([name, gate]) => {
+    const requirement = gate.required ? "required" : "optional";
+    return `- ${name}: ${requirement}, ${gateState(gate, transitionContext.verdictStates[name] ?? null)}`;
+  });
+  const cap = config2.consultBudget?.maxTokensPerTask;
+  const budget = cap === void 0 ? `${task.consultTokensUsed} tokens recorded (no cap configured)` : `${task.consultTokensUsed}/${cap} tokens`;
+  return `# Junto status
+
+Task: ${task.id} \u2014 ${task.title}
+Size: ${sizeLabel(task)}
+Phase: ${task.phase}
+Next: ${nextAction(task, config2.autoApprove, transitionContext.planExists)}
+Next phase: ${nextPhase ?? "none"}
+Blockers: ${blocker}
+Consult budget: ${budget}
+
+## Gates
+
+${gates.join("\n") || "(none)"}`;
 }
 
 // packages/mcp/src/tools/verify.ts
@@ -28874,7 +28952,8 @@ var taskInput = external_exports.discriminatedUnion("action", [
     gates: external_exports.array(external_exports.string()).optional()
   }),
   external_exports.object({ action: external_exports.literal("finish") }),
-  external_exports.object({ action: external_exports.literal("abandon"), reason: external_exports.string() })
+  external_exports.object({ action: external_exports.literal("abandon"), reason: external_exports.string() }),
+  external_exports.object({ action: external_exports.literal("escalate"), size: external_exports.enum(["small", "standard", "deep"]), reason: external_exports.string() })
 ]);
 var verifyInput = external_exports.object({ gates: external_exports.array(external_exports.string()).optional() });
 var advanceInput = external_exports.object({ to: external_exports.enum(["brief", "plan", "panel", "build", "review", "verify", "done"]) });
@@ -28899,14 +28978,21 @@ var TOOLS = [
   },
   {
     name: "junto__task",
-    description: "Manage the junto task lifecycle: start creates a task, finish archives a completed task, and abandon archives an unfinished task after the user typed /junto:abandon. This tool cannot approve plans or abandon a task on its own.",
+    description: "Manage the junto task lifecycle: start creates a task, escalate raises the active task's size (small -> standard -> deep, never lower; ask the user first), finish archives a completed task, and abandon archives an unfinished task after the user typed /junto:abandon. This tool cannot approve plans or abandon a task on its own.",
     inputSchema: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["start", "finish", "abandon"] },
+        action: { type: "string", enum: ["start", "escalate", "finish", "abandon"] },
         title: { type: "string", description: "Required when action=start" },
-        size: { type: "string", enum: ["small", "standard", "deep"], description: "Required when action=start" },
-        reason: { type: "string", description: "Required when action=abandon: the reason the user gave" },
+        size: {
+          type: "string",
+          enum: ["small", "standard", "deep"],
+          description: "Required when action=start; for escalate, the larger size to raise the task to"
+        },
+        reason: {
+          type: "string",
+          description: "Required when action=abandon (the reason the user gave) or escalate (why the task grew)"
+        },
         gates: { type: "array", items: { type: "string" }, description: "Optional: enable only these gates" }
       },
       required: ["action"]

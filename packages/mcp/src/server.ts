@@ -22,6 +22,7 @@ const taskInput = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.literal("finish") }),
   z.object({ action: z.literal("abandon"), reason: z.string() }),
+  z.object({ action: z.literal("escalate"), size: z.enum(["small", "standard", "deep"]), reason: z.string() }),
 ])
 const verifyInput = z.object({ gates: z.array(z.string()).optional() })
 const advanceInput = z.object({ to: z.enum(["brief", "plan", "panel", "build", "review", "verify", "done"]) })
@@ -49,16 +50,24 @@ const TOOLS = [
   {
     name: "junto__task",
     description:
-      "Manage the junto task lifecycle: start creates a task, "
-      + "finish archives a completed task, and abandon archives an unfinished task after the user typed "
-      + "/junto:abandon. This tool cannot approve plans or abandon a task on its own.",
+      "Manage the junto task lifecycle: start creates a task, escalate raises the active task's size "
+      + "(small -> standard -> deep, never lower; ask the user first), finish archives a completed task, "
+      + "and abandon archives an unfinished task after the user typed /junto:abandon. "
+      + "This tool cannot approve plans or abandon a task on its own.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        action: { type: "string", enum: ["start", "finish", "abandon"] },
+        action: { type: "string", enum: ["start", "escalate", "finish", "abandon"] },
         title: { type: "string", description: "Required when action=start" },
-        size: { type: "string", enum: ["small", "standard", "deep"], description: "Required when action=start" },
-        reason: { type: "string", description: "Required when action=abandon: the reason the user gave" },
+        size: {
+          type: "string",
+          enum: ["small", "standard", "deep"],
+          description: "Required when action=start; for escalate, the larger size to raise the task to",
+        },
+        reason: {
+          type: "string",
+          description: "Required when action=abandon (the reason the user gave) or escalate (why the task grew)",
+        },
         gates: { type: "array", items: { type: "string" }, description: "Optional: enable only these gates" },
       },
       required: ["action"],

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { canEnter, requiredPhases, type TransitionContext } from "../src/transitions.js"
+import { canEnter, canRaiseSize, requiredPhases, sizeRaisedPastPlan, type TransitionContext } from "../src/transitions.js"
 import type { GateStatus, Task } from "../src/schema.js"
 
 function makeTask(over: Partial<Task> = {}): Task {
@@ -214,5 +214,71 @@ describe("adjacent phases and backward transitions", () => {
     expect(r.ok).toBe(false)
     expect(r.ok === false && r.reason).toMatch(/plan/)
     expect(r.ok === false && r.reason).toMatch(/small/)
+  })
+})
+
+describe("raising the task size", () => {
+  const raised = (phase: Task["phase"]) => ({ from: "small" as const, to: "standard" as const, at: "2026-08-30T10:00:00Z", phase, reason: "bigger" })
+
+  it("allows only a larger size", () => {
+    expect(canRaiseSize("small", "standard")).toEqual({ ok: true })
+    expect(canRaiseSize("small", "deep")).toEqual({ ok: true })
+    expect(canRaiseSize("standard", "deep")).toEqual({ ok: true })
+  })
+
+  it("refuses the same or a smaller size and says that only raising is allowed", () => {
+    for (const [from, to] of [["standard", "standard"], ["deep", "standard"], ["standard", "small"]] as const) {
+      const check = canRaiseSize(from, to)
+      expect(check.ok).toBe(false)
+      if (!check.ok) expect(check.reason).toMatch(/can only be raised/)
+    }
+  })
+
+  it("adds a plan obligation only when the raise skipped the plan step", () => {
+    expect(sizeRaisedPastPlan(makeTask())).toBe(false)
+    expect(sizeRaisedPastPlan(makeTask({ sizeChanges: [raised("brief")] }))).toBe(false)
+    expect(sizeRaisedPastPlan(makeTask({ sizeChanges: [raised("plan")] }))).toBe(false)
+    expect(sizeRaisedPastPlan(makeTask({ sizeChanges: [raised("build")] }))).toBe(true)
+  })
+
+  it("blocks leaving build until plan.md exists", () => {
+    const task = makeTask({ phase: "build", sizeChanges: [raised("build")] })
+    const check = canEnter(task, "verify", ctx({ planExists: false }))
+    expect(check.ok).toBe(false)
+    if (!check.ok) expect(check.reason).toMatch(/size was raised.*plan\.md/)
+  })
+
+  it("blocks finishing until the user approves the plan", () => {
+    const task = makeTask({ phase: "verify", sizeChanges: [raised("verify")] })
+    const check = canEnter(task, "done", ctx())
+    expect(check.ok).toBe(false)
+    if (!check.ok) expect(check.reason).toMatch(/\/junto:approve/)
+  })
+
+  it("passes once the user approved the plan", () => {
+    const task = makeTask({
+      phase: "build",
+      sizeChanges: [raised("build")],
+      phases: { plan: { status: "done", approvedBy: "user" } },
+    })
+    expect(canEnter(task, "verify", ctx())).toEqual({ ok: true })
+  })
+
+  it("lets the configured auto-approval of the new size stand in for the user's approval", () => {
+    const task = makeTask({ phase: "build", sizeChanges: [raised("build")] })
+    expect(canEnter(task, "verify", ctx({ autoApprove: ["standard"] }))).toEqual({ ok: true })
+    const blocked = canEnter(task, "verify", ctx({ autoApprove: ["standard"], planExists: false }))
+    expect(blocked.ok).toBe(false)
+  })
+
+  it("routes a task raised to deep in build through review", () => {
+    const task = makeTask({
+      size: "deep",
+      phase: "build",
+      sizeChanges: [{ ...raised("build"), to: "deep" }],
+      phases: { plan: { status: "done", approvedBy: "user" } },
+    })
+    expect(canEnter(task, "review", ctx())).toEqual({ ok: true })
+    expect(canEnter(task, "verify", ctx()).ok).toBe(false)
   })
 })

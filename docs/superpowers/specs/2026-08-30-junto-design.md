@@ -82,7 +82,12 @@ M1 supports:
 - `standard`: brief -> plan -> build -> verify -> done
 - `deep`: identical to standard until M3 adds panel and review phases
 
-Transitions are adjacent and one-way. Future size changes may only increase `small -> standard -> deep`.
+Transitions are adjacent and one-way. Size changes may only increase `small -> standard -> deep`
+(`junto__task` action `escalate`). A raise keeps the current phase and all recorded evidence and is
+recorded in `task.json` `sizeChanges`. If the task was already past `plan`, the plan the larger size
+skipped is owed before the task may leave its phase: `plan.md`, plus user approval unless the new size
+is auto-approved. The model may raise the size without a sentinel because a raise only adds
+obligations; the approval it may add is still user-only.
 The policy must remain in pure functions under `packages/core/src/transitions.ts`.
 
 Transition rules:
@@ -98,7 +103,7 @@ Only the `UserPromptSubmit` hook may record `approvedBy: "user"`; no MCP tool ma
 
 M1 exposes:
 
-- `junto__task`: start, finish, and abandon task lifecycle operations (one active task at a time, so there is no switch). `abandon` archives an unfinished
+- `junto__task`: start, escalate, finish, and abandon task lifecycle operations (one active task at a time, so there is no switch). `abandon` archives an unfinished
   task only after the user typed `/junto:abandon`, which the `UserPromptSubmit` hook records in `task.json`.
 - `junto__advance`: request the next phase through the core transition policy.
 - `junto__verify`: execute configured gates and persist evidence.
@@ -141,6 +146,7 @@ must never break the user's session.
 
 M1 commands are `start`, `plan`, `approve`, `verify`, and `finish`. M2 adds `panel`. `abandon` lets the user drop a
 stuck task: like `approve`, it carries a fixed sentinel and only the hook may record the request.
+`escalate` raises the size of the active task; it needs no sentinel because it only adds obligations.
 
 `/junto:approve` contains a fixed sentinel so approval remains attributable to a user-submitted command even
 when slash commands are expanded before `UserPromptSubmit` runs.

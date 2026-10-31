@@ -16,7 +16,8 @@ Follow these steps in order:
    - `small`: one-file or fully understood work; starts directly in build.
    - `standard`: a feature or multi-file change; requires a brief, plan, and user approval.
    - `deep`: an architectural or high-risk change.
-   When uncertain, choose the larger size. Size may increase but never decrease.
+   When uncertain, choose the larger size. Size may increase but never decrease: if the work grows,
+   raise it later with `/junto:escalate <standard|deep> <reason>`.
 3. Call `junto__task` with `action: "start"`, a concise title, and the selected size.
 4. For `standard`/`deep`, write `.junto/tasks/<id>/brief.md` with clarified requirements and exclusions.
 

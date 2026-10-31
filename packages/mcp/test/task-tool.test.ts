@@ -197,3 +197,83 @@ describe("abandon", () => {
     await expect(taskTool(ctx(), { action: "abandon", reason: "x" })).rejects.toThrow(/no active task/)
   })
 })
+
+describe("escalate", () => {
+  it("raises a small task in build to standard and keeps its phase, gates and evidence", async () => {
+    await taskTool(ctx(), { action: "start", title: "Quick fix", size: "small" })
+    const id = activeId()
+    const before = readTask(root, id)
+    before.gates.tests = { required: true, verdict: "verdicts/tests.json", stale: false, failStreak: 0 }
+    writeTask(root, before)
+
+    const out = await taskTool(ctx(), { action: "escalate", size: "standard", reason: "Touches three modules." })
+
+    const after = readTask(root, id)
+    expect(after.size).toBe("standard")
+    expect(after.phase).toBe("build")
+    expect(after.gates).toEqual(before.gates)
+    expect(after.sizeChanges).toEqual([
+      expect.objectContaining({ from: "small", to: "standard", phase: "build", reason: "Touches three modules." }),
+    ])
+    expect(after.decisions.at(-1)).toMatchObject({ why: "Touches three modules." })
+    expect(out).toMatch(/small to standard/)
+    expect(out).toMatch(/plan\.md/)
+    expect(out).toMatch(/\/junto:approve/)
+  })
+
+  it("does not ask for an approval the new size auto-approves", async () => {
+    writeFileSync(join(root, ".junto", "config.json"), JSON.stringify({ schemaVersion: 1, gates: {}, autoApprove: ["standard"] }))
+    await taskTool(ctx(), { action: "start", title: "Quick fix", size: "small" })
+    const out = await taskTool(ctx(), { action: "escalate", size: "standard", reason: "Bigger." })
+    expect(out).toMatch(/plan\.md/)
+    expect(out).not.toMatch(/\/junto:approve/)
+  })
+
+  it("adds no plan step when the task has not reached build yet", async () => {
+    await taskTool(ctx(), { action: "start", title: "Feature", size: "standard" })
+    const out = await taskTool(ctx(), { action: "escalate", size: "deep", reason: "Risky migration." })
+    expect(readTask(root, activeId()).phase).toBe("brief")
+    expect(out).not.toMatch(/plan\.md/)
+    expect(out).toMatch(/panel/)
+  })
+
+  it("points a task raised to deep in build at the skipped panel and the review phase", async () => {
+    await taskTool(ctx(), { action: "start", title: "Feature", size: "small" })
+    const out = await taskTool(ctx(), { action: "escalate", size: "deep", reason: "Security impact." })
+    expect(out).toMatch(/\/junto:panel/)
+    expect(out).toMatch(/review/)
+  })
+
+  it("refuses to lower or keep the size", async () => {
+    await taskTool(ctx(), { action: "start", title: "Feature", size: "standard" })
+    await expect(taskTool(ctx(), { action: "escalate", size: "small", reason: "Smaller." }))
+      .rejects.toThrow(/can only be raised/)
+    await expect(taskTool(ctx(), { action: "escalate", size: "standard", reason: "Same." }))
+      .rejects.toThrow(/can only be raised/)
+    expect(readTask(root, activeId()).size).toBe("standard")
+  })
+
+  it("requires a reason", async () => {
+    await taskTool(ctx(), { action: "start", title: "Feature", size: "small" })
+    await expect(taskTool(ctx(), { action: "escalate", size: "standard", reason: " " })).rejects.toThrow(/reason/)
+  })
+
+  it("refuses a task that is already done", async () => {
+    await taskTool(ctx(), { action: "start", title: "Feature", size: "small" })
+    markActiveDone()
+    await expect(taskTool(ctx(), { action: "escalate", size: "standard", reason: "Late." })).rejects.toThrow(/done/)
+  })
+
+  it("fails when there is no active task", async () => {
+    await expect(taskTool(ctx(), { action: "escalate", size: "deep", reason: "x" })).rejects.toThrow(/no active task/)
+  })
+
+  it("records the raise in the archived summary", async () => {
+    await taskTool(ctx(), { action: "start", title: "Quick fix", size: "small" })
+    await taskTool(ctx(), { action: "escalate", size: "standard", reason: "Touches three modules." })
+    const id = markActiveDone()
+    await taskTool(ctx(), { action: "finish" })
+    const summary = readFileSync(join(root, ".junto", "archive", id, "summary.md"), "utf-8")
+    expect(summary).toContain("- size: standard (escalated from small)")
+  })
+})
