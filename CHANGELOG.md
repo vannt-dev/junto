@@ -4,6 +4,8 @@ All notable changes to junto are documented in this file. The project follows Se
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-31
+
 ### Fixed
 
 - Commands now pre-allow the junto tools under the names Claude Code gives a plugin's MCP server (`mcp__plugin_junto_junto__junto__*`). They listed only `mcp__junto__junto__*`, which matches a server added by hand, so an installed plugin asked for permission at each step. Both names are listed.
@@ -169,6 +171,7 @@ All notable changes to junto are documented in this file. The project follows Se
 
 - Initial task lifecycle, durable project-local state, hooks, MCP tools, and evidence-based gates.
 
+[0.9.1]: https://github.com/vannt-dev/junto/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/vannt-dev/junto/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/vannt-dev/junto/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/vannt-dev/junto/compare/v0.7.0...v0.7.1
