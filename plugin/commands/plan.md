@@ -17,6 +17,9 @@ Write an implementation plan for the active junto task.
    reported as missing from `.junto/config.json` in the plan. If it fails because git cannot report
    changes, say so instead of guessing.
 4. Write `.junto/tasks/<id>/plan.md` with numbered steps, affected files, and verification for each step.
+   Checks no gate can run (trying the change in a real browser or app, a server restart, a device)
+   go in a `## Manual checks` section as an unticked list (`- [ ] ...`). Tick one only after the check
+   was actually done; `/junto:finish` records each as done or NOT DONE in the task summary.
 5. Write `.junto/tasks/<id>/context.jsonl`; each line is `{"file":"...","reason":"..."}` for files a subagent needs.
 6. Call `junto__advance` with `to: "plan"` if the task is still in `brief`. A task whose size was
    raised after the plan step stays in its current phase; do not advance it.

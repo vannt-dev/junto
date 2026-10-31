@@ -7,4 +7,6 @@ Finish the active junto task.
 
 1. Check the current phase. If it is not `done`, explain what remains and stop; the MCP tool rejects early archival.
 2. Call `junto__task` with `action: "finish"`.
-3. Report that the task is stored at `.junto/archive/<id>/`; `summary.md` records gates and decisions.
+3. Report that the task is stored at `.junto/archive/<id>/`; `summary.md` records gates and decisions,
+   and the plan's `## Manual checks` as done or NOT DONE. If the tool names manual checks that were
+   not done, put them first in your report so the user sees what nobody tried.

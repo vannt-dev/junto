@@ -149,6 +149,37 @@ describe("action: finish", () => {
     expect(existsSync(join(root, ".junto", "archive", id, "summary.md"))).toBe(true)
   })
 
+  it("records the plan's manual checks and names the ones not done", async () => {
+    await taskTool(ctx(), { action: "start", title: "X", size: "small" })
+    const id = markActiveDone()
+    writeFileSync(join(root, ".junto", "tasks", id, "plan.md"), [
+      "# Plan", "", "## Steps", "- [ ] not a manual check", "",
+      "## Manual checks", "",
+      "- [x] Restart the server and see the entry", "- [ ] Clear history in a real browser",
+      "  * [X] Restore brings the cases back", "",
+      "## Risks", "- [ ] also not a manual check", "",
+    ].join("\n"))
+
+    const out = await taskTool(ctx(), { action: "finish" })
+
+    expect(out).toMatch(/1 manual check was not done: Clear history in a real browser/)
+    const summary = readFileSync(join(root, ".junto", "archive", id, "summary.md"), "utf-8")
+    expect(summary).toContain("## Manual checks\n\n"
+      + "- done: Restart the server and see the entry\n"
+      + "- NOT DONE: Clear history in a real browser\n"
+      + "- done: Restore brings the cases back\n")
+    expect(summary).not.toContain("not a manual check")
+  })
+
+  it("leaves the summary without a manual checks section when the plan has none", async () => {
+    await taskTool(ctx(), { action: "start", title: "X", size: "small" })
+    const id = markActiveDone()
+    writeFileSync(join(root, ".junto", "tasks", id, "plan.md"), "# Plan\n\n## Steps\n- [ ] one\n")
+    const out = await taskTool(ctx(), { action: "finish" })
+    expect(out).not.toMatch(/manual check/)
+    expect(readFileSync(join(root, ".junto", "archive", id, "summary.md"), "utf-8")).not.toContain("Manual checks")
+  })
+
   it("reports a clear error when there is no active task", async () => {
     await expect(taskTool(ctx(), { action: "finish" })).rejects.toThrow(/no active task/i)
   })

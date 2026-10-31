@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { execa } from "execa"
 import {
@@ -121,6 +121,30 @@ async function start(ctx: ToolContext, input: Extract<TaskToolInput, { action: "
     + `Gates: ${Object.keys(gates).join(", ") || "none"}.`
 }
 
+interface ManualCheck { text: string, done: boolean }
+
+/**
+ * The checklist under the plan's "## Manual checks" heading: checks a gate cannot run, such as
+ * trying the change in a real browser. They are self-reported, so finish records and names them
+ * rather than blocking on them.
+ */
+function readManualChecks(dir: string): ManualCheck[] {
+  const path = join(dir, "plan.md")
+  if (!existsSync(path)) return []
+  const checks: ManualCheck[] = []
+  let inSection = false
+  for (const line of readFileSync(path, "utf-8").split(/\r?\n/)) {
+    const heading = /^#{1,6}\s+(.*?)\s*#*\s*$/.exec(line)
+    if (heading) {
+      inSection = /^manual checks$/i.test(heading[1] ?? "")
+      continue
+    }
+    const item = inSection ? /^\s*[-*]\s+\[([ xX])\]\s+(.+?)\s*$/.exec(line) : null
+    if (item) checks.push({ text: item[2] ?? "", done: item[1] !== " " })
+  }
+  return checks
+}
+
 function finish(ctx: ToolContext): string {
   const id = readActiveId(ctx.root)
   if (id === null) throw new Error("There is no active task to finish.")
@@ -154,17 +178,27 @@ function finish(ctx: ToolContext): string {
   const gateLines = Object.entries(task.gates)
     .map(([n, g]) => `- ${n}: ${g.verdict === null ? "not run" : g.stale ? "stale" : "run"}${g.required ? " (required)" : ""}`)
     .join("\n")
+  const manual = readManualChecks(from)
+  const manualSection = manual.length === 0
+    ? ""
+    : `\n## Manual checks\n\n${manual.map(c => `- ${c.done ? "done" : "NOT DONE"}: ${c.text}`).join("\n")}\n`
   const summary = `# ${task.title}\n\n`
     + `- id: ${task.id}\n- size: ${sizeLabel(task)}\n- final phase: ${task.phase}\n`
     + `- created: ${task.createdAt}\n- finished: ${new Date().toISOString()}\n\n`
     + `## Gates\n\n${gateLines || "(none)"}\n\n`
     + `## Decisions\n\n${task.decisions.map(d => `- ${d.what} - ${d.why}`).join("\n") || "(none)"}\n`
+    + manualSection
 
   writeFileSync(join(from, "summary.md"), summary, "utf-8")
   renameSync(from, to)
   setActiveId(ctx.root, null)
 
-  return `Archived task "${id}" at .junto/archive/${id}/.`
+  const notDone = manual.filter(c => !c.done).map(c => c.text)
+  const warning = notDone.length === 0
+    ? ""
+    : ` ${notDone.length} manual check${notDone.length === 1 ? " was" : "s were"} not done: ${notDone.join("; ")}. `
+      + "Tell the user; summary.md records them."
+  return `Archived task "${id}" at .junto/archive/${id}/.${warning}`
 }
 
 /**
