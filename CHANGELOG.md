@@ -4,6 +4,10 @@ All notable changes to junto are documented in this file. The project follows Se
 
 ## [Unreleased]
 
+### Added
+
+- `/junto:escalate <standard|deep> <reason>` raises the size of the active task when the work turns out bigger than expected (`junto__task` action `escalate`). The size only goes up; lowering it is refused. The task keeps its phase and its recorded gate evidence, and the stricter lifecycle applies to the remaining steps: a small task raised in `build` or `verify` cannot move on until it has `plan.md` and the user's `/junto:approve` (unless the new size is auto-approved), and a task raised to `deep` passes through `review`. Status, the session block and the archived summary show "escalated from small".
+
 ## [0.8.0] - 2026-10-28
 
 ### Added

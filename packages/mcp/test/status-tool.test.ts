@@ -91,4 +91,15 @@ describe("statusTool", () => {
 
     expect(await statusTool(ctx())).toMatch(/tests: required, unreadable verdict/)
   })
+
+  it("shows a raised size and the plan approval it now needs", async () => {
+    await taskTool(ctx(), { action: "start", title: "Fix", size: "small" })
+    await taskTool(ctx(), { action: "escalate", size: "standard", reason: "Bigger than expected." })
+
+    const output = await statusTool(ctx())
+    expect(output).toMatch(/Size: standard \(escalated from small\)/)
+    expect(output).toMatch(/Phase: build/)
+    expect(output).toMatch(/Next: \/junto:plan, then \/junto:approve/)
+    expect(output).toMatch(/Blockers: .*size was raised/)
+  })
 })

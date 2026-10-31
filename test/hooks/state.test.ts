@@ -153,6 +153,29 @@ describe("handleState - approval recording", () => {
     expect(readTask(root, task.id).phases.plan?.approvedBy).toBe("user")
     expect(readTask(root, task.id).phase).toBe("build")
   })
+
+  it("lets a human approve the plan a raised size added after build started", () => {
+    const task = seed({
+      size: "standard",
+      phase: "build",
+      phases: { build: { status: "active" } },
+      sizeChanges: [{ from: "small", to: "standard", at: "2026-08-30T10:00:00Z", phase: "build", reason: "Bigger." }],
+    })
+    expect(handleState({ prompt: "/junto:approve", cwd: root })).toMatch(/Write plan.md/)
+    writeFileSync(join(taskDir(root, task.id), "plan.md"), "Split the change into three steps.")
+    expect(handleState({ prompt: "/junto:approve", cwd: root })).toMatch(/checkpoint is satisfied/)
+    expect(readTask(root, task.id).phases.plan?.approvedBy).toBe("user")
+    expect(readTask(root, task.id).phase).toBe("build")
+  })
+
+  it("shows a raised size in the state block", () => {
+    const task = seed({
+      size: "standard",
+      phase: "build",
+      sizeChanges: [{ from: "small", to: "standard", at: "2026-08-30T10:00:00Z", phase: "build", reason: "Bigger." }],
+    })
+    expect(renderStateBlock(task)).toContain('escalated-from="small"')
+  })
 })
 
 describe("handleState - abandon request recording", () => {

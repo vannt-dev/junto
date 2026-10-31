@@ -28,6 +28,26 @@ export function requiredPhases(size: Size): Phase[] {
   return [...DEEP_PHASES]
 }
 
+const SIZE_ORDER: Size[] = ["small", "standard", "deep"]
+
+/** A size may only grow: every larger lifecycle contains the smaller one, so no step is lost. */
+export function canRaiseSize(from: Size, to: Size): TransitionCheck {
+  if (SIZE_ORDER.indexOf(to) > SIZE_ORDER.indexOf(from)) return { ok: true }
+  return {
+    ok: false,
+    reason: `The task size can only be raised (small -> standard -> deep); it is "${from}" and "${to}" is not larger. `
+      + "Lowering the size would drop steps the task already promised. Finish the task or ask the user to abandon it.",
+  }
+}
+
+/**
+ * True when the size was raised after the task had passed the point where the larger size writes
+ * and approves a plan, so that plan is still owed before the task may move on.
+ */
+export function sizeRaisedPastPlan(task: Task): boolean {
+  return (task.sizeChanges ?? []).some(change => change.phase !== "brief" && change.phase !== "plan")
+}
+
 export function canEnter(task: Task, to: Phase, ctx: TransitionContext): TransitionCheck {
   const order = requiredPhases(task.size)
   const from = order.indexOf(task.phase)
@@ -46,6 +66,16 @@ export function canEnter(task: Task, to: Phase, ctx: TransitionContext): Transit
     if (!ctx.planExists) return { ok: false, reason: "A matched rule requires a plan and human approval. Write plan.md, then ask the user to type /junto:approve." }
     if (task.phases.plan?.approvedBy !== "user") {
       return { ok: false, reason: "A matched rule requires human approval, including auto-approved task sizes. The user must type /junto:approve." }
+    }
+  }
+
+  // A raised size keeps the current phase, so the plan it skipped is owed before any later phase.
+  if (sizeRaisedPastPlan(task) && to !== "plan") {
+    if (!ctx.planExists) {
+      return { ok: false, reason: `The task size was raised to "${task.size}" after the plan step. Write plan.md (/junto:plan) before moving on.` }
+    }
+    if (!ctx.autoApprove.includes(task.size) && task.phases.plan?.approvedBy !== "user") {
+      return { ok: false, reason: `The task size was raised to "${task.size}", which needs an approved plan. The user must type /junto:approve.` }
     }
   }
 

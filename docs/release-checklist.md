@@ -18,6 +18,8 @@
 5. Confirm an edit after verification marks gate evidence stale.
 6. Confirm `/junto:finish` archives only a task in `done`.
 7. Confirm `junto__task` refuses `abandon` until the user types `/junto:abandon <reason>`, then archives the task as abandoned.
+8. Raise a small task in `build` with `/junto:escalate standard <reason>`; confirm it cannot leave `build` until
+   `plan.md` exists and the user typed `/junto:approve`, and that lowering the size is refused.
 
 Installing the plugin changes user-level Claude Code state, so these steps are intentionally not
 part of automated CI.

@@ -4090,6 +4090,13 @@ var gateStatusSchema = external_exports.object({
   failStreak: external_exports.number().int().min(0)
 });
 var decisionSchema = external_exports.object({ at: external_exports.string(), what: external_exports.string(), why: external_exports.string() });
+var sizeChangeSchema = external_exports.object({
+  from: sizeSchema,
+  to: sizeSchema,
+  at: external_exports.string(),
+  phase: phaseSchema,
+  reason: external_exports.string()
+});
 var taskSchema = external_exports.object({
   schemaVersion: external_exports.number().int(),
   id: external_exports.string().min(1),
@@ -4103,6 +4110,8 @@ var taskSchema = external_exports.object({
   phases: external_exports.record(external_exports.string(), phaseStatusSchema),
   gates: external_exports.record(external_exports.string(), gateStatusSchema),
   decisions: external_exports.array(decisionSchema),
+  /** Absent on tasks whose size never changed, including tasks written by older versions. */
+  sizeChanges: external_exports.array(sizeChangeSchema).optional(),
   consults: external_exports.array(external_exports.string()),
   consultTokensUsed: external_exports.number().int().min(0).default(0),
   /** Recorded only by the UserPromptSubmit hook when the user types /junto:abandon. */

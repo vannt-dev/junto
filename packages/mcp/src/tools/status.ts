@@ -1,10 +1,19 @@
-import { canEnter, readActiveId, readConfig, readTask, requiredPhases, type GateState, type Task } from "@junto/core"
+import {
+  canEnter, readActiveId, readConfig, readTask, requiredPhases, sizeRaisedPastPlan,
+  type GateState, type Size, type Task,
+} from "@junto/core"
 import type { ToolContext } from "../context.js"
 import { buildTransitionContext } from "./advance.js"
 import { resolveTaskPolicy } from "./policy.js"
+import { sizeLabel } from "./task.js"
 
-function nextAction(task: Task): string {
-  if (task.ruleApprovalRequired && task.phases.plan?.approvedBy !== "user") return "/junto:plan, then /junto:approve"
+function nextAction(task: Task, autoApprove: Size[], planExists: boolean): string {
+  const approved = task.phases.plan?.approvedBy === "user"
+  if (task.ruleApprovalRequired && !approved) return "/junto:plan, then /junto:approve"
+  if (sizeRaisedPastPlan(task) && !approved && !autoApprove.includes(task.size)) {
+    return planExists ? "/junto:approve" : "/junto:plan, then /junto:approve"
+  }
+  if (sizeRaisedPastPlan(task) && !planExists) return "/junto:plan"
   switch (task.phase) {
     case "brief": return "/junto:plan"
     case "plan": return "/junto:approve"
@@ -55,9 +64,9 @@ export async function statusTool(ctx: ToolContext): Promise<string> {
 
   return `# Junto status\n\n`
     + `Task: ${task.id} — ${task.title}\n`
-    + `Size: ${task.size}\n`
+    + `Size: ${sizeLabel(task)}\n`
     + `Phase: ${task.phase}\n`
-    + `Next: ${nextAction(task)}\n`
+    + `Next: ${nextAction(task, config.autoApprove, transitionContext.planExists)}\n`
     + `Next phase: ${nextPhase ?? "none"}\n`
     + `Blockers: ${blocker}\n`
     + `Consult budget: ${budget}\n\n`

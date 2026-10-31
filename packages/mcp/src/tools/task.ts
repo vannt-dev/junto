@@ -2,9 +2,9 @@ import { existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { execa } from "execa"
 import {
-  juntoDir, readActiveId, readConfig, readTask, requiredPhases, setActiveId, taskDir, writeTask,
-  SCHEMA_VERSION, canEnter,
-  type GateStatus, type Size, type Task,
+  juntoDir, readActiveId, readConfig, readTask, requiredPhases, setActiveId, taskDir, updateTask, writeTask,
+  SCHEMA_VERSION, canEnter, canRaiseSize,
+  type GateStatus, type Size, type SizeChange, type Task,
 } from "@junto/core"
 import type { ToolContext } from "../context.js"
 import { buildTransitionContext } from "./advance.js"
@@ -13,6 +13,7 @@ export type TaskToolInput =
   | { action: "start", title: string, size: Size, gates?: string[] }
   | { action: "finish" }
   | { action: "abandon", reason: string }
+  | { action: "escalate", size: Size, reason: string }
 
 const MAX_SLUG = 40
 
@@ -29,6 +30,12 @@ export function newTaskId(title: string, now: Date): string {
     .replace(/-+$/, "")
   // Fall back to "task" when normalization leaves no ASCII slug characters.
   return `${date}-${slug === "" ? "task" : slug}`
+}
+
+/** "standard (escalated from small)" when the size was raised, else the plain size. */
+export function sizeLabel(task: Task): string {
+  const first = task.sizeChanges?.[0]
+  return first === undefined ? task.size : `${task.size} (escalated from ${first.from})`
 }
 
 async function currentCommit(root: string): Promise<string | null> {
@@ -148,7 +155,7 @@ function finish(ctx: ToolContext): string {
     .map(([n, g]) => `- ${n}: ${g.verdict === null ? "not run" : g.stale ? "stale" : "run"}${g.required ? " (required)" : ""}`)
     .join("\n")
   const summary = `# ${task.title}\n\n`
-    + `- id: ${task.id}\n- size: ${task.size}\n- final phase: ${task.phase}\n`
+    + `- id: ${task.id}\n- size: ${sizeLabel(task)}\n- final phase: ${task.phase}\n`
     + `- created: ${task.createdAt}\n- finished: ${new Date().toISOString()}\n\n`
     + `## Gates\n\n${gateLines || "(none)"}\n\n`
     + `## Decisions\n\n${task.decisions.map(d => `- ${d.what} - ${d.why}`).join("\n") || "(none)"}\n`
@@ -193,7 +200,7 @@ function abandon(ctx: ToolContext, reason: string): string {
     .join("\n")
   const summary = `# Abandoned: ${task.title}\n\n`
     + "This task was abandoned at the user's request. It was not finished and its gates were not required to pass.\n\n"
-    + `- id: ${task.id}\n- size: ${task.size}\n- stopped in phase: ${task.phase}\n`
+    + `- id: ${task.id}\n- size: ${sizeLabel(task)}\n- stopped in phase: ${task.phase}\n`
     + `- created: ${task.createdAt}\n- abandon requested by the user: ${task.abandonRequest.at}\n`
     + `- abandoned: ${new Date().toISOString()}\n\n`
     + `## Reason\n\n${why}\n\n`
@@ -207,10 +214,62 @@ function abandon(ctx: ToolContext, reason: string): string {
   return `Abandoned task "${id}" in phase ${task.phase}; it is archived at .junto/archive/${id}/ and was not finished.`
 }
 
+/**
+ * Raises the size of the active task. The model may call this without a user sentinel because a
+ * larger size only adds obligations: the plan it may now owe still needs the user's /junto:approve.
+ */
+function escalate(ctx: ToolContext, input: Extract<TaskToolInput, { action: "escalate" }>): string {
+  const id = readActiveId(ctx.root)
+  if (id === null) throw new Error("There is no active task to escalate. Run /junto:start with the larger size.")
+
+  const task = readTask(ctx.root, id)
+  const why = input.reason.trim()
+  if (why === "") throw new Error("Give the reason the task needs a larger size.")
+  if (task.phase === "done") {
+    throw new Error(`Task "${id}" is done; there are no steps left to make stricter. Run /junto:finish.`)
+  }
+  const check = canRaiseSize(task.size, input.size)
+  if (!check.ok) throw new Error(check.reason)
+
+  const at = new Date().toISOString()
+  const change: SizeChange = { from: task.size, to: input.size, at, phase: task.phase, reason: why }
+  updateTask(ctx.root, id, current => {
+    if (current.size !== task.size || current.phase !== task.phase) {
+      throw new Error("The task changed while its size was being raised; retry.")
+    }
+    current.size = input.size
+    current.sizeChanges = [...(current.sizeChanges ?? []), change]
+    current.decisions.push({ at, what: `Raised size from ${task.size} to ${input.size} in phase ${task.phase}`, why })
+  })
+
+  const config = readConfig(ctx.root)
+  const pastPlan = task.phase !== "brief" && task.phase !== "plan"
+  const notes: string[] = []
+  if (pastPlan) {
+    const approval = config.autoApprove.includes(input.size) || task.phases.plan?.approvedBy === "user"
+      ? ""
+      : " and the user must type /junto:approve"
+    notes.push(
+      `The ${input.size} lifecycle has a plan step this task skipped: fill brief.md, write plan.md (/junto:plan)${approval} `
+      + `before the task can leave phase ${task.phase}. The task stays in ${task.phase}.`,
+    )
+  }
+  if (input.size === "deep") {
+    if (pastPlan) notes.push("Run /junto:panel on the plan now; deep tasks review the plan before building (advisory).")
+    else notes.push("The deep lifecycle adds a panel phase after plan approval and a review phase after build.")
+    if (task.phase === "build") notes.push("After build, advance to review and run /junto:panel on the implementation.")
+    if (task.phase === "verify") notes.push("Run /junto:panel on the implementation before finishing (advisory).")
+  }
+  notes.push("Gate evidence already recorded is kept.")
+
+  return `Raised task "${id}" from ${task.size} to ${input.size} in phase ${task.phase}. ${notes.join(" ")}`
+}
+
 export async function taskTool(ctx: ToolContext, input: TaskToolInput): Promise<string> {
   switch (input.action) {
     case "start": return start(ctx, input)
     case "finish": return finish(ctx)
     case "abandon": return abandon(ctx, input.reason)
+    case "escalate": return escalate(ctx, input)
   }
 }

@@ -42,6 +42,15 @@ export const gateStatusSchema = z.object({
 
 export const decisionSchema = z.object({ at: z.string(), what: z.string(), why: z.string() })
 
+/** One raise of the task size; `phase` is where the task was, which decides the skipped steps. */
+export const sizeChangeSchema = z.object({
+  from: sizeSchema,
+  to: sizeSchema,
+  at: z.string(),
+  phase: phaseSchema,
+  reason: z.string(),
+})
+
 export const taskSchema = z.object({
   schemaVersion: z.number().int(),
   id: z.string().min(1),
@@ -55,6 +64,8 @@ export const taskSchema = z.object({
   phases: z.record(z.string(), phaseStatusSchema),
   gates: z.record(z.string(), gateStatusSchema),
   decisions: z.array(decisionSchema),
+  /** Absent on tasks whose size never changed, including tasks written by older versions. */
+  sizeChanges: z.array(sizeChangeSchema).optional(),
   consults: z.array(z.string()),
   consultTokensUsed: z.number().int().min(0).default(0),
   /** Recorded only by the UserPromptSubmit hook when the user types /junto:abandon. */
@@ -157,6 +168,7 @@ export type GateState = z.infer<typeof gateStateSchema>
 export type PhaseStatus = z.infer<typeof phaseStatusSchema>
 export type GateStatus = z.infer<typeof gateStatusSchema>
 export type Decision = z.infer<typeof decisionSchema>
+export type SizeChange = z.infer<typeof sizeChangeSchema>
 export type Task = z.infer<typeof taskSchema>
 export type GateSpec = z.infer<typeof gateSpecSchema>
 export type RuleSpec = z.infer<typeof ruleSpecSchema>

@@ -68,6 +68,10 @@ advisory and never replace quality-gate evidence.
 `/junto:finish` only archives tasks in the `done` phase, so required gates cannot be bypassed by finishing early.
 To drop a task that is stuck or no longer wanted, type `/junto:abandon <reason>`. Only the user can do this; the
 task is archived as abandoned with the reason, the phase it stopped in and each gate's state, and a new task can start.
+If the work turns out bigger than the size you picked, raise it with `/junto:escalate <standard|deep> <reason>`.
+The size only goes up (small -> standard -> deep). The task keeps its phase and every verdict already recorded, and
+status shows `standard (escalated from small)`. A small task raised in `build` or `verify` owes the plan it skipped:
+it cannot move on until `plan.md` exists and the user typed `/junto:approve` (unless the new size is auto-approved).
 `/junto:status` is read-only and uses the same transition policy and verdict files as the lifecycle tools.
 
 ## Five principles
