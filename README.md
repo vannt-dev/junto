@@ -55,10 +55,22 @@ Run the first command inside a Git repository:
 /junto:panel [question] # deep: implementation review checkpoint
 /junto:verify
 /junto:finish
+# if needed, at any point:
+/junto:escalate <standard|deep> <reason>  # the work grew; raise the size
+/junto:abandon <reason>                   # user only: drop a stuck or unwanted task
 ```
 
 On first use, if `.junto/config.json` does not exist, `/junto:start` inspects familiar project
-scripts and proposes quality gates for you to confirm before it writes the configuration.
+scripts (`package.json`, `Cargo.toml`, `go.mod`, `Makefile`), writes the quality gates it found to
+`.junto/config.json` and starts the task in the same turn. For a Python project (`pyproject.toml`,
+`setup.cfg`, `requirements*.txt`, `tox.ini`) it adds pytest, ruff and mypy when the project uses
+them, run with the project's virtual environment interpreter when there is one. Gates run only at
+`/junto:verify`, so you can still edit `.junto/config.json` before then.
+
+Checks no gate can run, such as trying the change in a real browser, restarting a server or using a
+device, go in a `## Manual checks` checklist in `plan.md`. `/junto:verify` names the ones still
+unticked, and `/junto:finish` records each as done or NOT DONE in `summary.md` and names the ones
+not done. Manual checks are self-reported, so they are recorded but never block completion.
 
 Small and standard tasks skip the two panel calls in this example. A deep task enters explicit
 `panel` and `review` phases. After implementation, the task must enter `review` before the second
