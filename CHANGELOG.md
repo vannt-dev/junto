@@ -4,6 +4,11 @@ All notable changes to junto are documented in this file. The project follows Se
 
 ## [Unreleased]
 
+### Fixed
+
+- Commands now pre-allow the junto tools under the names Claude Code gives a plugin's MCP server (`mcp__plugin_junto_junto__junto__*`). They listed only `mcp__junto__junto__*`, which matches a server added by hand, so an installed plugin asked for permission at each step. Both names are listed.
+- `/junto:start` proposes gates for Python projects (`pyproject.toml`, `setup.cfg`, `requirements*.txt`, `tox.ini`): pytest, ruff and mypy when the project uses them, run as modules with the project's virtual environment interpreter when there is one.
+
 ## [0.9.0] - 2026-10-31
 
 ### Added

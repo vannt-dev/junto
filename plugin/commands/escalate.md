@@ -1,7 +1,7 @@
 ---
 description: Raise the size of the active junto task (small -> standard -> deep)
 argument-hint: <standard|deep> <reason>
-allowed-tools: Read, Glob, Write, mcp__junto__junto__task, mcp__junto__junto__status
+allowed-tools: Read, Glob, Write, mcp__plugin_junto_junto__junto__task, mcp__junto__junto__task, mcp__plugin_junto_junto__junto__status, mcp__junto__junto__status
 ---
 
 The user wants to raise the size of the active junto task: $ARGUMENTS

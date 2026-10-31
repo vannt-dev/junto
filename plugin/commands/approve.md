@@ -1,6 +1,6 @@
 ---
 description: Approve the plan for the active junto task (user-only action)
-allowed-tools: mcp__junto__junto__advance
+allowed-tools: mcp__plugin_junto_junto__junto__advance, mcp__junto__junto__advance
 ---
 
 JUNTO-APPROVE-SENTINEL-7f3a9c

@@ -1,6 +1,6 @@
 ---
 description: Finish and archive the active junto task
-allowed-tools: mcp__junto__junto__task, Read
+allowed-tools: mcp__plugin_junto_junto__junto__task, mcp__junto__junto__task, Read
 ---
 
 Finish the active junto task.

@@ -1,6 +1,6 @@
 ---
 description: Write an implementation plan for the active junto task
-allowed-tools: Read, Glob, Grep, Write, mcp__junto__junto__plan, mcp__junto__junto__advance, mcp__code-review-graph__semantic_search_nodes_tool, mcp__code-review-graph__get_review_context_tool, mcp__code-review-graph__traverse_graph_tool, mcp__code-review-graph__get_impact_radius_tool
+allowed-tools: Read, Glob, Grep, Write, mcp__plugin_junto_junto__junto__plan, mcp__junto__junto__plan, mcp__plugin_junto_junto__junto__advance, mcp__junto__junto__advance, mcp__code-review-graph__semantic_search_nodes_tool, mcp__code-review-graph__get_review_context_tool, mcp__code-review-graph__traverse_graph_tool, mcp__code-review-graph__get_impact_radius_tool
 ---
 
 Write an implementation plan for the active junto task.

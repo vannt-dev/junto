@@ -1,6 +1,6 @@
 ---
 description: Show the active junto task, evidence, blockers, and next action
-allowed-tools: mcp__junto__junto__status
+allowed-tools: mcp__plugin_junto_junto__junto__status, mcp__junto__junto__status
 ---
 
 Show the current junto task status.
