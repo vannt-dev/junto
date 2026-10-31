@@ -4,9 +4,15 @@ All notable changes to junto are documented in this file. The project follows Se
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-31
+
 ### Added
 
 - `/junto:escalate <standard|deep> <reason>` raises the size of the active task when the work turns out bigger than expected (`junto__task` action `escalate`). The size only goes up; lowering it is refused. The task keeps its phase and its recorded gate evidence, and the stricter lifecycle applies to the remaining steps: a small task raised in `build` or `verify` cannot move on until it has `plan.md` and the user's `/junto:approve` (unless the new size is auto-approved), and a task raised to `deep` passes through `review`. Status, the session block and the archived summary show "escalated from small".
+
+### Changed
+
+- Update `@modelcontextprotocol/sdk` to 1.32.2 and `execa` to 10.2.1 in the bundled MCP server.
 
 ## [0.8.0] - 2026-10-28
 
@@ -158,6 +164,7 @@ All notable changes to junto are documented in this file. The project follows Se
 
 - Initial task lifecycle, durable project-local state, hooks, MCP tools, and evidence-based gates.
 
+[0.9.0]: https://github.com/vannt-dev/junto/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/vannt-dev/junto/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/vannt-dev/junto/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/vannt-dev/junto/compare/v0.6.2...v0.7.0
