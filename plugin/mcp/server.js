@@ -28740,6 +28740,7 @@ function escalate(ctx, input) {
   }
   const check2 = canRaiseSize(task.size, input.size);
   if (!check2.ok) throw new Error(check2.reason);
+  const config2 = readConfig(ctx.root);
   const at = (/* @__PURE__ */ new Date()).toISOString();
   const change = { from: task.size, to: input.size, at, phase: task.phase, reason: why };
   updateTask(ctx.root, id, (current) => {
@@ -28750,7 +28751,6 @@ function escalate(ctx, input) {
     current.sizeChanges = [...current.sizeChanges ?? [], change];
     current.decisions.push({ at, what: `Raised size from ${task.size} to ${input.size} in phase ${task.phase}`, why });
   });
-  const config2 = readConfig(ctx.root);
   const pastPlan = task.phase !== "brief" && task.phase !== "plan";
   const notes = [];
   if (pastPlan) {

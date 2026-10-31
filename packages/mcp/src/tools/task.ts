@@ -231,6 +231,8 @@ function escalate(ctx: ToolContext, input: Extract<TaskToolInput, { action: "esc
   const check = canRaiseSize(task.size, input.size)
   if (!check.ok) throw new Error(check.reason)
 
+  // Read config before writing so a broken config.json fails before the size changes.
+  const config = readConfig(ctx.root)
   const at = new Date().toISOString()
   const change: SizeChange = { from: task.size, to: input.size, at, phase: task.phase, reason: why }
   updateTask(ctx.root, id, current => {
@@ -242,7 +244,6 @@ function escalate(ctx: ToolContext, input: Extract<TaskToolInput, { action: "esc
     current.decisions.push({ at, what: `Raised size from ${task.size} to ${input.size} in phase ${task.phase}`, why })
   })
 
-  const config = readConfig(ctx.root)
   const pastPlan = task.phase !== "brief" && task.phase !== "plan"
   const notes: string[] = []
   if (pastPlan) {
