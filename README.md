@@ -21,6 +21,7 @@ panel are optional extras, described below.
 Each task moves through phases that depend on its size; dotted steps run for deep tasks only.
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 300}}}%%
 flowchart TB
   start["/junto:start<br/>task + size"]
   subgraph planning["Plan: standard and deep tasks"]
