@@ -16,6 +16,35 @@ panel are optional extras, described below.
 
 [Explore the public site](https://vannt-dev.github.io/junto/) or install directly from the GitHub-backed marketplace below.
 
+## How it works
+
+Each task moves through phases that depend on its size; dotted steps run for deep tasks only.
+
+```mermaid
+flowchart TB
+  start["/junto:start<br/>task + size"]
+  subgraph planning["Plan: standard and deep tasks"]
+    direction LR
+    brief["brief"] --> plan["plan"] --> approve(["You approve<br/>/junto:approve"])
+  end
+  subgraph work["Work: phases enforced by the junto MCP server"]
+    direction LR
+    panel["panel (deep only)<br/>/junto:panel<br/>advisory"] -.-> build["build"]
+    build --> verify["verify<br/>/junto:verify<br/>runs gate commands"]
+    build -.-> review["review (deep only)<br/>/junto:panel<br/>advisory"]
+    review -.-> verify
+    verify -->|"required gates pass,<br/>evidence not stale"| done["done"]
+  end
+  subgraph store[".junto/ in your project"]
+    direction LR
+    verdicts["Gate evidence<br/>(exit code, output)"] ~~~ archive["Task archive"]
+  end
+  start -->|"standard / deep"| planning
+  start -->|"small: starts at build"| work
+  planning -->|"approved plan"| work
+  work -->|"verify writes evidence;<br/>/junto:finish or /junto:abandon<br/>archives the task"| store
+```
+
 ## Installation
 
 ```bash
