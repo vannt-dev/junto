@@ -58,6 +58,8 @@ function parseLocation(value: string): { file: string | null, line: number | nul
 function parseBullet(body: string): PanelFinding | null {
   const parts = body.split("|").map(part => part.trim())
   if (parts.length === 1 && /^none\.?$/i.test(cleanToken(parts[0] ?? ""))) return null
+  // A model that echoes the format's template line has not raised a finding.
+  if (/^<[^>]*>$/.test(cleanToken(parts[0] ?? ""))) return null
   if (parts.length >= 3) {
     const [severity = "", location = "", ...rest] = parts
     const message = rest.join(" | ").trim()
@@ -96,7 +98,8 @@ export function parsePanelAnswer(text: string): ParsedPanelAnswer {
 
   let verdict: PanelVerdict | null = null
   for (const raw of lines) {
-    const match = /^\W*verdict\W*\s*:?\W*\s*(approve|concerns|reject)\b/i.exec(raw.trim())
+    // No "<" before the word, so an echoed "Verdict: <approve | concerns | reject>" is not a verdict.
+    const match = /^[\W_]*verdict[*_`]*\s*:?[\s*_`"']*(approve|concerns|reject)\b/i.exec(raw.trim())
     if (match?.[1] !== undefined) verdict = match[1].toLowerCase() as PanelVerdict
   }
 

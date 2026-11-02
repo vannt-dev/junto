@@ -28491,6 +28491,7 @@ function parseLocation(value) {
 function parseBullet(body) {
   const parts = body.split("|").map((part) => part.trim());
   if (parts.length === 1 && /^none\.?$/i.test(cleanToken(parts[0] ?? ""))) return null;
+  if (/^<[^>]*>$/.test(cleanToken(parts[0] ?? ""))) return null;
   if (parts.length >= 3) {
     const [severity = "", location2 = "", ...rest] = parts;
     const message2 = rest.join(" | ").trim();
@@ -28525,7 +28526,7 @@ function parsePanelAnswer(text) {
   }
   let verdict = null;
   for (const raw of lines) {
-    const match = /^\W*verdict\W*\s*:?\W*\s*(approve|concerns|reject)\b/i.exec(raw.trim());
+    const match = /^[\W_]*verdict[*_`]*\s*:?[\s*_`"']*(approve|concerns|reject)\b/i.exec(raw.trim());
     if (match?.[1] !== void 0) verdict = match[1].toLowerCase();
   }
   return { structured: start2 >= 0 || verdict !== null, findings, verdict };

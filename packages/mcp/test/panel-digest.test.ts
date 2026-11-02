@@ -38,6 +38,16 @@ describe("parsePanelAnswer", () => {
     expect(parsePanelAnswer("Looks fine to me overall.")).toEqual({ structured: false, findings: [], verdict: null })
   })
 
+  it("ignores an echoed template line and verdict placeholder", () => {
+    const parsed = parsePanelAnswer(answer([
+      "<severity> | <file>:<line> | <one-line finding>",
+      "high | src/a.ts:1 | Array<string> is widened.",
+    ], "<approve | concerns | reject>"))
+    expect(parsed.findings).toEqual([{ severity: "high", file: "src/a.ts", line: 1, message: "Array<string> is widened." }])
+    expect(parsed.verdict).toBeNull()
+    expect(parsePanelAnswer("**Verdict:** **reject**").verdict).toBe("reject")
+  })
+
   it("stops the list at the next heading", () => {
     const parsed = parsePanelAnswer(answer(["high | a.ts:1 | one"]) + "\n\n## Notes\n\n- not a finding")
     expect(parsed.findings).toHaveLength(1)
