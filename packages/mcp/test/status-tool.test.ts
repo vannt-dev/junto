@@ -46,6 +46,7 @@ describe("statusTool", () => {
     expect(output).toMatch(/tests: required, not run/)
     expect(output).toMatch(/0\/2000/)
     expect(output).toMatch(/brief\.md is missing or empty/)
+    expect(output).not.toMatch(/Last panel/)
   })
 
   it("reads the real verdict state and marks stale evidence", async () => {

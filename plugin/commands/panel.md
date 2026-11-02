@@ -15,9 +15,11 @@ files. Do not pass raw whole files. If context is disabled or graph tools are un
 panel without `context`; Junto must remain usable without the optional integration.
 
 Call `junto__panel` with `question` set to the text above. junto__panel is advisory only — its
-output never blocks a phase transition. Read each role's file under
-`.junto/tasks/<id>/consults/` and use your own judgment about what, if anything, to change; do not
-treat a role's opinion as a requirement.
+output never blocks a phase transition. Read the panel digest at the top of the result first: it
+merges the roles' findings by severity, says how many roles raised each one, and names the points
+where they disagree. Then read the role files under `.junto/tasks/<id>/consults/` it points to for
+the reasoning, and use your own judgment about what, if anything, to change; do not treat a role's
+opinion as a requirement.
 
 For a deep task in the `panel` phase, apply any useful plan feedback and call `junto__advance` with
 `to: "build"`. In the `review` phase, apply any useful implementation feedback and call it with

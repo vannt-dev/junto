@@ -1,10 +1,11 @@
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { readActiveId, readTask } from "@junto/core"
 import { taskTool } from "../src/tools/task.js"
 import { panelTool } from "../src/tools/panel.js"
+import { statusTool } from "../src/tools/status.js"
 
 let root: string
 const roots: string[] = []
@@ -136,5 +137,55 @@ describe("panelTool", () => {
     const id = readActiveId(root)
     if (id === null) throw new Error("Test requires an active task")
     expect(readdirSync(join(root, ".junto", "tasks", id, "contexts"))).toEqual(["001-review.json"])
+  })
+
+  it("puts a digest first, saves it under panels/ and shows it in status", async () => {
+    writeConfig({
+      backends: { anthropic: { apiKeyEnv: "JUNTO_TEST_KEY" }, openai: { apiKeyEnv: "JUNTO_TEST_KEY" } },
+      consultBudget: { maxTokensPerTask: 50 },
+    })
+    await taskTool(ctx(), { action: "start", title: "X", size: "deep" })
+    const answers = [
+      "## Findings\n\n- high | src/parser.ts:42 | Empty input throws.\n\nVerdict: concerns",
+      "## Findings\n\n- medium | src/parser.ts:42 | parse('') crashes.\n- low | - | Add a test.\n\nVerdict: approve",
+    ]
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        content: [{ type: "text", text: answers.shift() ?? "no format" }],
+        usage: { input_tokens: 15, output_tokens: 15 },
+        model: "claude-sonnet-5",
+      }),
+    }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    const out = await panelTool(ctx(), { question: "Review this plan", roles: ["architect", "reviewer", "pragmatist"] })
+
+    expect(out.startsWith("## Panel digest")).toBe(true)
+    expect(out).toContain("Ran 2 of 3 roles: architect, reviewer.")
+    expect(out).toContain("- Skipped pragmatist: Consult budget exhausted")
+    expect(out).toContain("1. [high] src/parser.ts:42 - Empty input throws. (raised by 2 of 2: architect, reviewer)")
+    expect(out).toContain("Verdicts differ: architect concerns, reviewer approve.")
+    expect(out).toContain("Digest saved to panels/001-digest.md.")
+    // The per-role sections stay after the digest.
+    expect(out).toMatch(/## architect - ok\nSaved to consults\/001-architect\.md/)
+    expect(out).toMatch(/## pragmatist - skipped/)
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    const body = JSON.parse(init.body as string) as { messages: { content: string }[] }
+    expect(body.messages[0]?.content).toContain("## Answer format")
+
+    const id = readActiveId(root)
+    if (id === null) throw new Error("Test requires an active task")
+    const saved = readFileSync(join(root, ".junto", "tasks", id, "panels", "001-digest.md"), "utf-8")
+    expect(saved).toContain("summary: 2 of 3 roles ran, 1 skipped; 2 findings (1 high, 1 low), 2 disagreement(s)")
+    expect(saved).toContain("## Question\n\nReview this plan")
+    expect(readTask(root, id).consults).toEqual(["consults/001-architect.md", "consults/002-reviewer.md"])
+
+    expect(await statusTool(ctx())).toContain(
+      "Last panel: panels/001-digest.md (2 of 3 roles ran, 1 skipped; 2 findings (1 high, 1 low), 2 disagreement(s))",
+    )
+    await panelTool(ctx(), { question: "Again", roles: ["architect"] })
+    expect(await statusTool(ctx())).toContain("Last panel: panels/002-digest.md (0 of 1 roles ran, 1 skipped; 0 findings)")
   })
 })

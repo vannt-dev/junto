@@ -4,6 +4,10 @@ All notable changes to junto are documented in this file. The project follows Se
 
 ## [Unreleased]
 
+### Added
+
+- Panel digest. `junto__panel` (`/junto:panel`) now starts its result with a short digest built without another model call: how many roles ran, which were skipped by the consult budget or failed and why, the findings merged across roles (the same `file:line` or the same text counts once, marked "raised by N of M") and ordered by severity, and the points where roles disagree on a verdict or a severity. Each role is asked to end its answer with a `## Findings` list and a `Verdict:` line so the digest can read it. The digest is saved as `panels/NNN-digest.md` in the task directory and `/junto:status` shows the newest one. Each role's full answer stays in `consults/`.
+
 ## [0.10.0] - 2026-11-01
 
 ### Added

@@ -28376,7 +28376,7 @@ function nextSequence2(consultsDir) {
   return (numbers.length === 0 ? 0 : Math.max(...numbers)) + 1;
 }
 var VALID_ROLE_NAME = /^[a-z0-9_-]+$/i;
-async function runConsult(ctx, role, question, context) {
+async function runConsult(ctx, role, question, context, answerFormat) {
   if (!VALID_ROLE_NAME.test(role)) {
     return {
       role,
@@ -28417,7 +28417,9 @@ ${plan}${contextBlock}
 
 ## Question
 
-${question}`;
+${question}` + (answerFormat === void 0 ? "" : `
+
+${answerFormat}`);
     const result = await backend.complete({ systemPrompt: prompt, userPrompt, model, timeoutMs });
     const consultsDir = join13(dir, "consults");
     mkdirSync7(consultsDir, { recursive: true });
@@ -28450,7 +28452,8 @@ ${result.text}
       ok: true,
       path: relPath,
       tokensUsed: result.tokensUsed,
-      consultTokensUsedTotal: updated.consultTokensUsed
+      consultTokensUsedTotal: updated.consultTokensUsed,
+      text: result.text
     };
   } catch (error2) {
     return { role, ok: false, error: error2.message };
@@ -28464,26 +28467,240 @@ async function consultTool(ctx, input) {
 }
 
 // packages/mcp/src/tools/panel.ts
+import { mkdirSync as mkdirSync8, writeFileSync as writeFileSync9 } from "node:fs";
+import { join as join14 } from "node:path";
+
+// packages/mcp/src/tools/panel-digest.ts
+var PANEL_SEVERITIES = ["critical", "high", "medium", "low", "info"];
+var PANEL_ANSWER_FORMAT = "## Answer format\n\nGive your reasoning first. Then end your answer with these two parts, so the panel's answers can be merged:\n\n## Findings\n\n- <severity> | <file>:<line> | <one-line finding>\n\nSeverity is one of critical, high, medium, low, info. Leave out `:<line>` when there is no line, and write `-` as the file when the finding is not about one file. Write `- none` when you have no findings.\n\nVerdict: <approve | concerns | reject>";
+var SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+function cleanToken(value) {
+  return value.replace(/[`*_[\]]/g, "").trim();
+}
+function parseSeverity(value) {
+  const word = cleanToken(value).toLowerCase();
+  return PANEL_SEVERITIES.includes(word) ? word : "info";
+}
+function parseLocation(value) {
+  const text = cleanToken(value).replace(/\\/g, "/").replace(/^\.\//, "");
+  if (text === "" || text === "-" || /^(n\/a|none)$/i.test(text)) return { file: null, line: null };
+  const match = /^(.+?):(\d+)(?:[-:]\d+)?$/.exec(text);
+  if (match?.[1] !== void 0 && match[2] !== void 0) return { file: match[1], line: Number(match[2]) };
+  return { file: text, line: null };
+}
+function parseBullet(body) {
+  const parts = body.split("|").map((part) => part.trim());
+  if (parts.length === 1 && /^none\.?$/i.test(cleanToken(parts[0] ?? ""))) return null;
+  if (/^<[^>]*>$/.test(cleanToken(parts[0] ?? ""))) return null;
+  if (parts.length >= 3) {
+    const [severity = "", location2 = "", ...rest] = parts;
+    const message2 = rest.join(" | ").trim();
+    return message2 === "" ? null : { severity: parseSeverity(severity), ...parseLocation(location2), message: message2 };
+  }
+  if (parts.length === 2) {
+    const [severity = "", message2 = ""] = parts;
+    return message2 === "" ? null : { severity: parseSeverity(severity), file: null, line: null, message: message2 };
+  }
+  const message = parts[0] ?? "";
+  return message === "" ? null : { severity: "info", file: null, line: null, message };
+}
+function parsePanelAnswer(text) {
+  const lines = text.split(/\r?\n/);
+  let start2 = -1;
+  for (let i2 = lines.length - 1; i2 >= 0; i2--) {
+    if (/^#{1,6}\s*findings\s*:?\s*$/i.test((lines[i2] ?? "").trim())) {
+      start2 = i2;
+      break;
+    }
+  }
+  const findings = [];
+  if (start2 >= 0) {
+    for (const raw of lines.slice(start2 + 1)) {
+      const line = raw.trim();
+      if (/^#{1,6}\s/.test(line) || /^\**verdict\**\s*:/i.test(line)) break;
+      const bullet = /^(?:[-*+]|\d+[.)])\s+(.*)$/.exec(line);
+      if (bullet?.[1] === void 0) continue;
+      const finding = parseBullet(bullet[1]);
+      if (finding !== null) findings.push(finding);
+    }
+  }
+  let verdict = null;
+  for (const raw of lines) {
+    const match = /^[\W_]*verdict[*_`]*\s*:?[\s*_`"']*(approve|concerns|reject)\b/i.exec(raw.trim());
+    if (match?.[1] !== void 0) verdict = match[1].toLowerCase();
+  }
+  return { structured: start2 >= 0 || verdict !== null, findings, verdict };
+}
+function panelRoleOutcome(result) {
+  if (result.ok) {
+    return {
+      role: result.role,
+      status: "ok",
+      ...result.path === void 0 ? {} : { path: result.path },
+      answer: parsePanelAnswer(result.text ?? "")
+    };
+  }
+  return { role: result.role, status: result.skipped === true ? "skipped" : "failed", reason: result.error ?? "unknown error" };
+}
+function normalizeMessage(message) {
+  return message.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+function groupKey(finding) {
+  if (finding.file !== null && finding.line !== null) return `${finding.file}:${finding.line}`;
+  return `${finding.file ?? ""}#${normalizeMessage(finding.message)}`;
+}
+function location(group) {
+  if (group.file === null) return "general";
+  return group.line === null ? group.file : `${group.file}:${group.line}`;
+}
+function buildPanelDigest(roles) {
+  const ran = roles.filter((r) => r.status === "ok").map((r) => r.role);
+  const groups = /* @__PURE__ */ new Map();
+  let rawFindingCount = 0;
+  for (const role of roles) {
+    for (const finding of role.answer?.findings ?? []) {
+      rawFindingCount += 1;
+      const key = groupKey(finding);
+      const group = groups.get(key);
+      if (group === void 0) {
+        groups.set(key, {
+          severity: finding.severity,
+          file: finding.file,
+          line: finding.line,
+          message: finding.message,
+          raisedBy: [{ role: role.role, severity: finding.severity, message: finding.message }]
+        });
+        continue;
+      }
+      const previous = group.raisedBy.find((entry) => entry.role === role.role);
+      if (previous !== void 0) {
+        if (SEVERITY_RANK[finding.severity] < SEVERITY_RANK[previous.severity]) previous.severity = finding.severity;
+      } else {
+        group.raisedBy.push({ role: role.role, severity: finding.severity, message: finding.message });
+      }
+      if (SEVERITY_RANK[finding.severity] < SEVERITY_RANK[group.severity]) {
+        group.severity = finding.severity;
+        group.message = finding.message;
+      }
+    }
+  }
+  const ordered = [...groups.values()].sort((a2, b) => SEVERITY_RANK[a2.severity] - SEVERITY_RANK[b.severity] || b.raisedBy.length - a2.raisedBy.length || location(a2).localeCompare(location(b)) || (a2.line ?? 0) - (b.line ?? 0) || a2.message.localeCompare(b.message));
+  const verdicts = roles.flatMap((r) => {
+    const verdict = r.answer?.verdict ?? null;
+    return verdict === null ? [] : [{ role: r.role, verdict }];
+  });
+  const disagreements = [];
+  if (new Set(verdicts.map((v) => v.verdict)).size > 1) {
+    disagreements.push(`Verdicts differ: ${verdicts.map((v) => `${v.role} ${v.verdict}`).join(", ")}.`);
+  }
+  for (const group of ordered) {
+    if (new Set(group.raisedBy.map((entry) => entry.severity)).size > 1) {
+      disagreements.push(`${location(group)}: severity differs: ${group.raisedBy.map((e) => `${e.role} ${e.severity}`).join(", ")}.`);
+    }
+  }
+  return {
+    roles,
+    ran,
+    skipped: roles.filter((r) => r.status === "skipped").map((r) => r.role),
+    failed: roles.filter((r) => r.status === "failed").map((r) => r.role),
+    unstructured: roles.filter((r) => r.status === "ok" && r.answer?.structured !== true).map((r) => r.role),
+    rawFindingCount,
+    groups: ordered,
+    verdicts,
+    disagreements
+  };
+}
+function oneLine(text, max = 200) {
+  const flat = text.replace(/\s+/g, " ").trim();
+  return flat.length > max ? `${flat.slice(0, max - 1)}\u2026` : flat;
+}
+function panelDigestSummary(digest2) {
+  const counts = PANEL_SEVERITIES.map((severity) => [severity, digest2.groups.filter((g) => g.severity === severity).length]).filter(([, count2]) => count2 > 0).map(([severity, count2]) => `${count2} ${severity}`);
+  const findings = `${digest2.groups.length} ${digest2.groups.length === 1 ? "finding" : "findings"}` + (counts.length === 0 ? "" : ` (${counts.join(", ")})`);
+  const disagreements = digest2.disagreements.length === 0 ? "" : `, ${digest2.disagreements.length} disagreement(s)`;
+  return `${digest2.ran.length} of ${digest2.roles.length} roles ran` + (digest2.skipped.length === 0 ? "" : `, ${digest2.skipped.length} skipped`) + (digest2.failed.length === 0 ? "" : `, ${digest2.failed.length} failed`) + `; ${findings}${disagreements}`;
+}
+function renderPanelDigest(digest2) {
+  const lines = ["## Panel digest", ""];
+  const ranList = digest2.ran.length === 0 ? "" : `: ${digest2.ran.join(", ")}`;
+  lines.push(`Ran ${digest2.ran.length} of ${digest2.roles.length} roles${ranList}.`);
+  for (const role of digest2.roles) {
+    if (role.status === "skipped") lines.push(`- Skipped ${role.role}: ${oneLine(role.reason ?? "")}`);
+    if (role.status === "failed") lines.push(`- Failed ${role.role}: ${oneLine(role.reason ?? "")}`);
+  }
+  if (digest2.verdicts.length > 0) {
+    lines.push(`Verdicts: ${digest2.verdicts.map((v) => `${v.role} ${v.verdict}`).join(", ")}.`);
+  }
+  if (digest2.unstructured.length > 0) {
+    lines.push(`No findings list from ${digest2.unstructured.join(", ")}; read the full answer.`);
+  }
+  lines.push("", `### Findings (${digest2.groups.length} unique of ${digest2.rawFindingCount} raised)`, "");
+  if (digest2.groups.length === 0) lines.push("None.");
+  digest2.groups.forEach((group, index) => {
+    const by = group.raisedBy.map((entry) => entry.role).join(", ");
+    lines.push(`${index + 1}. [${group.severity}] ${location(group)} - ${oneLine(group.message)} (raised by ${group.raisedBy.length} of ${digest2.ran.length}: ${by})`);
+    for (const entry of group.raisedBy) {
+      if (entry.message !== group.message) lines.push(`   - ${entry.role}: ${oneLine(entry.message)}`);
+    }
+  });
+  if (digest2.disagreements.length > 0) {
+    lines.push("", "### Disagreements", "", ...digest2.disagreements.map((text) => `- ${text}`));
+  }
+  const files = digest2.roles.flatMap((r) => r.path === void 0 ? [] : [`${r.role}: ${r.path}`]);
+  if (files.length > 0) lines.push("", `Full answers: ${files.join(", ")}.`);
+  lines.push("", "N of M counts the roles that ran. The digest is advisory, like each role's answer.");
+  return lines.join("\n");
+}
+
+// packages/mcp/src/tools/panel.ts
 async function panelTool(ctx, input) {
-  if (readActiveId(ctx.root) === null) throw new Error("No active task. Run /junto:start first.");
+  const id = readActiveId(ctx.root);
+  if (id === null) throw new Error("No active task. Run /junto:start first.");
   const roles = input.roles ?? [...BUILT_IN_ROLES];
   const context = prepareConsultContext(ctx, input.context);
   const sections = context?.path === void 0 ? [] : [`Context: ${context.path}.`];
+  const outcomes = [];
   for (const role of roles) {
-    const result = await runConsult(ctx, role, input.question, context);
-    const label = result.ok ? "ok" : result.skipped === true ? "skipped" : "failed";
+    const result = await runConsult(ctx, role, input.question, context, PANEL_ANSWER_FORMAT);
+    const outcome = panelRoleOutcome(result);
+    outcomes.push(outcome);
     sections.push(
-      result.ok ? `## ${role} - ${label}
-Saved to ${result.path}. Tokens used: ${result.tokensUsed}.` : `## ${role} - ${label}
+      result.ok ? `## ${role} - ${outcome.status}
+Saved to ${result.path}. Tokens used: ${result.tokensUsed}.` : `## ${role} - ${outcome.status}
 ${result.error}`
     );
   }
-  return sections.join("\n\n");
+  const digest2 = buildPanelDigest(outcomes);
+  const rendered = renderPanelDigest(digest2);
+  const digestPath = writeDigest(ctx.root, id, input.question, panelDigestSummary(digest2), rendered);
+  return `${rendered}
+
+Digest saved to ${digestPath}.
+
+${sections.join("\n\n")}`;
+}
+function writeDigest(root, id, question, summary, rendered) {
+  const panelsDir = join14(taskDir(root, id), "panels");
+  mkdirSync8(panelsDir, { recursive: true });
+  const relPath = `panels/${String(nextSequence2(panelsDir)).padStart(3, "0")}-digest.md`;
+  const content = `---
+summary: ${summary}
+createdAt: ${(/* @__PURE__ */ new Date()).toISOString()}
+---
+
+## Question
+
+${question}
+
+${rendered}
+`;
+  writeFileSync9(join14(taskDir(root, id), relPath), content, "utf-8");
+  return relPath;
 }
 
 // packages/mcp/src/tools/plan.ts
-import { mkdirSync as mkdirSync8, writeFileSync as writeFileSync9 } from "node:fs";
-import { isAbsolute as isAbsolute4, join as join14, resolve as resolve4 } from "node:path";
+import { mkdirSync as mkdirSync9, writeFileSync as writeFileSync10 } from "node:fs";
+import { isAbsolute as isAbsolute4, join as join15, resolve as resolve4 } from "node:path";
 async function resolvePlan(ctx) {
   const id = readActiveId(ctx.root);
   if (id === null) throw new Error("No active task. Run /junto:start first.");
@@ -28529,8 +28746,8 @@ async function resolvePlan(ctx) {
     }
   }
   const dir = taskDir(ctx.root, id);
-  mkdirSync8(dir, { recursive: true });
-  writeFileSync9(join14(dir, "plan.resolved.json"), `${JSON.stringify(resolved, null, 2)}
+  mkdirSync9(dir, { recursive: true });
+  writeFileSync10(join15(dir, "plan.resolved.json"), `${JSON.stringify(resolved, null, 2)}
 `, "utf-8");
   return resolved;
 }
@@ -28557,9 +28774,13 @@ async function planTool(ctx) {
   return lines.join("\n");
 }
 
+// packages/mcp/src/tools/status.ts
+import { existsSync as existsSync14, readdirSync as readdirSync5, readFileSync as readFileSync13 } from "node:fs";
+import { join as join17 } from "node:path";
+
 // packages/mcp/src/tools/task.ts
-import { existsSync as existsSync13, mkdirSync as mkdirSync9, readFileSync as readFileSync12, renameSync as renameSync2, writeFileSync as writeFileSync10 } from "node:fs";
-import { join as join15 } from "node:path";
+import { existsSync as existsSync13, mkdirSync as mkdirSync10, readFileSync as readFileSync12, renameSync as renameSync2, writeFileSync as writeFileSync11 } from "node:fs";
+import { join as join16 } from "node:path";
 var MAX_SLUG = 40;
 function newTaskId(title, now) {
   const date3 = now.toISOString().slice(0, 10);
@@ -28589,7 +28810,7 @@ async function start(ctx, input) {
   const id = newTaskId(input.title, now);
   const iso = now.toISOString();
   const dir = taskDir(ctx.root, id);
-  const archiveDir = join15(juntoDir(ctx.root), "archive", id);
+  const archiveDir = join16(juntoDir(ctx.root), "archive", id);
   if (existsSync13(dir)) {
     throw new Error(
       `Task "${id}" already exists in .junto/tasks/ (same date and title as an open task). Choose a different title to avoid an ID collision.`
@@ -28627,17 +28848,17 @@ async function start(ctx, input) {
     consults: [],
     consultTokensUsed: 0
   };
-  mkdirSync9(join15(dir, "verdicts"), { recursive: true });
-  if (!existsSync13(join15(dir, "brief.md"))) writeFileSync10(join15(dir, "brief.md"), "", "utf-8");
-  writeFileSync10(join15(dir, "context.jsonl"), "", "utf-8");
+  mkdirSync10(join16(dir, "verdicts"), { recursive: true });
+  if (!existsSync13(join16(dir, "brief.md"))) writeFileSync11(join16(dir, "brief.md"), "", "utf-8");
+  writeFileSync11(join16(dir, "context.jsonl"), "", "utf-8");
   writeTask(ctx.root, task);
   setActiveId(ctx.root, id);
-  const ignore = join15(juntoDir(ctx.root), ".gitignore");
-  if (!existsSync13(ignore)) writeFileSync10(ignore, "*.log\n", "utf-8");
+  const ignore = join16(juntoDir(ctx.root), ".gitignore");
+  if (!existsSync13(ignore)) writeFileSync11(ignore, "*.log\n", "utf-8");
   return `Created task "${id}" (size ${input.size}) in phase ${firstPhase}. Gates: ${Object.keys(gates).join(", ") || "none"}.`;
 }
 function readManualChecks(dir) {
-  const path10 = join15(dir, "plan.md");
+  const path10 = join16(dir, "plan.md");
   if (!existsSync13(path10)) return [];
   const checks = [];
   let inSection = false;
@@ -28668,13 +28889,13 @@ function finish(ctx) {
     const check2 = canEnter({ ...task, phase: "verify" }, "done", transition);
     if (!check2.ok) throw new Error(`Cannot archive task. ${check2.reason}`);
   }
-  const to = join15(juntoDir(ctx.root), "archive", id);
+  const to = join16(juntoDir(ctx.root), "archive", id);
   if (existsSync13(to)) {
     throw new Error(
       `Task "${id}" already exists in .junto/archive/. junto will not overwrite it; inspect the archive directory before trying again.`
     );
   }
-  mkdirSync9(join15(juntoDir(ctx.root), "archive"), { recursive: true });
+  mkdirSync10(join16(juntoDir(ctx.root), "archive"), { recursive: true });
   const gateLines = Object.entries(task.gates).map(([n2, g]) => `- ${n2}: ${g.verdict === null ? "not run" : g.stale ? "stale" : "run"}${g.required ? " (required)" : ""}`).join("\n");
   const manual = readManualChecks(from);
   const manualSection = manual.length === 0 ? "" : `
@@ -28698,7 +28919,7 @@ ${gateLines || "(none)"}
 
 ${task.decisions.map((d) => `- ${d.what} - ${d.why}`).join("\n") || "(none)"}
 ` + manualSection;
-  writeFileSync10(join15(from, "summary.md"), summary, "utf-8");
+  writeFileSync11(join16(from, "summary.md"), summary, "utf-8");
   renameSync2(from, to);
   setActiveId(ctx.root, null);
   const notDone = manual.filter((c3) => !c3.done).map((c3) => c3.text);
@@ -28717,13 +28938,13 @@ function abandon(ctx, reason) {
   const why = reason.trim();
   if (why === "") throw new Error("Give the reason the user stated for abandoning the task.");
   const from = taskDir(ctx.root, id);
-  const to = join15(juntoDir(ctx.root), "archive", id);
+  const to = join16(juntoDir(ctx.root), "archive", id);
   if (existsSync13(to)) {
     throw new Error(
       `Task "${id}" already exists in .junto/archive/. junto will not overwrite it; inspect the archive directory before trying again.`
     );
   }
-  mkdirSync9(join15(juntoDir(ctx.root), "archive"), { recursive: true });
+  mkdirSync10(join16(juntoDir(ctx.root), "archive"), { recursive: true });
   const gateLines = Object.entries(task.gates).map(([n2, g]) => `- ${n2}: ${g.verdict === null ? "not run" : g.stale ? "stale" : "run"}${g.required ? " (required)" : ""}`).join("\n");
   const summary = `# Abandoned: ${task.title}
 
@@ -28748,7 +28969,7 @@ ${gateLines || "(none)"}
 
 ${task.decisions.map((d) => `- ${d.what} - ${d.why}`).join("\n") || "(none)"}
 `;
-  writeFileSync10(join15(from, "summary.md"), summary, "utf-8");
+  writeFileSync11(join16(from, "summary.md"), summary, "utf-8");
   renameSync2(from, to);
   setActiveId(ctx.root, null);
   return `Abandoned task "${id}" in phase ${task.phase}; it is archived at .junto/archive/${id}/ and was not finished.`;
@@ -28835,6 +29056,14 @@ function gateState(gate, verdictState) {
   if (gate.stale) return "stale";
   return verdictState ?? "unreadable verdict";
 }
+function lastPanel(root, id) {
+  const dir = join17(taskDir(root, id), "panels");
+  if (!existsSync14(dir)) return null;
+  const newest = readdirSync5(dir).map((name) => ({ name, seq: /^(\d+)-digest\.md$/.exec(name)?.[1] })).filter((entry) => entry.seq !== void 0).sort((a2, b) => Number(b.seq) - Number(a2.seq))[0];
+  if (newest === void 0) return null;
+  const summary = /^summary: (.*)$/m.exec(readFileSync13(join17(dir, newest.name), "utf-8"))?.[1];
+  return `panels/${newest.name}${summary === void 0 ? "" : ` (${summary.trim()})`}`;
+}
 async function statusTool(ctx) {
   const id = readActiveId(ctx.root);
   if (id === null) return "No active task. Run /junto:start to create one.";
@@ -28855,6 +29084,7 @@ async function statusTool(ctx) {
   });
   const cap = config2.consultBudget?.maxTokensPerTask;
   const budget = cap === void 0 ? `${task.consultTokensUsed} tokens recorded (no cap configured)` : `${task.consultTokensUsed}/${cap} tokens`;
+  const panel = lastPanel(ctx.root, task.id);
   return `# Junto status
 
 Task: ${task.id} \u2014 ${task.title}
@@ -28864,7 +29094,8 @@ Next: ${nextAction(task, config2.autoApprove, transitionContext.planExists)}
 Next phase: ${nextPhase ?? "none"}
 Blockers: ${blocker}
 Consult budget: ${budget}
-
+` + (panel === null ? "" : `Last panel: ${panel}
+`) + `
 ## Gates
 
 ${gates.join("\n") || "(none)"}`;
@@ -29064,7 +29295,7 @@ var TOOLS = [
   },
   {
     name: "junto__panel",
-    description: "Ask several advisory roles the same question about the active task; defaults to all four built-in roles. Advisory only, same as junto__consult.",
+    description: "Ask several advisory roles the same question about the active task; defaults to all four built-in roles. Returns a digest first (roles run/skipped, findings merged across roles by severity, disagreements), then each role's result. Advisory only, same as junto__consult.",
     inputSchema: {
       type: "object",
       properties: {

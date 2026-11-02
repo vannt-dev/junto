@@ -197,6 +197,14 @@ project-defined role) about the active task's brief and plan; `junto__panel` (vi
 asks several roles in sequence. Both are strictly advisory: their output never blocks a phase
 transition and is never evidence for a gate.
 
+A panel run starts with a digest, built without another model call. Each role is asked to end its
+answer with a `## Findings` list (`severity | file:line | finding`) and a `Verdict:` line. The digest
+says how many roles ran, which were skipped by the consult budget or failed and why, merges findings
+that several roles raised at the same `file:line` (or with the same text) into one entry marked
+"raised by N of M", orders them by severity, and lists where the roles disagree on a verdict or a
+severity. It is saved as `panels/NNN-digest.md` in the task directory, and `/junto:status` shows the
+newest one. Each role's full answer stays in its own `consults/` file.
+
 Advisory calls can optionally receive bounded source-derived context. This is disabled by default
 because API and CLI backends may send that context outside the machine. Enable it explicitly:
 
@@ -282,14 +290,16 @@ commands without RTK so their stored evidence remains raw. See [the RTK integrat
 
 Junto stores active task state under `.junto/tasks/<id>/` and archived tasks under
 `.junto/archive/<id>/`. `task.json` contains lifecycle state, `brief.md` and `plan.md` contain the
-working specification, `consults/` stores advisory responses, and `verdicts/` stores gate evidence.
+working specification, `consults/` stores advisory responses, `panels/` stores panel digests, and
+`verdicts/` stores gate evidence.
 Runtime log files are ignored by `.junto/.gitignore`; the rest can be retained as project history.
 
 ## Current capabilities
 
 - Durable small, standard, and deep task lifecycles.
 - User-approved plans and evidence-backed quality gates.
-- Read-only task status with next actions, blockers, gate state, and advisory budget usage.
+- Read-only task status with next actions, blockers, gate state, advisory budget usage, and the
+  latest panel digest.
 - Anthropic, OpenAI (or any OpenAI-compatible endpoint), and generic CLI advisory backends with
   project-defined roles.
 - Optional bounded source context and code-review-graph-aware planning and review.
