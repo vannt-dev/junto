@@ -11,6 +11,8 @@ export interface ConsultResult {
   path?: string
   tokensUsed?: number
   consultTokensUsedTotal?: number
+  /** The role's full answer, so a panel can build its digest without re-reading the file. */
+  text?: string
   error?: string
   /** junto's own per-task budget stopped the call before it was sent. A provider error never sets this. */
   skipped?: boolean
@@ -20,8 +22,8 @@ function readIfExists(path: string): string {
   return existsSync(path) ? readFileSync(path, "utf-8") : ""
 }
 
-/** `NNN` is a per-task monotonic sequence shared by every role's consult file. */
-function nextSequence(consultsDir: string): number {
+/** `NNN` is a per-task monotonic sequence of the files in one directory (consults, panels). */
+export function nextSequence(consultsDir: string): number {
   if (!existsSync(consultsDir)) return 1
   const numbers = readdirSync(consultsDir)
     .map(name => /^(\d+)-/.exec(name))
@@ -41,6 +43,7 @@ export async function runConsult(
   role: string,
   question: string,
   context?: PreparedConsultContext,
+  answerFormat?: string,
 ): Promise<ConsultResult> {
   // Reject before role touches any filesystem path: it is interpolated into `consults/${seq}-${role}.md`,
   // and an unchecked "../" sequence could otherwise escape the task's consults directory.
@@ -77,6 +80,7 @@ export async function runConsult(
     const plan = readIfExists(join(dir, "plan.md"))
     const contextBlock = context === undefined ? "" : `\n\n${context.prompt}`
     const userPrompt = `## Brief\n\n${brief}\n\n## Plan\n\n${plan}${contextBlock}\n\n## Question\n\n${question}`
+      + (answerFormat === undefined ? "" : `\n\n${answerFormat}`)
 
     const result = await backend.complete({ systemPrompt: prompt, userPrompt, model, timeoutMs })
 
@@ -106,6 +110,7 @@ export async function runConsult(
       path: relPath,
       tokensUsed: result.tokensUsed,
       consultTokensUsedTotal: updated.consultTokensUsed,
+      text: result.text,
     }
   } catch (error) {
     return { role, ok: false, error: (error as Error).message }

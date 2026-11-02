@@ -127,7 +127,8 @@ const TOOLS = [
     name: "junto__panel",
     description:
       "Ask several advisory roles the same question about the active task; defaults to all four "
-      + "built-in roles. Advisory only, same as junto__consult.",
+      + "built-in roles. Returns a digest first (roles run/skipped, findings merged across roles by "
+      + "severity, disagreements), then each role's result. Advisory only, same as junto__consult.",
     inputSchema: {
       type: "object" as const,
       properties: {

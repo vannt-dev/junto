@@ -1,5 +1,7 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs"
+import { join } from "node:path"
 import {
-  canEnter, readActiveId, readConfig, readTask, requiredPhases, sizeRaisedPastPlan,
+  canEnter, readActiveId, readConfig, readTask, requiredPhases, sizeRaisedPastPlan, taskDir,
   type GateState, type Size, type Task,
 } from "@junto/core"
 import type { ToolContext } from "../context.js"
@@ -34,6 +36,19 @@ function gateState(
   return verdictState ?? "unreadable verdict"
 }
 
+/** The newest panel digest's one-line summary, or null when no panel has run for this task. */
+function lastPanel(root: string, id: string): string | null {
+  const dir = join(taskDir(root, id), "panels")
+  if (!existsSync(dir)) return null
+  const newest = readdirSync(dir)
+    .map(name => ({ name, seq: /^(\d+)-digest\.md$/.exec(name)?.[1] }))
+    .filter((entry): entry is { name: string, seq: string } => entry.seq !== undefined)
+    .sort((a, b) => Number(b.seq) - Number(a.seq))[0]
+  if (newest === undefined) return null
+  const summary = /^summary: (.*)$/m.exec(readFileSync(join(dir, newest.name), "utf-8"))?.[1]
+  return `panels/${newest.name}${summary === undefined ? "" : ` (${summary.trim()})`}`
+}
+
 /** Render a read-only summary using the same disk facts and policy as phase transitions. */
 export async function statusTool(ctx: ToolContext): Promise<string> {
   const id = readActiveId(ctx.root)
@@ -62,6 +77,8 @@ export async function statusTool(ctx: ToolContext): Promise<string> {
     ? `${task.consultTokensUsed} tokens recorded (no cap configured)`
     : `${task.consultTokensUsed}/${cap} tokens`
 
+  const panel = lastPanel(ctx.root, task.id)
+
   return `# Junto status\n\n`
     + `Task: ${task.id} — ${task.title}\n`
     + `Size: ${sizeLabel(task)}\n`
@@ -69,6 +86,8 @@ export async function statusTool(ctx: ToolContext): Promise<string> {
     + `Next: ${nextAction(task, config.autoApprove, transitionContext.planExists)}\n`
     + `Next phase: ${nextPhase ?? "none"}\n`
     + `Blockers: ${blocker}\n`
-    + `Consult budget: ${budget}\n\n`
+    + `Consult budget: ${budget}\n`
+    + (panel === null ? "" : `Last panel: ${panel}\n`)
+    + "\n"
     + `## Gates\n\n${gates.join("\n") || "(none)"}`
 }
