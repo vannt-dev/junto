@@ -73,6 +73,11 @@ describe("status across worktrees", () => {
     expect(sections[3]).toMatch(/Error: cannot read/)
   })
 
+  it("reports a deleted but still listed worktree instead of calling it idle", async () => {
+    rmSync(join(dir, "wt-3"), { recursive: true, force: true })
+    expect(await statusTool(ctx(main), { all: true })).toMatch(/## lane-3[\s\S]*directory is missing/)
+  })
+
   it("marks the calling worktree as the current one", async () => {
     const output = await statusTool(ctx(join(dir, "wt-2")), { all: true })
     expect(output).toMatch(/## lane-2 \(this worktree\)/)

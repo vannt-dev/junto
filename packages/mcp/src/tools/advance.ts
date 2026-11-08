@@ -9,6 +9,7 @@ import {
   readActiveId,
   readConfig,
   readTask,
+  taskBaseDrift,
   taskDir,
   updateTask,
   type Config,
@@ -19,7 +20,6 @@ import {
 } from "@junto/core"
 import type { ToolContext } from "../context.js"
 import { persistTaskPolicy, resolveTaskPolicy } from "./policy.js"
-import { taskBaseDrift } from "./task-summary.js"
 
 /** Read disk facts at the I/O boundary so `canEnter` remains pure. */
 export function buildTransitionContext(root: string, task: Task, config: Config): TransitionContext {

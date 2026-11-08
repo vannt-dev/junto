@@ -1,4 +1,5 @@
 import { execa } from "execa"
+import type { Task } from "./schema.js"
 
 /** The base branch tip that verify evidence was checked against. */
 export interface VerifyBase {
@@ -58,6 +59,23 @@ export async function baseDrift(root: string, base: VerifyBase | null | undefine
   if (contained) return null
   const count = Number(await git(root, ["rev-list", "--count", `${base.commit}..${tip}`]))
   return { ref: base.ref.replace(/^refs\/remotes\//, ""), newCommits: Number.isFinite(count) ? count : 0 }
+}
+
+/**
+ * The largest drift among the bases that current evidence was verified against. Stale or missing
+ * verdicts are skipped: they must be rerun anyway, and the rerun records the new base.
+ */
+export async function taskBaseDrift(root: string, task: Task): Promise<BaseDrift | null> {
+  const bases = new Map<string, NonNullable<Task["gates"][string]["base"]>>()
+  for (const gate of Object.values(task.gates)) {
+    if (gate.verdict !== null && !gate.stale && gate.base) bases.set(`${gate.base.ref} ${gate.base.commit}`, gate.base)
+  }
+  let worst: BaseDrift | null = null
+  for (const base of bases.values()) {
+    const drift = await baseDrift(root, base)
+    if (drift && (worst === null || drift.newCommits > worst.newCommits)) worst = drift
+  }
+  return worst
 }
 
 /** One line naming what to do; shared by status, the board and the done transition. */

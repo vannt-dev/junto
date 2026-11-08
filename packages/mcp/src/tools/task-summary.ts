@@ -1,8 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
-  baseDrift, baseDriftMessage, canEnter, readActiveId, readConfig, readTask, requiredPhases, sizeRaisedPastPlan, taskDir,
-  type BaseDrift, type BoardGate, type GateState, type Phase, type Size, type Task,
+  baseDriftMessage, canEnter, readActiveId, readConfig, readTask, requiredPhases, sizeRaisedPastPlan, taskBaseDrift, taskDir,
+  type BoardGate, type GateState, type Phase, type Size, type Task,
 } from "@junto/core"
 import { buildTransitionContext } from "./advance.js"
 import { resolveTaskPolicy } from "./policy.js"
@@ -46,23 +46,6 @@ function lastPanel(root: string, id: string): string | null {
   if (newest === undefined) return null
   const summary = /^summary: (.*)$/m.exec(readFileSync(join(dir, newest.name), "utf-8"))?.[1]
   return `panels/${newest.name}${summary === undefined ? "" : ` (${summary.trim()})`}`
-}
-
-/**
- * The largest drift among the bases that current evidence was verified against. Stale or missing
- * verdicts are skipped: they must be rerun anyway, and the rerun records the new base.
- */
-export async function taskBaseDrift(root: string, task: Task): Promise<BaseDrift | null> {
-  const bases = new Map<string, NonNullable<Task["gates"][string]["base"]>>()
-  for (const gate of Object.values(task.gates)) {
-    if (gate.verdict !== null && !gate.stale && gate.base) bases.set(`${gate.base.ref} ${gate.base.commit}`, gate.base)
-  }
-  let worst: BaseDrift | null = null
-  for (const base of bases.values()) {
-    const drift = await baseDrift(root, base)
-    if (drift && (worst === null || drift.newCommits > worst.newCommits)) worst = drift
-  }
-  return worst
 }
 
 export interface TaskSummary {

@@ -23,6 +23,8 @@ async function collectEntries(ctx: ToolContext): Promise<BoardEntry[]> {
     const root = join(worktree.path, offset)
     const entry: BoardEntry = { path: resolve(worktree.path), branch: worktree.branch, current: canonical(root) === here, task: null }
     try {
+      // A deleted worktree stays listed until `git worktree prune`; do not report it as idle.
+      if (!existsSync(worktree.path)) throw new Error("the worktree directory is missing; run git worktree prune")
       const summary = existsSync(juntoDir(root)) ? await summarizeActiveTask(root) : null
       if (summary !== null) {
         entry.task = {
