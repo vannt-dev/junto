@@ -4,6 +4,8 @@ All notable changes to junto are documented in this file. The project follows Se
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-08
+
 ### Added
 
 - Status across Git worktrees. `/junto:status all` (`junto__status` with `all: true`) lists the active task of every worktree of the repository: path, branch, task, size, phase, gates, blockers and next action, or "No active task". Each worktree keeps its own `.junto/`; other worktrees are only read. `/junto:status html` (`html: true`) also writes a self-contained, read-only board to `.junto/board.html`, which `.junto/.gitignore` ignores.
@@ -192,6 +194,7 @@ All notable changes to junto are documented in this file. The project follows Se
 
 - Initial task lifecycle, durable project-local state, hooks, MCP tools, and evidence-based gates.
 
+[0.12.0]: https://github.com/vannt-dev/junto/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/vannt-dev/junto/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/vannt-dev/junto/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/vannt-dev/junto/compare/v0.9.0...v0.9.1

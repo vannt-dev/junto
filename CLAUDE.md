@@ -60,9 +60,9 @@ corepack pnpm --filter @junto/core add <package>
 
 ## Current status
 
-The latest release is `0.11.0` (2026-11-03). Released so far: the task lifecycle with user-only plan
-approval and user-only abandon, raising a task's size with escalate, manual checks recorded at finish, a digest of panel results, hooks and commands, command and review gates bound to source hashes (OpenCodeReview and
+The latest release is `0.12.0` (2026-11-08). Released so far: the task lifecycle with user-only plan
+approval and user-only abandon, raising a task's size with escalate, manual checks recorded at finish, a digest of panel results, status across Git worktrees with a read-only board and a warning when the base moved since verify, hooks and commands, command and review gates bound to source hashes (OpenCodeReview and
 host CLI reviewers), config `rules` and skills, read-only status, review reports, and advisory
-consult/panel calls to Anthropic, OpenAI (or a compatible server) or a spawned CLI. `0.11.x` requires
+consult/panel calls to Anthropic, OpenAI (or a compatible server) or a spawned CLI. `0.12.x` requires
 Node.js 22.12+ and keeps `zod` on 3.x to keep hooks small and fast. Releases follow
 `docs/release-checklist.md`.
