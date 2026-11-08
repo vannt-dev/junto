@@ -15,6 +15,7 @@ export const PROTECTED_GLOBS = [
   ".junto/tasks/*/review-background.md",
   ".junto/tasks/*/review-events.jsonl",
   ".junto/tasks/*/review-report.html",
+  ".junto/board.html",
 ]
 
 export function juntoDir(root: string): string {

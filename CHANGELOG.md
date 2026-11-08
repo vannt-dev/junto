@@ -4,6 +4,11 @@ All notable changes to junto are documented in this file. The project follows Se
 
 ## [Unreleased]
 
+### Added
+
+- Status across Git worktrees. `/junto:status all` (`junto__status` with `all: true`) lists the active task of every worktree of the repository: path, branch, task, size, phase, gates, blockers and next action, or "No active task". Each worktree keeps its own `.junto/`; other worktrees are only read. `/junto:status html` (`html: true`) also writes a self-contained, read-only board to `.junto/board.html`, which `.junto/.gitignore` ignores.
+- Base moved since verify. `/junto:verify` records the tip of the remote default branch (`origin/HEAD`, else `origin/main` or `origin/master`) with each gate. When that branch later has commits the task's branch does not contain, status, the board and the move to `done` warn: merge the base and run `/junto:verify` again. It is a warning, not a blocker, and it uses the branch as of the last `git fetch`. Without a remote default branch nothing is recorded.
+
 ## [0.11.0] - 2026-11-03
 
 ### Added

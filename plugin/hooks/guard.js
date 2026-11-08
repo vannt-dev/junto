@@ -4104,7 +4104,9 @@ var gateStatusSchema = external_exports.object({
   verdict: external_exports.string().nullable(),
   stale: external_exports.boolean(),
   invalidationVersion: external_exports.number().int().min(0).optional(),
-  failStreak: external_exports.number().int().min(0)
+  failStreak: external_exports.number().int().min(0),
+  /** Base branch tip at the last verify; absent without a remote base and on older tasks. */
+  base: external_exports.object({ ref: external_exports.string().min(1), commit: external_exports.string().min(1) }).optional()
 });
 var decisionSchema = external_exports.object({ at: external_exports.string(), what: external_exports.string(), why: external_exports.string() });
 var sizeChangeSchema = external_exports.object({
@@ -4245,7 +4247,8 @@ var PROTECTED_GLOBS = [
   ".junto/tasks/*/plan.resolved.json",
   ".junto/tasks/*/review-background.md",
   ".junto/tasks/*/review-events.jsonl",
-  ".junto/tasks/*/review-report.html"
+  ".junto/tasks/*/review-report.html",
+  ".junto/board.html"
 ];
 function juntoDir(root) {
   return join(root, JUNTO_DIR);

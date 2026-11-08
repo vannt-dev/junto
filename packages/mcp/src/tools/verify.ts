@@ -1,5 +1,5 @@
 import {
-  captureReviewFingerprint, captureSourceFingerprint, CliReviewProvider, OpenCodeReviewProvider, ScopedReviewProvider, readActiveId, readConfig, readTask, resolveReviewScopes, runGate, runReviewGate, updateTask,
+  captureReviewFingerprint, captureSourceFingerprint, captureVerifyBase, CliReviewProvider, OpenCodeReviewProvider, ScopedReviewProvider, readActiveId, readConfig, readTask, resolveReviewScopes, runGate, runReviewGate, updateTask,
   writeReviewBackground,
 } from "@junto/core"
 import type { Config, GateSpec, Task, VerdictFile } from "@junto/core"
@@ -68,6 +68,8 @@ export async function verifyTool(ctx: ToolContext, input: { gates?: string[] }):
   persistTaskPolicy(ctx.root, stored, task)
   if (unknownGates.length) throw new Error(`Rules reference unconfigured gates: ${unknownGates.join(", ")}. Fix .junto/config.json.`)
   const names = input.gates ?? Object.keys(task.gates)
+  // Lets status warn when the base branch later moves past what these gates were checked against.
+  const base = await captureVerifyBase(ctx.root)
 
   const sections: string[] = []
   for (const name of names) {
@@ -90,6 +92,8 @@ export async function verifyTool(ctx: ToolContext, input: { gates?: string[] }):
     // Build the path from the validated name rather than coupling to outputFile formatting.
     status.verdict = `verdicts/${name}.json`
     status.stale = false
+    if (base) status.base = base
+    else delete status.base
     // Only real failures affect the streak. A skipped gate neither increments nor resets it.
     if (verdict.state === "pass") status.failStreak = 0
     else if (verdict.state === "fail") status.failStreak = status.failStreak + 1

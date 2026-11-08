@@ -115,7 +115,7 @@ async function start(ctx: ToolContext, input: Extract<TaskToolInput, { action: "
 
   // junto owns .junto/.gitignore and never touches the project's root .gitignore.
   const ignore = join(juntoDir(ctx.root), ".gitignore")
-  if (!existsSync(ignore)) writeFileSync(ignore, "*.log\n", "utf-8")
+  if (!existsSync(ignore)) writeFileSync(ignore, "*.log\nboard.html\n", "utf-8")
 
   return `Created task "${id}" (size ${input.size}) in phase ${firstPhase}. `
     + `Gates: ${Object.keys(gates).join(", ") || "none"}.`

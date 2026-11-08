@@ -59,6 +59,7 @@ describe("isProtected", () => {
   it("protects the consults directory", () => expect(isProtected(".junto/tasks/t/consults/001-architect.md")).toBe(true))
   it("protects the contexts directory", () => expect(isProtected(".junto/tasks/t/contexts/001-review.json")).toBe(true))
   it("protects the active file", () => expect(isProtected(".junto/active")).toBe(true))
+  it("protects the generated board", () => expect(isProtected(".junto/board.html")).toBe(true))
   it("does not protect plan.md", () => expect(isProtected(".junto/tasks/t/plan.md")).toBe(false))
   it("does not protect config.json", () => expect(isProtected(".junto/config.json")).toBe(false))
   it("does not protect files outside .junto", () => expect(isProtected("src/app.ts")).toBe(false))

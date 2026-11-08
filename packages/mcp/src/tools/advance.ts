@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
+  baseDriftMessage,
   canEnter,
   captureReviewFingerprint,
   captureSourceFingerprint,
@@ -8,6 +9,7 @@ import {
   readActiveId,
   readConfig,
   readTask,
+  taskBaseDrift,
   taskDir,
   updateTask,
   type Config,
@@ -98,11 +100,15 @@ export async function advanceTool(ctx: ToolContext, input: { to: Phase }): Promi
     current.phase = input.to
   })
 
+  // Advisory only (principle 5): gates passed on the code they ran against; only exit codes block.
+  const drift = input.to === "done" ? await taskBaseDrift(ctx.root, readTask(ctx.root, id)) : null
+  const warning = drift === null ? "" : ` Warning: ${baseDriftMessage(drift)}`
+
   const nudge = input.to === "panel"
     ? " Run /junto:panel to review the approved plan, then advance to build."
     : input.to === "review"
       ? " Run /junto:panel to review the implementation, then advance to verify."
       : ""
 
-  return `Task "${id}" transitioned to phase ${input.to}.${nudge}`
+  return `Task "${id}" transitioned to phase ${input.to}.${nudge}${warning}`
 }

@@ -38,6 +38,8 @@ export const gateStatusSchema = z.object({
   stale: z.boolean(),
   invalidationVersion: z.number().int().min(0).optional(),
   failStreak: z.number().int().min(0),
+  /** Base branch tip at the last verify; absent without a remote base and on older tasks. */
+  base: z.object({ ref: z.string().min(1), commit: z.string().min(1) }).optional(),
 })
 
 export const decisionSchema = z.object({ at: z.string(), what: z.string(), why: z.string() })
