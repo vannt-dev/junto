@@ -76,6 +76,7 @@ Run the first command inside a Git repository:
 ```text
 /junto:start add JWT authentication to the API
 /junto:status           # show phase, next action, blockers, gates, and advisory budget
+/junto:status all       # the active task of every Git worktree of this repository
 /junto:plan
 /junto:approve          # only the user can approve; the model cannot approve its own plan
 /junto:panel [question] # deep: plan checkpoint; optional for other task sizes
@@ -115,6 +116,26 @@ The size only goes up (small -> standard -> deep). The task keeps its phase and 
 status shows `standard (escalated from small)`. A small task raised in `build` or `verify` owes the plan it skipped:
 it cannot move on until `plan.md` exists and the user typed `/junto:approve` (unless the new size is auto-approved).
 `/junto:status` is read-only and uses the same transition policy and verdict files as the lifecycle tools.
+
+### Several tasks side by side in Git worktrees
+
+junto keeps one active task per checkout, so running tasks in parallel means one Git worktree per
+task (created with `git worktree add` or a worktree tool), each with its own `.junto/` and its own
+Claude Code session. junto never creates worktrees itself. `/junto:status all` (`junto__status`
+with `all: true`) reads every worktree listed by `git worktree list` and shows each one's branch,
+task, size, phase, gates, blockers and next action; worktrees without a task show "No active task".
+`/junto:status html` (`html: true`) also writes a self-contained, read-only board to
+`.junto/board.html` in the current project, with no scripts or remote resources. The board is a
+generated file and is ignored by `.junto/.gitignore`. Other worktrees are only read, never written.
+
+When `/junto:verify` runs, it records the tip of the remote default branch (`origin/HEAD`, else
+`origin/main` or `origin/master`) next to each verdict. If that branch later gains commits this
+branch does not contain, for example because another worktree's task was merged, status, the board
+and the move to `done` show a warning: "origin/main moved since verify". Two changes that merge
+cleanly can still break together, so merge the base into the branch and run `/junto:verify` again.
+The check uses the remote-tracking branch as of your last `git fetch`; junto never fetches. It is a
+warning, not a blocker: only real gate results block completion. Without a remote default branch,
+nothing is recorded and nothing is checked.
 
 ## Five principles
 
@@ -292,7 +313,8 @@ Junto stores active task state under `.junto/tasks/<id>/` and archived tasks und
 `.junto/archive/<id>/`. `task.json` contains lifecycle state, `brief.md` and `plan.md` contain the
 working specification, `consults/` stores advisory responses, `panels/` stores panel digests, and
 `verdicts/` stores gate evidence.
-Runtime log files are ignored by `.junto/.gitignore`; the rest can be retained as project history.
+Runtime log files and the generated `.junto/board.html` are ignored by `.junto/.gitignore`; the rest
+can be retained as project history.
 
 ## Current capabilities
 
@@ -300,6 +322,8 @@ Runtime log files are ignored by `.junto/.gitignore`; the rest can be retained a
 - User-approved plans and evidence-backed quality gates.
 - Read-only task status with next actions, blockers, gate state, advisory budget usage, and the
   latest panel digest.
+- Status across Git worktrees (`all`), an optional static HTML board, and a warning when the base
+  branch moved since verify.
 - Anthropic, OpenAI (or any OpenAI-compatible endpoint), and generic CLI advisory backends with
   project-defined roles.
 - Optional bounded source context and code-review-graph-aware planning and review.

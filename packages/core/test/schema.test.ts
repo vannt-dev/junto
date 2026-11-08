@@ -21,6 +21,13 @@ describe("parseTask", () => {
     expect(parseTask(validTask).id).toBe("2026-08-30-add-jwt")
   })
 
+  it("keeps an optional verify base on a gate and loads gates without one", () => {
+    const base = { ref: "refs/remotes/origin/main", commit: "abc123" }
+    const withBase = { ...validTask, gates: { tests: { ...validTask.gates.tests, base } } }
+    expect(parseTask(withBase).gates.tests?.base).toEqual(base)
+    expect(parseTask(validTask).gates.tests?.base).toBeUndefined()
+  })
+
   it("rejects a schemaVersion newer than the code without guessing", () => {
     expect(() => parseTask({ ...validTask, schemaVersion: 2 })).toThrow(SchemaVersionError)
   })

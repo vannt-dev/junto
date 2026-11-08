@@ -25,6 +25,7 @@ const taskInput = z.discriminatedUnion("action", [
   z.object({ action: z.literal("escalate"), size: z.enum(["small", "standard", "deep"]), reason: z.string() }),
 ])
 const verifyInput = z.object({ gates: z.array(z.string()).optional() })
+const statusInput = z.object({ all: z.boolean().optional(), html: z.boolean().optional() })
 const advanceInput = z.object({ to: z.enum(["brief", "plan", "panel", "build", "review", "verify", "done"]) })
 const consultInput = z.object({ role: z.string(), question: z.string(), context: consultContextInputSchema.optional() })
 const panelInput = z.object({ roles: z.array(z.string()).optional(), question: z.string(), context: consultContextInputSchema.optional() })
@@ -104,8 +105,16 @@ const TOOLS = [
     name: "junto__status",
     description:
       "Show the active task, current phase, next action, transition blockers, gate evidence states, "
-      + "and advisory token budget. Read-only: this tool never changes task state.",
-    inputSchema: { type: "object" as const, properties: {} },
+      + "advisory token budget, and a warning when the base branch moved since verify. all=true lists "
+      + "the active task of every Git worktree of the repository. html=true also writes the read-only "
+      + "board .junto/board.html (implies all). Never changes task state.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        all: { type: "boolean", description: "Show the active task of every worktree of this repository" },
+        html: { type: "boolean", description: "Also write .junto/board.html for every worktree; implies all" },
+      },
+    },
   },
   {
     name: "junto__consult",
@@ -156,7 +165,7 @@ export function createServer(): Server {
         case "junto__report": text = await reportTool(ctx, z.object({ html: z.boolean().optional() }).parse(args)); break
         case "junto__plan": text = await planTool(ctx); break
         case "junto__advance": text = await advanceTool(ctx, advanceInput.parse(args)); break
-        case "junto__status": text = await statusTool(ctx); break
+        case "junto__status": text = await statusTool(ctx, statusInput.parse(args)); break
         case "junto__consult": text = await consultTool(ctx, consultInput.parse(args)); break
         case "junto__panel": text = await panelTool(ctx, panelInput.parse(args)); break
         default: throw new Error(`Unknown tool: ${request.params.name}`)
