@@ -89,6 +89,20 @@ describe("verifyTool", () => {
     expect(out).not.toMatch(/lint/)
   })
 
+  it("says a configured gate is not attached to the task rather than missing from the config", async () => {
+    setup({ tests: OK, lint: BAD })
+    await taskTool(ctx(), { action: "start", title: "X", size: "small", gates: ["tests"] })
+    const out = await verifyTool(ctx(), { gates: ["lint"] })
+    expect(out).toMatch(/lint - not attached to this task; skipped/)
+    expect(out).not.toMatch(/not present in \.junto\/config\.json/)
+  })
+
+  it("says a gate that is not configured is not present in the config", async () => {
+    await taskTool(ctx(), { action: "start", title: "X", size: "small" })
+    const out = await verifyTool(ctx(), { gates: ["nope"] })
+    expect(out).toMatch(/nope - not present in \.junto\/config\.json; skipped/)
+  })
+
   it("reports an error when there is no active task", async () => {
     await expect(verifyTool(ctx(), {})).rejects.toThrow(/no active task/i)
   })

@@ -29380,8 +29380,12 @@ async function verifyTool(ctx, input) {
   for (const name of names) {
     const spec = config2.gates[name];
     const status = task.gates[name];
-    if (!spec || !status) {
+    if (!spec) {
       sections.push(`## ${name} - not present in .junto/config.json; skipped.`);
+      continue;
+    }
+    if (!status) {
+      sections.push(`## ${name} - not attached to this task; skipped. A task gets its gates at /junto:start (all configured gates unless \`gates\` names some) or from a matching rule in .junto/config.json.`);
       continue;
     }
     const started = updateTask(ctx.root, id, (current) => {
