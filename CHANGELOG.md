@@ -4,6 +4,8 @@ All notable changes to junto are documented in this file. The project follows Se
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-11-13
+
 ### Fixed
 
 - `/junto:verify` with a gate that is configured but not attached to the active task said the gate was "not present in .junto/config.json". It now says the gate is not attached to this task and how a task gets its gates. The gate is still skipped, as before.
@@ -198,6 +200,7 @@ All notable changes to junto are documented in this file. The project follows Se
 
 - Initial task lifecycle, durable project-local state, hooks, MCP tools, and evidence-based gates.
 
+[0.12.1]: https://github.com/vannt-dev/junto/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/vannt-dev/junto/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/vannt-dev/junto/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/vannt-dev/junto/compare/v0.9.1...v0.10.0
