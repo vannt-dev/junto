@@ -1,6 +1,6 @@
 {
   "name": "junto",
-  "description": "Workflow engine for Claude Code with durable state and evidence-based quality gates. No binaries, no runtime downloads, and writes only under the project's .junto directory.",
+  "description": "Workflow engine for Claude Code with durable state and evidence-based quality gates. No binaries, no runtime downloads, and writes only under the project's .junto directory. Its hooks act only in projects that have a .junto directory.",
   "version": "0.12.1",
   "author": { "name": "vannt-dev", "url": "https://github.com/vannt-dev" },
   "homepage": "https://github.com/vannt-dev/junto",

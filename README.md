@@ -159,6 +159,22 @@ The `guard.js` hook blocks evidence writes through Edit/Write/MultiEdit, includi
 path aliases of `.junto/`, but it **cannot block Bash**.
 It prevents accidents and shortcuts; it is not a security boundary against a malicious actor.
 
+## Hooks: only in a junto project
+
+The plugin installs four hooks. Each first looks for a `.junto/` directory in the working directory
+or one above it, and does nothing (no output, no file read or written) when there is none, so other
+projects in the same Claude Code install are not touched. None of them makes a network call.
+
+| Hook | Event | In a junto project with an active task |
+| --- | --- | --- |
+| `session.js` | SessionStart | Adds the task's title, phase, brief, plan and recorded decisions to the session |
+| `state.js` | UserPromptSubmit | Adds a short state block (phase, gates); records `/junto:approve` and `/junto:abandon` |
+| `guard.js` | PreToolUse, PostToolUse on Write/Edit/MultiEdit | Denies writes to junto's evidence files; marks gate verdicts stale after a source edit |
+| `handoff.js` | PreToolUse on Agent/Task | Gives a subagent the files listed as relevant to the task |
+
+`test/hooks/outside-project.test.ts` runs the shipped hooks in a folder without `.junto/` and checks
+that each prints nothing and exits 0.
+
 ## OpenCodeReview gates and rules
 
 See [`examples/config.review.json`](examples/config.review.json) for a review gate and skill registry.
