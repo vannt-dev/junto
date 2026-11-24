@@ -1,9 +1,9 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { execa } from "execa"
 import { resolveExecutable } from "./exec.js"
 import { taskDir } from "./paths.js"
-import { SCHEMA_VERSION, type GateSpec, type GateState, type VerdictFile } from "./schema.js"
+import { gateStateSchema, SCHEMA_VERSION, type GateSpec, type GateState, type Task, type VerdictFile } from "./schema.js"
 
 export const OUTPUT_TAIL_BYTES = 8192
 const DEFAULT_TIMEOUT_MS = 300_000
@@ -144,4 +144,33 @@ export async function runGate(opts: RunGateOptions): Promise<VerdictFile> {
 
   writeFileSync(join(dir, `${name}.json`), `${JSON.stringify(verdict, null, 2)}\n`, "utf-8")
   return verdict
+}
+
+/** What a hook can learn about a gate's last run without hashing sources: its state and start time. */
+export interface GateEvidence {
+  state: GateState | null
+  startedAt: string | null
+}
+
+/**
+ * Read each gate's verdict file. A missing or unreadable verdict reads as null, which never counts
+ * as a pass. Source fingerprints are not rechecked here; transitions do that.
+ */
+export function readGateEvidence(root: string, task: Task): Record<string, GateEvidence> {
+  const dir = taskDir(root, task.id)
+  const evidence: Record<string, GateEvidence> = {}
+  for (const [name, gate] of Object.entries(task.gates)) {
+    evidence[name] = { state: null, startedAt: null }
+    if (gate.verdict === null) continue
+    try {
+      const raw = JSON.parse(readFileSync(join(dir, gate.verdict), "utf-8")) as { state?: unknown, startedAt?: unknown }
+      evidence[name] = {
+        state: gateStateSchema.parse(raw.state),
+        startedAt: typeof raw.startedAt === "string" ? raw.startedAt : null,
+      }
+    } catch {
+      // Unreadable evidence stays null and cannot satisfy a gate.
+    }
+  }
+  return evidence
 }

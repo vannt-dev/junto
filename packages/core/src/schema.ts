@@ -53,6 +53,19 @@ export const sizeChangeSchema = z.object({
   reason: z.string(),
 })
 
+/**
+ * The Stop hook's count of turn-end blocks in one phase. Only the hook writes it (task.json is
+ * protected), so the model cannot reset the count to keep or skip the reminder.
+ */
+export const stopGateStateSchema = z.object({
+  phase: phaseSchema,
+  blocks: z.number().int().min(0),
+  /** Digest of the gate evidence at the last block; unchanged evidence means no progress. */
+  evidence: z.string(),
+  /** Why the hook stopped blocking in this phase; set once and recorded as a decision. */
+  released: z.enum(["cap", "stall"]).optional(),
+})
+
 export const taskSchema = z.object({
   schemaVersion: z.number().int(),
   id: z.string().min(1),
@@ -72,6 +85,8 @@ export const taskSchema = z.object({
   consultTokensUsed: z.number().int().min(0).default(0),
   /** Recorded only by the UserPromptSubmit hook when the user types /junto:abandon. */
   abandonRequest: z.object({ by: z.literal("user"), at: z.string() }).optional(),
+  /** Absent until the Stop hook first blocks the end of a turn. */
+  stopGate: stopGateStateSchema.optional(),
 })
 
 export const reviewSeveritySchema = z.enum(["critical", "high", "medium", "low", "info"])
@@ -142,6 +157,12 @@ export const consultContextConfigSchema = z.object({
   persist: z.boolean().default(true),
 }).strict()
 
+export const stopGateConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  /** Claude Code itself ends a turn after 8 consecutive stop-hook continuations. */
+  maxBlocks: z.number().int().min(1).max(8).default(3),
+}).strict()
+
 export const configSchema = z.object({
   schemaVersion: z.number().int(),
   gates: z.record(z.string(), gateSpecSchema),
@@ -154,6 +175,7 @@ export const configSchema = z.object({
   consultContext: consultContextConfigSchema.optional(),
   rules: z.array(ruleSpecSchema).optional(),
   skills: skillsConfigSchema.optional(),
+  stopGate: stopGateConfigSchema.optional(),
 }).passthrough().superRefine((config, ctx) => {
   const seen = new Set<string>()
   for (const [index, rule] of (config.rules ?? []).entries()) {
@@ -171,6 +193,8 @@ export type PhaseStatus = z.infer<typeof phaseStatusSchema>
 export type GateStatus = z.infer<typeof gateStatusSchema>
 export type Decision = z.infer<typeof decisionSchema>
 export type SizeChange = z.infer<typeof sizeChangeSchema>
+export type StopGateState = z.infer<typeof stopGateStateSchema>
+export type StopGateConfig = z.infer<typeof stopGateConfigSchema>
 export type Task = z.infer<typeof taskSchema>
 export type GateSpec = z.infer<typeof gateSpecSchema>
 export type RuleSpec = z.infer<typeof ruleSpecSchema>

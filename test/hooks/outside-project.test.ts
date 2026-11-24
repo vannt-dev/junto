@@ -25,6 +25,7 @@ describe("shipped hooks outside a junto project", () => {
     ["guard.js", { hook_event_name: "PreToolUse", tool_name: "Write", tool_input: { file_path: ".junto/active" } }],
     ["guard.js", { hook_event_name: "PostToolUse", tool_name: "Edit", tool_input: { file_path: "src/app.ts" } }],
     ["handoff.js", { hook_event_name: "PreToolUse", tool_name: "Agent", tool_input: { prompt: "x" } }],
+    ["stop.js", { hook_event_name: "Stop", stop_hook_active: false }],
   ]
 
   it.each(cases)("%s does nothing for %o", (hook, event) => {
