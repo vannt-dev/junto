@@ -1,8 +1,9 @@
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import { OUTPUT_TAIL_BYTES, runGate } from "../src/gates.js"
+import { gateEnv, OUTPUT_TAIL_BYTES, runGate } from "../src/gates.js"
+import type { GateSpec } from "../src/schema.js"
 
 let root: string
 const taskId = "2026-08-30-g"
@@ -130,5 +131,87 @@ describe("runGate", () => {
     chmodSync(command, 0o644)
     const verdict = await run([command])
     expect(verdict.state).toBe("skipped")
+  })
+})
+
+describe("runGate cwd and env", () => {
+  const runSpec = (spec: Record<string, unknown>) =>
+    runGate({ root, taskId, name: "g", spec: { required: true, ...spec } as GateSpec, runner: "test@0" })
+  const verdictText = () => readFileSync(join(root, ".junto", "tasks", taskId, "verdicts", "g.json"), "utf-8")
+
+  afterEach(() => { delete process.env.JUNTO_GATE_TEST_SECRET })
+
+  it("runs the gate in its cwd below the project root and records that directory", async () => {
+    mkdirSync(join(root, "packages", "web"), { recursive: true })
+    const v = await runSpec({ argv: ["node", "-e", "console.log(process.cwd())"], cwd: "packages/web" })
+    expect(v.state).toBe("pass")
+    expect(v.cwd).toBe(resolve(root, "packages", "web"))
+    expect(realpathSync.native(v.outputTail.trim())).toBe(realpathSync.native(join(root, "packages", "web")))
+  })
+
+  it("resolves a relative command against the gate cwd", async () => {
+    mkdirSync(join(root, "sub"))
+    writeFileSync(join(root, "sub", "check.mjs"), "process.exit(0)\n")
+    const v = await runSpec({ argv: ["node", "check.mjs"], cwd: "sub" })
+    expect(v.state).toBe("pass")
+  })
+
+  it("merges env over the process env, expands ${VAR} and records only the keys", async () => {
+    process.env.JUNTO_GATE_TEST_SECRET = "s3cret-marker-91"
+    const v = await runSpec({
+      argv: ["node", "-e", "process.exit(process.env.GATE_TOKEN === 'pre-' + process.env.JUNTO_GATE_TEST_SECRET && process.env.PATH ? 0 : 1)"],
+      env: { GATE_TOKEN: "pre-${JUNTO_GATE_TEST_SECRET}", MODE: "ci" },
+    })
+    expect(v.state).toBe("pass")
+    expect(v.envKeys).toEqual(["GATE_TOKEN", "MODE"])
+    expect(verdictText()).not.toContain("s3cret-marker-91")
+  })
+
+  it("omits envKeys when the gate sets no env", async () => {
+    const v = await runSpec({ argv: ["node", "-e", "process.exit(0)"] })
+    expect(v.envKeys).toBeUndefined()
+  })
+
+  it("refuses to run when an env value references an unset variable, naming only the variable", async () => {
+    const v = await runSpec({
+      argv: ["node", "-e", "process.exit(0)"],
+      env: { GATE_TOKEN: "${JUNTO_GATE_TEST_SECRET}" },
+    })
+    expect(v.state).toBe("skipped")
+    expect(v.exitCode).toBeNull()
+    expect(v.reason).toMatch(/GATE_TOKEN.*JUNTO_GATE_TEST_SECRET.*not set/)
+    expect(v.reason).not.toMatch(/Install the tool/)
+  })
+
+  it("refuses a cwd that does not exist", async () => {
+    const v = await runSpec({ argv: ["node", "-e", "process.exit(0)"], cwd: "missing" })
+    expect(v.state).toBe("skipped")
+    expect(v.reason).toMatch(/cwd "missing".*not a directory/)
+  })
+
+  it("refuses a cwd that escapes the root through a link", async () => {
+    const outside = mkdtempSync(join(tmpdir(), "junto-gate-outside-"))
+    tmpDirs.push(outside)
+    symlinkSync(outside, join(root, "link"), "junction")
+    const v = await runSpec({ argv: ["node", "-e", "process.exit(0)"], cwd: "link" })
+    expect(v.state).toBe("skipped")
+    expect(v.reason).toMatch(/cwd "link".*outside the project root/)
+  })
+
+  it("rejects an escaping cwd even when the schema was bypassed", async () => {
+    const v = await runSpec({ argv: ["node", "-e", "process.exit(0)"], cwd: ".." })
+    expect(v.state).toBe("skipped")
+    expect(v.reason).toMatch(/cwd "\.\." must stay inside the project root/)
+  })
+})
+
+describe("gateEnv", () => {
+  it("overrides a key that differs only in case on Windows", () => {
+    const env = gateEnv({ Path: "C:\\old", OTHER: "1" }, { PATH: "C:\\new" }, "win32")
+    expect(env).toEqual({ PATH: "C:\\new", OTHER: "1" })
+  })
+
+  it("keeps case-distinct keys apart on POSIX", () => {
+    expect(gateEnv({ path: "a" }, { PATH: "b" }, "linux")).toEqual({ path: "a", PATH: "b" })
   })
 })

@@ -7,6 +7,8 @@ export interface BoardGate {
   required: boolean
   /** "pass", "fail", "skipped", "not run", "stale" or "unreadable verdict". */
   state: string
+  /** The configured directory, relative to the project root; absent when the gate runs at the root. */
+  cwd?: string
 }
 
 export interface BoardTask {
@@ -57,7 +59,8 @@ function gateClass(state: string): string {
 function renderTask(task: BoardTask): string {
   const gates = task.gates.length === 0 ? "<p class=\"muted\">No gates.</p>" : `<ul>${task.gates.map(gate =>
     `<li><code>${escapeHtml(gate.name)}</code> <span class="muted">${gate.required ? "required" : "optional"}</span> `
-    + `<span class="${gateClass(gate.state)}">${escapeHtml(gate.state)}</span></li>`).join("")}</ul>`
+    + `<span class="${gateClass(gate.state)}">${escapeHtml(gate.state)}</span>`
+    + `${gate.cwd === undefined ? "" : ` <span class="muted">cwd <code>${escapeHtml(gate.cwd)}</code></span>`}</li>`).join("")}</ul>`
   return `<p><strong>${escapeHtml(task.title)}</strong><br><code class="muted">${escapeHtml(task.id)}</code></p>`
     + `<dl><dt>Size</dt><dd>${escapeHtml(task.size)}</dd><dt>Phase</dt><dd>${escapeHtml(task.phase)}</dd>`
     + `<dt>Next</dt><dd>${escapeHtml(task.next)}</dd><dt>Blockers</dt><dd>${escapeHtml(task.blockers)}</dd></dl>`

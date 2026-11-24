@@ -147,4 +147,19 @@ describe("verifyTool", () => {
     expect(after.gates.tests?.verdict).toBe("verdicts/tests.json")
     expect(after.gates.tests?.stale).toBe(false)
   })
+
+  it("runs a gate in its cwd with its env and names the cwd in the result", async () => {
+    mkdirSync(join(root, "packages", "web"), { recursive: true })
+    writeFileSync(join(root, ".junto", "config.json"), JSON.stringify({ schemaVersion: 1, gates: {
+      web: {
+        argv: ["node", "-e", "process.exit(require('node:path').basename(process.cwd()) === 'web' && process.env.MODE === 'ci' ? 0 : 1)"],
+        required: true,
+        cwd: "packages/web",
+        env: { MODE: "ci" },
+      },
+    } }))
+    await taskTool(ctx(), { action: "start", title: "X", size: "small" })
+    const out = await verifyTool(ctx(), {})
+    expect(out).toMatch(/## web - pass \(\d+ms, cwd: packages\/web\)/)
+  })
 })

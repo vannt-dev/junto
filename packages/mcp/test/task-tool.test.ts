@@ -149,6 +149,19 @@ describe("action: finish", () => {
     expect(existsSync(join(root, ".junto", "archive", id, "summary.md"))).toBe(true)
   })
 
+  it("names a gate's cwd in summary.md", async () => {
+    writeFileSync(join(root, ".junto", "config.json"), JSON.stringify({ schemaVersion: 1, gates: {
+      tests: { argv: ["node", "-e", "process.exit(0)"], required: true },
+      web: { argv: ["node", "-e", "process.exit(0)"], required: false, cwd: "packages/web" },
+    } }))
+    await taskTool(ctx(), { action: "start", title: "X", size: "small" })
+    const id = markActiveDone()
+    await taskTool(ctx(), { action: "finish" })
+    const summary = readFileSync(join(root, ".junto", "archive", id, "summary.md"), "utf-8")
+    expect(summary).toMatch(/^- tests: not run \(required\)$/m)
+    expect(summary).toMatch(/^- web: not run \(cwd: packages\/web\)$/m)
+  })
+
   it("records the plan's manual checks and names the ones not done", async () => {
     await taskTool(ctx(), { action: "start", title: "X", size: "small" })
     const id = markActiveDone()

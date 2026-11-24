@@ -176,7 +176,8 @@ function finish(ctx: ToolContext): string {
   mkdirSync(join(juntoDir(ctx.root), "archive"), { recursive: true })
 
   const gateLines = Object.entries(task.gates)
-    .map(([n, g]) => `- ${n}: ${g.verdict === null ? "not run" : g.stale ? "stale" : "run"}${g.required ? " (required)" : ""}`)
+    .map(([n, g]) => `- ${n}: ${g.verdict === null ? "not run" : g.stale ? "stale" : "run"}${g.required ? " (required)" : ""}`
+      + (config.gates[n]?.cwd === undefined ? "" : ` (cwd: ${config.gates[n]?.cwd})`))
     .join("\n")
   const manual = readManualChecks(from)
   const manualSection = manual.length === 0

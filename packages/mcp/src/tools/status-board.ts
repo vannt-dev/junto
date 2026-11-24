@@ -51,7 +51,8 @@ function renderEntry(entry: BoardEntry): string {
   if (entry.error !== undefined) return `${heading}Error: cannot read this worktree's task: ${entry.error}`
   const { task } = entry
   if (task === null) return `${heading}No active task.`
-  const gates = task.gates.map(gate => `${gate.name} ${gate.state}${gate.required ? "" : " (optional)"}`).join(", ")
+  const gates = task.gates.map(gate => `${gate.name} ${gate.state}${gate.required ? "" : " (optional)"}`
+    + (gate.cwd === undefined ? "" : ` in ${gate.cwd}`)).join(", ")
   return `${heading}Task: ${task.id} — ${task.title}\n`
     + `Size: ${task.size}\n`
     + `Phase: ${task.phase}\n`

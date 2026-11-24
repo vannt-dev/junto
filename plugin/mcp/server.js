@@ -2984,7 +2984,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve6.call(this, root, ref);
+      let _sch = resolve7.call(this, root, ref);
       if (_sch === void 0) {
         const schema = (_a = root.localRefs) === null || _a === void 0 ? void 0 : _a[ref];
         const { schemaId } = this.opts;
@@ -3011,7 +3011,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve6(root, ref) {
+    function resolve7(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -3875,7 +3875,7 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve6(baseURI, relativeURI, options) {
+    function resolve7(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const {
         parsed: baseParsed,
@@ -3911,50 +3911,50 @@ var require_fast_uri = __commonJS({
       schemelessOptions.skipEscape = true;
       return serialize2(resolved, schemelessOptions);
     }
-    function resolveComponent(base, relative4, options, skipNormalization) {
+    function resolveComponent(base, relative5, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
         base = parse4(serialize2(base, options), options);
-        relative4 = parse4(serialize2(relative4, options), options);
+        relative5 = parse4(serialize2(relative5, options), options);
       }
       options = options || {};
-      if (!options.tolerant && relative4.scheme) {
-        target.scheme = relative4.scheme;
-        target.userinfo = relative4.userinfo;
-        target.host = relative4.host;
-        target.port = relative4.port;
-        target.path = removeDotSegments(relative4.path || "");
-        target.query = relative4.query;
+      if (!options.tolerant && relative5.scheme) {
+        target.scheme = relative5.scheme;
+        target.userinfo = relative5.userinfo;
+        target.host = relative5.host;
+        target.port = relative5.port;
+        target.path = removeDotSegments(relative5.path || "");
+        target.query = relative5.query;
       } else {
-        if (relative4.userinfo !== void 0 || relative4.host !== void 0 || relative4.port !== void 0) {
-          target.userinfo = relative4.userinfo;
-          target.host = relative4.host;
-          target.port = relative4.port;
-          target.path = removeDotSegments(relative4.path || "");
-          target.query = relative4.query;
+        if (relative5.userinfo !== void 0 || relative5.host !== void 0 || relative5.port !== void 0) {
+          target.userinfo = relative5.userinfo;
+          target.host = relative5.host;
+          target.port = relative5.port;
+          target.path = removeDotSegments(relative5.path || "");
+          target.query = relative5.query;
         } else {
-          if (!relative4.path) {
+          if (!relative5.path) {
             target.path = base.path;
-            if (relative4.query !== void 0) {
-              target.query = relative4.query;
+            if (relative5.query !== void 0) {
+              target.query = relative5.query;
             } else {
               target.query = base.query;
             }
           } else {
-            if (relative4.path[0] === "/") {
-              target.path = removeDotSegments(relative4.path);
+            if (relative5.path[0] === "/") {
+              target.path = removeDotSegments(relative5.path);
             } else {
               const baseHasAuthority = base.userinfo !== void 0 || base.host !== void 0 || base.port !== void 0;
               if (baseHasAuthority && !base.path) {
-                target.path = "/" + relative4.path;
+                target.path = "/" + relative5.path;
               } else if (!base.path) {
-                target.path = relative4.path;
+                target.path = relative5.path;
               } else {
-                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative4.path;
+                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative5.path;
               }
               target.path = base.scheme === void 0 && !baseHasAuthority && target.path[0] !== "/" ? removeDotSegmentsRelative(target.path) : removeDotSegments(target.path);
             }
-            target.query = relative4.query;
+            target.query = relative5.query;
           }
           target.userinfo = base.userinfo;
           target.host = base.host;
@@ -3962,7 +3962,7 @@ var require_fast_uri = __commonJS({
         }
         target.scheme = base.scheme;
       }
-      target.fragment = relative4.fragment;
+      target.fragment = relative5.fragment;
       return target;
     }
     function equal(uriA, uriB, options) {
@@ -4266,7 +4266,7 @@ var require_fast_uri = __commonJS({
     var fastUri = {
       SCHEMES,
       normalize: normalize2,
-      resolve: resolve6,
+      resolve: resolve7,
       resolveComponent,
       equal,
       serialize: serialize2,
@@ -12599,12 +12599,12 @@ var StdioServerTransport = class {
     this.onclose?.();
   }
   send(message) {
-    return new Promise((resolve6) => {
+    return new Promise((resolve7) => {
       const json = serializeMessage(message);
       if (this._stdout.write(json)) {
-        resolve6();
+        resolve7();
       } else {
-        this._stdout.once("drain", resolve6);
+        this._stdout.once("drain", resolve7);
       }
     });
   }
@@ -17265,7 +17265,7 @@ var Protocol = class {
           return;
         }
         const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-        await new Promise((resolve6) => setTimeout(resolve6, pollInterval));
+        await new Promise((resolve7) => setTimeout(resolve7, pollInterval));
         options?.signal?.throwIfAborted();
       }
     } catch (error2) {
@@ -17282,7 +17282,7 @@ var Protocol = class {
    */
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-    return new Promise((resolve6, reject) => {
+    return new Promise((resolve7, reject) => {
       const earlyReject = (error2) => {
         reject(error2);
       };
@@ -17360,7 +17360,7 @@ var Protocol = class {
           if (!parseResult.success) {
             reject(parseResult.error);
           } else {
-            resolve6(parseResult.data);
+            resolve7(parseResult.data);
           }
         } catch (error2) {
           reject(error2);
@@ -17622,12 +17622,12 @@ var Protocol = class {
       }
     } catch {
     }
-    return new Promise((resolve6, reject) => {
+    return new Promise((resolve7, reject) => {
       if (signal.aborted) {
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
         return;
       }
-      const timeoutId = setTimeout(resolve6, interval);
+      const timeoutId = setTimeout(resolve7, interval);
       signal.addEventListener("abort", () => {
         clearTimeout(timeoutId);
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -18563,16 +18563,49 @@ var taskSchema = external_exports.object({
   stopGate: stopGateStateSchema.optional()
 });
 var reviewSeveritySchema = external_exports.enum(["critical", "high", "medium", "low", "info"]);
+var ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+function gateCwdProblem(cwd) {
+  if (cwd === "" || cwd.includes("\0")) return "must be a non-empty relative path";
+  if (/^[\\/]/.test(cwd) || /^[A-Za-z]:/.test(cwd)) return "must be relative to the project root, not absolute";
+  let depth = 0;
+  for (const part of cwd.split(/[\\/]+/)) {
+    if (part === "..") depth -= 1;
+    else if (part !== "" && part !== ".") depth += 1;
+    if (depth < 0) return "must stay inside the project root";
+  }
+  return null;
+}
 var gateSpecSchema = external_exports.object({
   type: external_exports.enum(["command", "review"]).optional(),
   argv: external_exports.array(external_exports.string()).min(1).optional(),
   provider: external_exports.enum(["open-code-review", "cli"]).optional(),
   failOn: external_exports.array(reviewSeveritySchema).min(1).optional(),
   required: external_exports.boolean(),
-  timeoutMs: external_exports.number().int().positive().optional()
+  timeoutMs: external_exports.number().int().positive().optional(),
+  /** Directory the command runs in, relative to the project root. */
+  cwd: external_exports.string().optional(),
+  /** Merged over the process environment; values may reference `${VAR}` from it. */
+  env: external_exports.record(external_exports.string(), external_exports.string()).optional()
 }).superRefine((spec, ctx) => {
-  if ((spec.type ?? "command") === "command" && spec.argv === void 0) {
+  const command = (spec.type ?? "command") === "command";
+  if (command && spec.argv === void 0) {
     ctx.addIssue({ code: external_exports.ZodIssueCode.custom, message: "A command gate requires argv", path: ["argv"] });
+  }
+  for (const field of ["cwd", "env"]) {
+    if (!command && spec[field] !== void 0) {
+      ctx.addIssue({ code: external_exports.ZodIssueCode.custom, message: `${field} is only supported on a command gate`, path: [field] });
+    }
+  }
+  const cwdProblem = spec.cwd === void 0 ? null : gateCwdProblem(spec.cwd);
+  if (cwdProblem !== null) ctx.addIssue({ code: external_exports.ZodIssueCode.custom, message: cwdProblem, path: ["cwd"] });
+  for (const name of Object.keys(spec.env ?? {})) {
+    if (!ENV_NAME.test(name)) {
+      ctx.addIssue({
+        code: external_exports.ZodIssueCode.custom,
+        message: `"${name}" is not a valid variable name; use letters, digits and "_", not starting with a digit`,
+        path: ["env"]
+      });
+    }
   }
 });
 var ruleSpecSchema = external_exports.object({
@@ -18646,9 +18679,23 @@ function parseTask(raw) {
   assertVersion(raw);
   return taskSchema.parse(raw);
 }
+function issueLine(issue2) {
+  return `- ${issue2.path.join(".") || "(root)"}: ${issue2.message}`;
+}
+var ConfigError = class extends Error {
+  constructor(issues) {
+    super(`Invalid .junto/config.json:
+${issues.map(issueLine).join("\n")}`);
+    this.issues = issues;
+    this.name = "ConfigError";
+  }
+  issues;
+};
 function parseConfig(raw) {
   assertVersion(raw);
-  return configSchema.parse(raw);
+  const result = configSchema.safeParse(raw);
+  if (!result.success) throw new ConfigError(result.error.issues);
+  return result.data;
 }
 
 // packages/core/src/store.ts
@@ -18933,8 +18980,8 @@ function shouldStale(relPath, staleIgnore) {
 }
 
 // packages/core/src/gates.ts
-import { mkdirSync as mkdirSync2, readFileSync as readFileSync5, writeFileSync as writeFileSync3 } from "node:fs";
-import { join as join5 } from "node:path";
+import { mkdirSync as mkdirSync2, readFileSync as readFileSync5, realpathSync, statSync as statSync5, writeFileSync as writeFileSync3 } from "node:fs";
+import { isAbsolute as isAbsolute2, join as join5, relative, resolve } from "node:path";
 
 // node_modules/.pnpm/is-plain-obj@4.1.0/node_modules/is-plain-obj/index.js
 function isPlainObject3(value) {
@@ -20598,8 +20645,8 @@ var disconnect = (anyProcess) => {
 // node_modules/.pnpm/execa@10.2.1/node_modules/execa/lib/utils/deferred.js
 var createDeferred = () => {
   const methods = {};
-  const promise = new Promise((resolve6, reject) => {
-    Object.assign(methods, { resolve: resolve6, reject });
+  const promise = new Promise((resolve7, reject) => {
+    Object.assign(methods, { resolve: resolve7, reject });
   });
   return Object.assign(promise, methods);
 };
@@ -25155,11 +25202,11 @@ var addConcurrentStream = (concurrentStreams, stream, waitName) => {
   const promises = weakMap.get(stream);
   const promise = createDeferred();
   promises.push(promise);
-  const resolve6 = promise.resolve.bind(promise);
-  return { resolve: resolve6, promises };
+  const resolve7 = promise.resolve.bind(promise);
+  return { resolve: resolve7, promises };
 };
-var waitForConcurrentStreams = async ({ resolve: resolve6, promises }, subprocess) => {
-  resolve6();
+var waitForConcurrentStreams = async ({ resolve: resolve7, promises }, subprocess) => {
+  resolve7();
   const [isSubprocessExit] = await Promise.race([
     Promise.allSettled([true, subprocess]),
     Promise.all([false, ...promises])
@@ -26736,13 +26783,13 @@ var {
 // packages/core/src/exec.ts
 import { accessSync, constants as constants4, existsSync as existsSync4, statSync as statSync4 } from "node:fs";
 import { delimiter, isAbsolute, join as join4 } from "node:path";
-function candidateExtensions() {
+function candidateExtensions(env) {
   if (process.platform !== "win32") return [""];
-  const pathext = process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD";
+  const pathext = envValue(env, "PATHEXT") ?? ".COM;.EXE;.BAT;.CMD";
   return ["", ...pathext.split(";").filter(Boolean)];
 }
-function existsAsExecutable(base) {
-  return candidateExtensions().some((ext) => {
+function existsAsExecutable(base, env) {
+  return candidateExtensions(env).some((ext) => {
     const candidate = base + ext;
     if (!existsSync4(candidate)) return false;
     try {
@@ -26754,13 +26801,18 @@ function existsAsExecutable(base) {
     }
   });
 }
-function resolveExecutable(cmd, cwd) {
+function resolveExecutable(cmd, cwd, env = process.env) {
   if (cmd.includes("/") || cmd.includes("\\")) {
     const base = isAbsolute(cmd) ? cmd : join4(cwd, cmd);
-    return existsAsExecutable(base);
+    return existsAsExecutable(base, env);
   }
-  const dirs = (process.env.PATH ?? "").split(delimiter).filter(Boolean);
-  return dirs.some((dir) => existsAsExecutable(join4(dir, cmd)));
+  const dirs = (envValue(env, "PATH") ?? "").split(delimiter).filter(Boolean);
+  return dirs.some((dir) => existsAsExecutable(join4(dir, cmd), env));
+}
+function envValue(env, name) {
+  if (process.platform !== "win32") return env[name];
+  const key = Object.keys(env).find((k) => k.toUpperCase() === name.toUpperCase());
+  return key === void 0 ? void 0 : env[key];
 }
 
 // packages/core/src/gates.ts
@@ -26780,10 +26832,62 @@ function skipOutcome(name, detail) {
   const reason = `Gate "${name}" could not run: ${detail}. Install the tool and retry, or set required: false in .junto/config.json.`;
   return { state: "skipped", exitCode: null, output: reason, reason };
 }
-async function spawnOutcome(cmd, args, cwd, name, timeoutMs) {
+function refuseOutcome(name, detail) {
+  const reason = `Gate "${name}" was not run: ${detail}. Fix the gate in .junto/config.json.`;
+  return { state: "skipped", exitCode: null, output: reason, reason };
+}
+function gateEnv(base, overrides, platform2 = process.platform) {
+  const env = {};
+  for (const [key, value] of Object.entries(base)) if (value !== void 0) env[key] = value;
+  for (const [key, value] of Object.entries(overrides)) {
+    if (platform2 === "win32") {
+      for (const existing of Object.keys(env)) if (existing.toUpperCase() === key.toUpperCase()) delete env[existing];
+    }
+    env[key] = value;
+  }
+  return env;
+}
+var ENV_REFERENCE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
+function expandEnv(env, source) {
+  const out = {};
+  for (const [key, value] of Object.entries(env)) {
+    const missing = [...value.matchAll(ENV_REFERENCE)].map((m) => m[1] ?? "").find((name) => source[name] === void 0);
+    if (missing !== void 0) {
+      return `env ${key} references \${${missing}}, which is not set in the environment junto runs in`;
+    }
+    out[key] = value.replace(ENV_REFERENCE, (_, name) => source[name] ?? "");
+  }
+  return out;
+}
+function gateDirectory(root, cwd) {
+  if (cwd === void 0) return { dir: root };
+  const dir = resolve(root, cwd);
+  const lexical = gateCwdProblem(cwd);
+  if (lexical !== null) return { dir, problem: `cwd "${cwd}" ${lexical}` };
+  let real;
+  try {
+    if (!statSync5(dir).isDirectory()) return { dir, problem: `cwd "${cwd}" is not a directory` };
+    real = realpathSync.native(dir);
+  } catch {
+    return { dir, problem: `cwd "${cwd}" does not exist or is not a directory` };
+  }
+  let realRoot;
+  try {
+    realRoot = realpathSync.native(root);
+  } catch {
+    realRoot = resolve(root);
+  }
+  const rel = relative(realRoot, real);
+  if (rel.split(/[\\/]/)[0] === ".." || isAbsolute2(rel)) {
+    return { dir, problem: `cwd "${cwd}" resolves outside the project root` };
+  }
+  return { dir };
+}
+async function spawnOutcome(cmd, args, cwd, name, timeoutMs, env) {
   try {
     const res = await execa(cmd, args, {
       cwd,
+      ...env ? { env, extendEnv: false } : {},
       timeout: timeoutMs,
       all: true,
       reject: false,
@@ -26820,12 +26924,14 @@ async function runGate(opts) {
       `Invalid gate name "${name}". Use only letters, digits, ".", "_", and "-", and do not use a reserved Windows device name. Gate names are interpolated into verdicts/<name>.json paths.`
     );
   }
-  const cwd = root;
+  const { dir: cwd, problem: cwdProblem } = gateDirectory(root, spec.cwd);
   const startedAt = (/* @__PURE__ */ new Date()).toISOString();
   const t0 = Date.now();
   const argv = spec.argv ?? [];
   const [cmd, ...args] = argv;
-  const outcome = cmd === void 0 ? skipOutcome(name, "empty argv") : resolveExecutable(cmd, cwd) ? await spawnOutcome(cmd, args, cwd, name, spec.timeoutMs ?? DEFAULT_TIMEOUT_MS2) : skipOutcome(name, `command "${cmd}" does not exist or is not executable`);
+  const expanded = spec.env === void 0 ? void 0 : expandEnv(spec.env, process.env);
+  const env = expanded === void 0 || typeof expanded === "string" ? void 0 : gateEnv(process.env, expanded);
+  const outcome = cwdProblem !== void 0 ? refuseOutcome(name, cwdProblem) : typeof expanded === "string" ? refuseOutcome(name, expanded) : cmd === void 0 ? skipOutcome(name, "empty argv") : resolveExecutable(cmd, cwd, env) ? await spawnOutcome(cmd, args, cwd, name, spec.timeoutMs ?? DEFAULT_TIMEOUT_MS2, env) : skipOutcome(name, `command "${cmd}" does not exist or is not executable`);
   const dir = join5(taskDir(root, taskId), "verdicts");
   mkdirSync2(dir, { recursive: true });
   writeFileSync3(join5(dir, `${name}.log`), outcome.output, "utf-8");
@@ -26842,6 +26948,7 @@ async function runGate(opts) {
     outputBytes: Buffer.byteLength(outcome.output, "utf-8"),
     outputFile: `verdicts/${name}.log`,
     runner,
+    ...spec.env ? { envKeys: Object.keys(spec.env).sort() } : {},
     ...opts.sourceFingerprint ? { sourceFingerprint: opts.sourceFingerprint } : {},
     ...outcome.reason ? { reason: outcome.reason } : {}
   };
@@ -27185,8 +27292,8 @@ var RuleMatcher = class {
 };
 
 // packages/core/src/skills.ts
-import { existsSync as existsSync7, readdirSync, readFileSync as readFileSync7, statSync as statSync5 } from "node:fs";
-import { join as join7, resolve } from "node:path";
+import { existsSync as existsSync7, readdirSync, readFileSync as readFileSync7, statSync as statSync6 } from "node:fs";
+import { join as join7, resolve as resolve2 } from "node:path";
 var VALID_SKILL_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 function unquote(value) {
   return value.trim().replace(/^['"]|['"]$/g, "");
@@ -27257,7 +27364,7 @@ var SkillResolver = class {
       for (const item of skills) {
         const skill = item;
         if (typeof skill?.name !== "string" || !VALID_SKILL_NAME.test(skill.name)) continue;
-        const key = `${resolve(root)}\0${skill.name}`;
+        const key = `${resolve2(root)}\0${skill.name}`;
         const previous = entries.get(key);
         entries.set(key, {
           appliesTo: union2(previous?.appliesTo ?? [], stringList(skill.appliesTo)),
@@ -27290,7 +27397,7 @@ var SkillResolver = class {
   }
   registered(name, path10) {
     const root = this.searchRoots.find((r) => path10 === join7(r, "skills", name, "SKILL.md") || path10 === join7(r, name, "SKILL.md"));
-    return root === void 0 ? void 0 : this.registry().get(`${resolve(root)}\0${name}`);
+    return root === void 0 ? void 0 : this.registry().get(`${resolve2(root)}\0${name}`);
   }
   missing(name) {
     return {
@@ -27332,7 +27439,7 @@ Skill definition not found on disk.`,
           if (!VALID_SKILL_NAME.test(entry)) continue;
           const file = join7(dir, entry, "SKILL.md");
           try {
-            if (statSync5(file).isFile()) names.add(entry);
+            if (statSync6(file).isFile()) names.add(entry);
           } catch {
           }
         }
@@ -28039,8 +28146,8 @@ var ScopedReviewProvider = class {
 };
 
 // packages/core/src/cli-review.ts
-import { lstatSync, readFileSync as readFileSync10, realpathSync } from "node:fs";
-import { basename, isAbsolute as isAbsolute2, relative, resolve as resolve2 } from "node:path";
+import { lstatSync, readFileSync as readFileSync10, realpathSync as realpathSync2 } from "node:fs";
+import { basename, isAbsolute as isAbsolute3, relative as relative2, resolve as resolve3 } from "node:path";
 var MAX_CONTEXT = 512 * 1024;
 var CliReviewProvider = class {
   constructor(timeoutMs = 18e4) {
@@ -28081,9 +28188,9 @@ var CliReviewProvider = class {
         const listing = await execa("git", ["ls-files", "--others", "--exclude-standard", "-z"], options);
         if (listing.exitCode !== 0 || listing.isMaxBuffer || listing.timedOut) return fail("Cannot enumerate review files");
         for (const path10 of listing.stdout.split("\0").filter((p) => paths.includes(p))) {
-          const file = resolve2(context.root, path10);
-          const rel = relative(realpathSync(context.root), realpathSync(file));
-          if (basename(file).startsWith(".env") || lstatSync(file).isSymbolicLink() || rel.startsWith("..") || isAbsolute2(rel)) return fail("Unsupported review file");
+          const file = resolve3(context.root, path10);
+          const rel = relative2(realpathSync2(context.root), realpathSync2(file));
+          if (basename(file).startsWith(".env") || lstatSync(file).isSymbolicLink() || rel.startsWith("..") || isAbsolute3(rel)) return fail("Unsupported review file");
           if (lstatSync(file).size > MAX_CONTEXT) return fail("Review context exceeds 512 KiB");
           newFiles[path10] = readFileSync10(file, "utf-8");
           inputSize += Buffer.byteLength(newFiles[path10]);
@@ -28113,8 +28220,8 @@ var CliReviewProvider = class {
 // packages/core/src/review-freshness.ts
 import { execFileSync } from "node:child_process";
 import { createHash as createHash2 } from "node:crypto";
-import { closeSync as closeSync3, existsSync as existsSync10, lstatSync as lstatSync2, openSync as openSync3, readFileSync as readFileSync11, readlinkSync, readSync as readSync2, realpathSync as realpathSync2 } from "node:fs";
-import { basename as basename2, isAbsolute as isAbsolute3, join as join11, relative as relative2, resolve as resolve3 } from "node:path";
+import { closeSync as closeSync3, existsSync as existsSync10, lstatSync as lstatSync2, openSync as openSync3, readFileSync as readFileSync11, readlinkSync, readSync as readSync2, realpathSync as realpathSync3 } from "node:fs";
+import { basename as basename2, isAbsolute as isAbsolute4, join as join11, relative as relative3, resolve as resolve4 } from "node:path";
 var IGNORED_UNTRACKED = /* @__PURE__ */ new Set(["node_modules", "dist", "build", ".temp", ".venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache"]);
 var digest = (value) => createHash2("sha256").update(value).digest("hex");
 function fileDigest(path10) {
@@ -28130,7 +28237,7 @@ function fileDigest(path10) {
   }
 }
 function sourceState(root, include = () => true) {
-  const canonicalRoot = realpathSync2.native(root);
+  const canonicalRoot = realpathSync3.native(root);
   const git2 = (...args) => execFileSync("git", args, {
     cwd: root,
     timeout: 3e4,
@@ -28138,7 +28245,7 @@ function sourceState(root, include = () => true) {
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true
   });
-  if (relative2(canonicalRoot, realpathSync2.native(git2("rev-parse", "--show-toplevel").toString().trim())) !== "") {
+  if (relative3(canonicalRoot, realpathSync3.native(git2("rev-parse", "--show-toplevel").toString().trim())) !== "") {
     throw new Error("Review root must be the Git repository root");
   }
   let head = null;
@@ -28154,9 +28261,9 @@ function sourceState(root, include = () => true) {
     const parts = path10.split("/");
     if (parts[0] === ".junto" || basename2(path10) === ".env" || basename2(path10).startsWith(".env.") || !include(path10)) continue;
     if (!tracked.has(path10) && parts.some((part) => IGNORED_UNTRACKED.has(part))) continue;
-    const full = resolve3(canonicalRoot, path10);
-    const rel = relative2(canonicalRoot, full);
-    if (rel === ".." || rel.startsWith("../") || rel.startsWith("..\\") || isAbsolute3(rel)) throw new Error("Source path escapes review root");
+    const full = resolve4(canonicalRoot, path10);
+    const rel = relative3(canonicalRoot, full);
+    if (rel === ".." || rel.startsWith("../") || rel.startsWith("..\\") || isAbsolute4(rel)) throw new Error("Source path escapes review root");
     let stat;
     try {
       stat = lstatSync2(full);
@@ -28167,8 +28274,8 @@ function sourceState(root, include = () => true) {
     }
     if (stat.isSymbolicLink()) files.push([path10, stat.mode, digest(readlinkSync(full))]);
     else if (stat.isFile()) {
-      const target = relative2(canonicalRoot, realpathSync2.native(full));
-      if (target === ".." || target.startsWith("../") || target.startsWith("..\\") || isAbsolute3(target)) throw new Error("Source path escapes review root");
+      const target = relative3(canonicalRoot, realpathSync3.native(full));
+      if (target === ".." || target.startsWith("../") || target.startsWith("..\\") || isAbsolute4(target)) throw new Error("Source path escapes review root");
       files.push([path10, stat.mode, fileDigest(full)]);
     } else throw new Error("Review fingerprints do not support source directories or submodules");
   }
@@ -28292,7 +28399,7 @@ function gateClass(state) {
   return state === "not run" ? "muted" : "fail";
 }
 function renderTask(task) {
-  const gates = task.gates.length === 0 ? '<p class="muted">No gates.</p>' : `<ul>${task.gates.map((gate) => `<li><code>${escapeHtml(gate.name)}</code> <span class="muted">${gate.required ? "required" : "optional"}</span> <span class="${gateClass(gate.state)}">${escapeHtml(gate.state)}</span></li>`).join("")}</ul>`;
+  const gates = task.gates.length === 0 ? '<p class="muted">No gates.</p>' : `<ul>${task.gates.map((gate) => `<li><code>${escapeHtml(gate.name)}</code> <span class="muted">${gate.required ? "required" : "optional"}</span> <span class="${gateClass(gate.state)}">${escapeHtml(gate.state)}</span>${gate.cwd === void 0 ? "" : ` <span class="muted">cwd <code>${escapeHtml(gate.cwd)}</code></span>`}</li>`).join("")}</ul>`;
   return `<p><strong>${escapeHtml(task.title)}</strong><br><code class="muted">${escapeHtml(task.id)}</code></p><dl><dt>Size</dt><dd>${escapeHtml(task.size)}</dd><dt>Phase</dt><dd>${escapeHtml(task.phase)}</dd><dt>Next</dt><dd>${escapeHtml(task.next)}</dd><dt>Blockers</dt><dd>${escapeHtml(task.blockers)}</dd></dl>` + gates + (task.baseWarning === null ? "" : `<p class="warn">${escapeHtml(task.baseWarning)}</p>`);
 }
 function renderEntry(entry) {
@@ -28874,7 +28981,7 @@ ${rendered}
 
 // packages/mcp/src/tools/plan.ts
 import { mkdirSync as mkdirSync10, writeFileSync as writeFileSync11 } from "node:fs";
-import { isAbsolute as isAbsolute4, join as join17, resolve as resolve4 } from "node:path";
+import { isAbsolute as isAbsolute5, join as join17, resolve as resolve5 } from "node:path";
 async function resolvePlan(ctx) {
   const id = readActiveId(ctx.root);
   if (id === null) throw new Error("No active task. Run /junto:start first.");
@@ -28891,7 +28998,7 @@ async function resolvePlan(ctx) {
     requireApproval: task.ruleApprovalRequired || !config2.autoApprove.includes(task.size),
     changes
   });
-  const roots = (config2.skills?.roots ?? []).map((r) => isAbsolute4(r) ? r : resolve4(ctx.root, r));
+  const roots = (config2.skills?.roots ?? []).map((r) => isAbsolute5(r) ? r : resolve5(ctx.root, r));
   const skills = new SkillResolver(roots).resolveForFiles(files, plan.skills);
   const knownGates = new Set(Object.keys(config2.gates));
   const resolved = {
@@ -28949,8 +29056,8 @@ async function planTool(ctx) {
 }
 
 // packages/mcp/src/tools/status-board.ts
-import { existsSync as existsSync17, realpathSync as realpathSync3 } from "node:fs";
-import { join as join20, relative as relative3, resolve as resolve5 } from "node:path";
+import { existsSync as existsSync17, realpathSync as realpathSync4 } from "node:fs";
+import { join as join20, relative as relative4, resolve as resolve6 } from "node:path";
 
 // packages/mcp/src/tools/task-summary.ts
 import { existsSync as existsSync16, readdirSync as readdirSync5, readFileSync as readFileSync16 } from "node:fs";
@@ -29074,7 +29181,7 @@ function finish(ctx) {
     );
   }
   mkdirSync11(join18(juntoDir(ctx.root), "archive"), { recursive: true });
-  const gateLines = Object.entries(task.gates).map(([n2, g]) => `- ${n2}: ${g.verdict === null ? "not run" : g.stale ? "stale" : "run"}${g.required ? " (required)" : ""}`).join("\n");
+  const gateLines = Object.entries(task.gates).map(([n2, g]) => `- ${n2}: ${g.verdict === null ? "not run" : g.stale ? "stale" : "run"}${g.required ? " (required)" : ""}` + (config2.gates[n2]?.cwd === void 0 ? "" : ` (cwd: ${config2.gates[n2]?.cwd})`)).join("\n");
   const manual = readManualChecks(from);
   const manualSection = manual.length === 0 ? "" : `
 ## Manual checks
@@ -29257,11 +29364,15 @@ async function summarizeActiveTask(root) {
     const check2 = canEnter(task, nextPhase, transitionContext);
     if (!check2.ok) blocker = check2.reason;
   }
-  const gates = Object.entries(task.gates).map(([name, gate]) => ({
-    name,
-    required: gate.required,
-    state: gateState(gate, transitionContext.verdictStates[name] ?? null)
-  }));
+  const gates = Object.entries(task.gates).map(([name, gate]) => {
+    const cwd = config2.gates[name]?.cwd;
+    return {
+      name,
+      required: gate.required,
+      state: gateState(gate, transitionContext.verdictStates[name] ?? null),
+      ...cwd === void 0 ? {} : { cwd }
+    };
+  });
   const cap = config2.consultBudget?.maxTokensPerTask;
   const budget = cap === void 0 ? `${task.consultTokensUsed} tokens recorded (no cap configured)` : `${task.consultTokensUsed}/${cap} tokens`;
   const drift = await taskBaseDrift(root, task);
@@ -29283,19 +29394,19 @@ async function summarizeActiveTask(root) {
 // packages/mcp/src/tools/status-board.ts
 function canonical(path10) {
   try {
-    return realpathSync3.native(path10);
+    return realpathSync4.native(path10);
   } catch {
-    return resolve5(path10);
+    return resolve6(path10);
   }
 }
 async function collectEntries(ctx) {
   const here = canonical(ctx.root);
   const top = await gitTopLevel(ctx.root);
-  const offset = top === null ? "" : relative3(canonical(top), here);
+  const offset = top === null ? "" : relative4(canonical(top), here);
   const entries = [];
   for (const worktree of await listWorktrees(ctx.root)) {
     const root = join20(worktree.path, offset);
-    const entry = { path: resolve5(worktree.path), branch: worktree.branch, current: canonical(root) === here, task: null };
+    const entry = { path: resolve6(worktree.path), branch: worktree.branch, current: canonical(root) === here, task: null };
     try {
       if (!existsSync17(worktree.path)) throw new Error("the worktree directory is missing; run git worktree prune");
       const summary = existsSync17(juntoDir(root)) ? await summarizeActiveTask(root) : null;
@@ -29326,7 +29437,7 @@ Path: ${entry.path}
   if (entry.error !== void 0) return `${heading}Error: cannot read this worktree's task: ${entry.error}`;
   const { task } = entry;
   if (task === null) return `${heading}No active task.`;
-  const gates = task.gates.map((gate) => `${gate.name} ${gate.state}${gate.required ? "" : " (optional)"}`).join(", ");
+  const gates = task.gates.map((gate) => `${gate.name} ${gate.state}${gate.required ? "" : " (optional)"}` + (gate.cwd === void 0 ? "" : ` in ${gate.cwd}`)).join(", ");
   return `${heading}Task: ${task.id} \u2014 ${task.title}
 Size: ${task.size}
 Phase: ${task.phase}
@@ -29351,7 +29462,7 @@ async function statusTool(ctx, input = {}) {
   const summary = await summarizeActiveTask(ctx.root);
   if (summary === null) return "No active task. Run /junto:start to create one.";
   const { task } = summary;
-  const gates = summary.gates.map((gate) => `- ${gate.name}: ${gate.required ? "required" : "optional"}, ${gate.state}`);
+  const gates = summary.gates.map((gate) => `- ${gate.name}: ${gate.required ? "required" : "optional"}, ${gate.state}` + (gate.cwd === void 0 ? "" : ` (cwd: ${gate.cwd})`));
   return `# Junto status
 
 Task: ${task.id} \u2014 ${task.title}
@@ -29372,8 +29483,8 @@ ${gates.join("\n") || "(none)"}`;
 
 // packages/mcp/src/tools/verify.ts
 var FAIL_STREAK_HINT_AT = 3;
-function render(v, streak) {
-  const head = `## ${v.gate} - ${v.state} (${v.durationMs}ms)`;
+function render(v, streak, cwd) {
+  const head = `## ${v.gate} - ${v.state} (${v.durationMs}ms${cwd === void 0 ? "" : `, cwd: ${cwd}`})`;
   if (v.state === "pass") {
     return `${head}
 Passed. Full output: ${v.outputFile}.`;
@@ -29453,7 +29564,7 @@ async function verifyTool(ctx, input) {
     else delete status.base;
     if (verdict.state === "pass") status.failStreak = 0;
     else if (verdict.state === "fail") status.failStreak = status.failStreak + 1;
-    sections.push(render(verdict, status.failStreak));
+    sections.push(render(verdict, status.failStreak, spec.cwd));
     const latest = readConfig(ctx.root);
     const latestSpec = latest.gates[name];
     const changedDuringRun = verdict.reviewFingerprint !== void 0 && captureReviewFingerprint(ctx.root, readTask(ctx.root, id), latest) !== verdict.reviewFingerprint || verdict.sourceFingerprint !== void 0 && (latestSpec === void 0 || captureSourceFingerprint(ctx.root, latest, latestSpec) !== verdict.sourceFingerprint);

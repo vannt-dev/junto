@@ -168,6 +168,37 @@ The `guard.js` hook blocks evidence writes through Edit/Write/MultiEdit, includi
 path aliases of `.junto/`, but it **cannot block Bash**.
 It prevents accidents and shortcuts; it is not a security boundary against a malicious actor.
 
+## Gate directory and environment
+
+A command gate runs in the project root with junto's own environment unless it sets `cwd` or `env`:
+
+```json
+{
+  "schemaVersion": 1,
+  "gates": {
+    "web-tests": {
+      "argv": ["npm", "test"],
+      "required": true,
+      "cwd": "packages/web",
+      "env": { "NODE_ENV": "test", "API_TOKEN": "${CI_API_TOKEN}" }
+    }
+  }
+}
+```
+
+- `cwd` is relative to the project root and must stay inside it. An absolute path or one that climbs
+  out with `..` is rejected when the config is read. A directory that is missing, or that leads outside
+  the root through a link, stops the gate before it starts: it is recorded as `skipped`, which never
+  passes. A relative command such as `./scripts/check.sh` is looked up from `cwd`.
+- `env` sets variables on top of the environment junto runs in. Names use letters, digits and `_`.
+  A value can include `${NAME}`, which is replaced by that variable from junto's environment; if it is
+  not set, the gate is not run and the result names the missing variable. Other text, including a
+  `$` not followed by `{`, is kept as written. If `env` sets `PATH`, the command is looked up there.
+- The verdict records the directory the gate ran in and the names in `env` (`envKeys`), never their
+  values, so keep secrets in the environment and reference them with `${NAME}`. Status, the verify
+  result and `summary.md` show a gate's `cwd`.
+- `cwd` and `env` apply to command gates only; a review gate that sets them is rejected.
+
 ## Hooks: only in a junto project
 
 The plugin installs five hooks. Each first looks for a `.junto/` directory in the working directory
