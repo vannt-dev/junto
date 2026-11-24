@@ -196,7 +196,7 @@ A command gate runs in the project root with junto's own environment unless it s
   `$` not followed by `{`, is kept as written. If `env` sets `PATH`, the command is looked up there.
 - The verdict records the directory the gate ran in and the names in `env` (`envKeys`), never their
   values, so keep secrets in the environment and reference them with `${NAME}`. Status, the verify
-  result and `summary.md` show a gate's `cwd`.
+  result and the `summary.md` written by `/junto:finish` show a gate's `cwd`.
 - `cwd` and `env` apply to command gates only; a review gate that sets them is rejected.
 
 ## Hooks: only in a junto project
