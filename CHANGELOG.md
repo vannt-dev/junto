@@ -4,6 +4,17 @@ All notable changes to junto are documented in this file. The project follows Se
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-24
+
+### Added
+
+- Stop gate. A new Stop hook keeps Claude working while the active task is in `build`, `review` or `verify` and a required gate has not run, is stale or failed: it blocks the end of the turn once with a short reason that names the gates and `/junto:verify`. It lets the turn end when the next step belongs to the user (a plan approval or an abandon), when a required gate failed three times in a row, while background tasks run, when nothing changed since the last block, and after `maxBlocks` blocks (default 3) in a phase. Letting Claude stop with gates unpassed shows a one-line notice and records a decision that the task summary lists at finish. Turn it off or change the cap (1 to 8) with `{ "stopGate": { "enabled": false, "maxBlocks": 3 } }` in `.junto/config.json`.
+- Plan approval covers the approved text. `/junto:approve` now records the sha256 of `plan.md`. If `plan.md` changes afterwards, status shows `Plan: changed after approval` and `junto__advance` refuses every move that needs the approval until the user types `/junto:approve` again. Ticking a checkbox (`- [x]`) and line-ending changes keep the approval. Sizes in `autoApprove` are not affected, and approvals recorded by older versions stay valid.
+
+### Changed
+
+- The README and the plugin description state that the hooks act only in projects with a `.junto/` directory (in the working directory or one above it); elsewhere each hook does nothing and makes no network call.
+
 ## [0.12.1] - 2026-11-13
 
 ### Fixed
@@ -200,6 +211,7 @@ All notable changes to junto are documented in this file. The project follows Se
 
 - Initial task lifecycle, durable project-local state, hooks, MCP tools, and evidence-based gates.
 
+[0.13.0]: https://github.com/vannt-dev/junto/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/vannt-dev/junto/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/vannt-dev/junto/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/vannt-dev/junto/compare/v0.10.0...v0.11.0
