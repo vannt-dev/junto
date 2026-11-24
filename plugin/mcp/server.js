@@ -28431,7 +28431,7 @@ ${BOARD_FILE}
 }
 
 // packages/mcp/src/version.ts
-var VERSION = "0.13.0";
+var VERSION = "0.14.0";
 
 // packages/mcp/src/context.ts
 var RUNNER = `@junto/mcp@${VERSION}`;
