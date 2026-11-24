@@ -161,7 +161,7 @@ It prevents accidents and shortcuts; it is not a security boundary against a mal
 
 ## Hooks: only in a junto project
 
-The plugin installs four hooks. Each first looks for a `.junto/` directory in the working directory
+The plugin installs five hooks. Each first looks for a `.junto/` directory in the working directory
 or one above it, and does nothing (no output, no file read or written) when there is none, so other
 projects in the same Claude Code install are not touched. None of them makes a network call.
 
@@ -171,9 +171,38 @@ projects in the same Claude Code install are not touched. None of them makes a n
 | `state.js` | UserPromptSubmit | Adds a short state block (phase, gates); records `/junto:approve` and `/junto:abandon` |
 | `guard.js` | PreToolUse, PostToolUse on Write/Edit/MultiEdit | Denies writes to junto's evidence files; marks gate verdicts stale after a source edit |
 | `handoff.js` | PreToolUse on Agent/Task | Gives a subagent the files listed as relevant to the task |
+| `stop.js` | Stop | Asks Claude to keep working while required gates have not passed in build, review or verify (see below) |
 
 `test/hooks/outside-project.test.ts` runs the shipped hooks in a folder without `.junto/` and checks
 that each prints nothing and exits 0.
+
+### Stop gate
+
+When Claude tries to end its turn while the active task is in `build`, `review` or `verify` and a
+required gate has not run, is stale or failed, `stop.js` blocks the stop once with a short reason
+that names the gates and the next command (`/junto:verify`). It lets the turn end when:
+
+- there is no active task, or the task is in `brief`, `plan`, `panel` or `done`;
+- the next step belongs to the user: a plan approval owed to a matched rule or a raised size, or an
+  abandon the user asked for;
+- a required gate has failed three times in a row, so the plan, not the code, may need the user;
+- background tasks are still running;
+- nothing changed since the last block (no edit and no gate run), so a question to the user is not
+  trapped;
+- it already blocked `maxBlocks` times (default 3) in the current phase.
+
+When it lets Claude stop with gates still unpassed, it shows a one-line notice and records a
+decision in the task, which the task summary lists at finish. Claude Code's own limit of eight
+stop-hook continuations in a row still applies. To turn the gate off for a project, or change the
+cap (1 to 8), add this to `.junto/config.json`:
+
+```json
+{ "stopGate": { "enabled": false, "maxBlocks": 3 } }
+```
+
+The hook reads verdict files but does not hash sources, so an edit made through Bash that only a
+transition would catch does not make it block. Like the other hooks, it lets the turn end if it
+cannot read or record the task.
 
 ## OpenCodeReview gates and rules
 

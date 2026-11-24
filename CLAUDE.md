@@ -1,6 +1,6 @@
 # junto
 
-Workflow lifecycle tooling for Claude Code: a policy-only `packages/core`, an MCP server, and four hooks.
+Workflow lifecycle tooling for Claude Code: a policy-only `packages/core`, an MCP server, and five hooks.
 The project language is **English** for comments, commits, documentation, runtime messages, and reports.
 
 Authoritative documents:

@@ -48,6 +48,19 @@ export function sizeRaisedPastPlan(task: Task): boolean {
   return (task.sizeChanges ?? []).some(change => change.phase !== "brief" && change.phase !== "plan")
 }
 
+/** Required gates without a readable, current pass, each labelled with why, e.g. "tests (not run)". */
+export function unpassedRequiredGates(task: Task, verdictStates: Record<string, GateState | null>): string[] {
+  const blocked: string[] = []
+  for (const [name, status] of Object.entries(task.gates)) {
+    if (!status.required) continue
+    if (status.verdict === null) { blocked.push(`${name} (not run)`); continue }
+    if (status.stale) { blocked.push(`${name} (stale evidence; code changed)`); continue }
+    const state = verdictStates[name] ?? null
+    if (state !== "pass") blocked.push(`${name} (${state ?? "unreadable verdict"})`)
+  }
+  return blocked
+}
+
 export function canEnter(task: Task, to: Phase, ctx: TransitionContext): TransitionCheck {
   const order = requiredPhases(task.size)
   const from = order.indexOf(task.phase)
@@ -104,14 +117,7 @@ export function canEnter(task: Task, to: Phase, ctx: TransitionContext): Transit
 
   // L4
   if (task.phase === "verify" && to === "done") {
-    const blocked: string[] = []
-    for (const [name, status] of Object.entries(task.gates)) {
-      if (!status.required) continue
-      if (status.verdict === null) { blocked.push(`${name} (not run)`); continue }
-      if (status.stale) { blocked.push(`${name} (stale evidence; code changed)`); continue }
-      const state = ctx.verdictStates[name] ?? null
-      if (state !== "pass") blocked.push(`${name} (${state ?? "unreadable verdict"})`)
-    }
+    const blocked = unpassedRequiredGates(task, ctx.verdictStates)
     if (blocked.length > 0) {
       return { ok: false, reason: `Required gates have not passed: ${blocked.join(", ")}. Run /junto:verify.` }
     }

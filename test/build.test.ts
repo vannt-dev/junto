@@ -7,11 +7,12 @@ const artifacts = [
   "plugin/hooks/guard.js",
   "plugin/hooks/session.js",
   "plugin/hooks/handoff.js",
+  "plugin/hooks/stop.js",
   "plugin/mcp/server.js",
 ]
 
 describe("artifact build", () => {
-  it("creates all five bundle files", () => {
+  it("creates all six bundle files", () => {
     for (const artifact of artifacts) expect(existsSync(artifact), `missing ${artifact}`).toBe(true)
   })
 

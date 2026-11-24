@@ -12,11 +12,11 @@ const shared = {
 mkdirSync("plugin/hooks", { recursive: true })
 mkdirSync("plugin/mcp", { recursive: true })
 
-for (const name of ["state", "guard", "session", "handoff"]) {
+for (const name of ["state", "guard", "session", "handoff", "stop"]) {
   await build({ ...shared, entryPoints: [`src-hooks/${name}.ts`], outfile: `plugin/hooks/${name}.js` })
 }
 
 // A dedicated entry always starts the server without fragile import.meta.url matching.
 await build({ ...shared, entryPoints: ["packages/mcp/src/main.ts"], outfile: "plugin/mcp/server.js" })
 
-console.log("build complete: 4 hooks + 1 MCP server")
+console.log("build complete: 5 hooks + 1 MCP server")

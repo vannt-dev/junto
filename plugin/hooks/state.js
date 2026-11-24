@@ -4116,6 +4116,14 @@ var sizeChangeSchema = external_exports.object({
   phase: phaseSchema,
   reason: external_exports.string()
 });
+var stopGateStateSchema = external_exports.object({
+  phase: phaseSchema,
+  blocks: external_exports.number().int().min(0),
+  /** Digest of the gate evidence at the last block; unchanged evidence means no progress. */
+  evidence: external_exports.string(),
+  /** Why the hook stopped blocking in this phase; set once and recorded as a decision. */
+  released: external_exports.enum(["cap", "stall"]).optional()
+});
 var taskSchema = external_exports.object({
   schemaVersion: external_exports.number().int(),
   id: external_exports.string().min(1),
@@ -4134,7 +4142,9 @@ var taskSchema = external_exports.object({
   consults: external_exports.array(external_exports.string()),
   consultTokensUsed: external_exports.number().int().min(0).default(0),
   /** Recorded only by the UserPromptSubmit hook when the user types /junto:abandon. */
-  abandonRequest: external_exports.object({ by: external_exports.literal("user"), at: external_exports.string() }).optional()
+  abandonRequest: external_exports.object({ by: external_exports.literal("user"), at: external_exports.string() }).optional(),
+  /** Absent until the Stop hook first blocks the end of a turn. */
+  stopGate: stopGateStateSchema.optional()
 });
 var reviewSeveritySchema = external_exports.enum(["critical", "high", "medium", "low", "info"]);
 var gateSpecSchema = external_exports.object({
@@ -4189,6 +4199,11 @@ var consultContextConfigSchema = external_exports.object({
   maxChars: external_exports.number().int().positive().max(5e4).default(12e3),
   persist: external_exports.boolean().default(true)
 }).strict();
+var stopGateConfigSchema = external_exports.object({
+  enabled: external_exports.boolean().default(true),
+  /** Claude Code itself ends a turn after 8 consecutive stop-hook continuations. */
+  maxBlocks: external_exports.number().int().min(1).max(8).default(3)
+}).strict();
 var configSchema = external_exports.object({
   schemaVersion: external_exports.number().int(),
   gates: external_exports.record(external_exports.string(), gateSpecSchema),
@@ -4200,7 +4215,8 @@ var configSchema = external_exports.object({
   consultBudget: consultBudgetSchema.optional(),
   consultContext: consultContextConfigSchema.optional(),
   rules: external_exports.array(ruleSpecSchema).optional(),
-  skills: skillsConfigSchema.optional()
+  skills: skillsConfigSchema.optional(),
+  stopGate: stopGateConfigSchema.optional()
 }).passthrough().superRefine((config, ctx) => {
   const seen = /* @__PURE__ */ new Set();
   for (const [index, rule] of (config.rules ?? []).entries()) {

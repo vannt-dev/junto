@@ -138,6 +138,11 @@ Verification preserves invalidations received during the run, including edits re
 - `state.js` (`UserPromptSubmit`): inject compact state and record explicit user approval.
 - `handoff.js` (`PreToolUse` on Agent/Task): add selected `context.jsonl` files to subagent context.
 - `guard.js` (`PreToolUse`/`PostToolUse` on editing tools): protect evidence files and mark verdicts stale.
+- `stop.js` (`Stop`): while the task is in build, review or verify and required gates have not passed, block the
+  end of the turn with the gates and `/junto:verify`. It never blocks on a step only the user can take, lets go
+  when nothing changed since its last block or after `stopGate.maxBlocks` blocks per phase (default 3), records
+  that release as a decision, and can be turned off with `stopGate.enabled: false`. It only nudges; it cannot pass
+  or fail a gate.
 
 The guard prevents ordinary editor-tool mistakes, not malicious Bash or external-editor writes. Hook failures
 must never break the user's session.
@@ -153,7 +158,7 @@ when slash commands are expanded before `UserPromptSubmit` runs.
 
 ## 10. Packaging and verification
 
-The plugin is self-contained and bundles four hooks plus the MCP server with esbuild. Generated artifacts are
+The plugin is self-contained and bundles five hooks plus the MCP server with esbuild. Generated artifacts are
 committed. CI runs TypeScript checks, tests on Windows and Linux, boundary verification for R1, and a rebuild
 followed by `git diff --exit-code` for artifact synchronization.
 
