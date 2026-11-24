@@ -115,6 +115,15 @@ If the work turns out bigger than the size you picked, raise it with `/junto:esc
 The size only goes up (small -> standard -> deep). The task keeps its phase and every verdict already recorded, and
 status shows `standard (escalated from small)`. A small task raised in `build` or `verify` owes the plan it skipped:
 it cannot move on until `plan.md` exists and the user typed `/junto:approve` (unless the new size is auto-approved).
+
+An approval covers the plan text the user read. `/junto:approve` needs `plan.md` and records its
+sha256. If `plan.md` changes afterwards, the approval no longer counts: status shows
+`Plan: changed after approval`, and `junto__advance` refuses every move that needs the approval until
+the user reviews the change and types `/junto:approve` again, in any phase. Ticking a checkbox
+(`- [x]`) and line-ending changes do not count as a change, so marking steps and manual checks done
+keeps the approval. Sizes in `autoApprove` are not affected. Approvals recorded by older versions
+have no hash and stay valid.
+
 `/junto:status` is read-only and uses the same transition policy and verdict files as the lifecycle tools.
 
 ### Several tasks side by side in Git worktrees

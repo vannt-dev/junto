@@ -6,8 +6,8 @@ var __export = (target, all) => {
 };
 
 // src-hooks/stop.ts
-import { existsSync as existsSync4 } from "node:fs";
-import { join as join4 } from "node:path";
+import { existsSync as existsSync5 } from "node:fs";
+import { join as join5 } from "node:path";
 
 // node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/external.js
 var external_exports = {};
@@ -4096,6 +4096,8 @@ var phaseStatusSchema = external_exports.object({
   status: external_exports.enum(["pending", "active", "done"]),
   at: external_exports.string().optional(),
   approvedBy: external_exports.literal("user").optional(),
+  /** Digest of plan.md when the user approved it; a different plan.md voids the approval. */
+  planSha256: external_exports.string().regex(/^[0-9a-f]{64}$/).optional(),
   step: external_exports.number().int().optional(),
   of: external_exports.number().int().optional()
 });
@@ -4360,6 +4362,27 @@ function updateTask(root, id, update) {
   });
 }
 
+// packages/core/src/plan-approval.ts
+import { createHash } from "node:crypto";
+import { existsSync as existsSync3, readFileSync as readFileSync2 } from "node:fs";
+import { join as join3 } from "node:path";
+var CHECKBOX = /^(\s*[-*+]\s+)\[[ xX]\]/gm;
+function planDigest(text) {
+  const normalized = text.replace(/\r\n?/g, "\n").replace(CHECKBOX, "$1[ ]");
+  return createHash("sha256").update(normalized, "utf-8").digest("hex");
+}
+function readPlanDigest(root, taskId) {
+  const path = join3(taskDir(root, taskId), "plan.md");
+  if (!existsSync3(path)) return null;
+  return planDigest(readFileSync2(path, "utf-8"));
+}
+function planApproval(task, currentDigest) {
+  const plan = task.phases.plan;
+  if (plan?.approvedBy !== "user") return "none";
+  if (plan.planSha256 === void 0) return "approved";
+  return plan.planSha256 === currentDigest ? "approved" : "changed";
+}
+
 // packages/core/src/transitions.ts
 function sizeRaisedPastPlan(task) {
   return (task.sizeChanges ?? []).some((change) => change.phase !== "brief" && change.phase !== "plan");
@@ -4383,8 +4406,8 @@ function unpassedRequiredGates(task, verdictStates) {
 }
 
 // packages/core/src/gates.ts
-import { mkdirSync as mkdirSync2, readFileSync as readFileSync2, writeFileSync as writeFileSync2 } from "node:fs";
-import { join as join3 } from "node:path";
+import { mkdirSync as mkdirSync2, readFileSync as readFileSync3, writeFileSync as writeFileSync2 } from "node:fs";
+import { join as join4 } from "node:path";
 function readGateEvidence(root, task) {
   const dir = taskDir(root, task.id);
   const evidence = {};
@@ -4392,7 +4415,7 @@ function readGateEvidence(root, task) {
     evidence[name] = { state: null, startedAt: null };
     if (gate.verdict === null) continue;
     try {
-      const raw = JSON.parse(readFileSync2(join3(dir, gate.verdict), "utf-8"));
+      const raw = JSON.parse(readFileSync3(join4(dir, gate.verdict), "utf-8"));
       evidence[name] = {
         state: gateStateSchema.parse(raw.state),
         startedAt: typeof raw.startedAt === "string" ? raw.startedAt : null
@@ -4404,7 +4427,7 @@ function readGateEvidence(root, task) {
 }
 
 // packages/core/src/stop-gate.ts
-import { createHash } from "node:crypto";
+import { createHash as createHash2 } from "node:crypto";
 var STOP_GATE_PHASES = ["build", "review", "verify"];
 var STOP_GATE_FAIL_STREAK = 3;
 function stopEvidence(task, verdicts) {
@@ -4421,11 +4444,14 @@ function stopEvidence(task, verdicts) {
       seen?.startedAt ?? null
     ];
   });
-  return createHash("sha256").update(JSON.stringify(rows)).digest("hex").slice(0, 16);
+  return createHash2("sha256").update(JSON.stringify(rows)).digest("hex").slice(0, 16);
 }
 function waitsOnUser(task, facts) {
   const approved = task.phases.plan?.approvedBy === "user";
   if (task.abandonRequest !== void 0) return "the user asked to abandon the task";
+  if (planApproval(task, facts.planDigest) === "changed") {
+    return "the plan changed after approval and waits for the user to approve it again";
+  }
   if (task.ruleApprovalRequired && !approved) return "a matched rule waits for the user's plan approval";
   if (sizeRaisedPastPlan(task) && (!facts.planExists || !facts.autoApprove.includes(task.size) && !approved)) {
     return "the raised task size owes a plan and the user's approval";
@@ -4515,7 +4541,8 @@ function handleStop(input) {
   const decision = decideStop(task, {
     ...stopConfig,
     autoApprove,
-    planExists: existsSync4(join4(taskDir(root, id), "plan.md")),
+    planExists: existsSync5(join5(taskDir(root, id), "plan.md")),
+    planDigest: readPlanDigest(root, id),
     verdicts: readGateEvidence(root, task),
     backgroundTasks: Array.isArray(input.background_tasks) ? input.background_tasks.length : 0
   });

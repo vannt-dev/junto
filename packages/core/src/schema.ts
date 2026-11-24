@@ -28,6 +28,8 @@ export const phaseStatusSchema = z.object({
   status: z.enum(["pending", "active", "done"]),
   at: z.string().optional(),
   approvedBy: z.literal("user").optional(),
+  /** Digest of plan.md when the user approved it; a different plan.md voids the approval. */
+  planSha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
   step: z.number().int().optional(),
   of: z.number().int().optional(),
 })

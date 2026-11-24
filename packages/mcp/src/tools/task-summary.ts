@@ -1,14 +1,15 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
-  baseDriftMessage, canEnter, readActiveId, readConfig, readTask, requiredPhases, sizeRaisedPastPlan, taskBaseDrift, taskDir,
+  baseDriftMessage, canEnter, planApproval, readActiveId, readConfig, readTask, requiredPhases, sizeRaisedPastPlan, taskBaseDrift, taskDir,
   type BoardGate, type GateState, type Phase, type Size, type Task,
 } from "@junto/core"
 import { buildTransitionContext } from "./advance.js"
 import { resolveTaskPolicy } from "./policy.js"
 import { sizeLabel } from "./task.js"
 
-function nextAction(task: Task, autoApprove: Size[], planExists: boolean): string {
+function nextAction(task: Task, autoApprove: Size[], planExists: boolean, planChanged: boolean): string {
+  if (planChanged) return "/junto:approve (the plan changed after approval)"
   const approved = task.phases.plan?.approvedBy === "user"
   if (task.ruleApprovalRequired && !approved) return "/junto:plan, then /junto:approve"
   if (sizeRaisedPastPlan(task) && !approved && !autoApprove.includes(task.size)) {
@@ -58,6 +59,8 @@ export interface TaskSummary {
   budget: string
   panel: string | null
   baseWarning: string | null
+  /** Set when plan.md changed after the user approved it and the task still needs that approval. */
+  planWarning: string | null
 }
 
 /** Read-only summary of a project's active task, using the same disk facts and policy as transitions. */
@@ -88,15 +91,18 @@ export async function summarizeActiveTask(root: string): Promise<TaskSummary | n
     : `${task.consultTokensUsed}/${cap} tokens`
 
   const drift = await taskBaseDrift(root, task)
+  const planChanged = planApproval(task, transitionContext.planDigest) === "changed"
+    && (task.ruleApprovalRequired || (phases.includes("plan") && !config.autoApprove.includes(task.size)))
   return {
     task,
     size: sizeLabel(task),
-    next: nextAction(task, config.autoApprove, transitionContext.planExists),
+    next: nextAction(task, config.autoApprove, transitionContext.planExists, planChanged),
     nextPhase,
     blocker,
     gates,
     budget,
     panel: lastPanel(root, task.id),
     baseWarning: drift === null ? null : baseDriftMessage(drift),
+    planWarning: planChanged ? "changed after approval; the user must type /junto:approve again" : null,
   }
 }

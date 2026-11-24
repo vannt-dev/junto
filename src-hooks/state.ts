@@ -1,6 +1,7 @@
-import { existsSync } from "node:fs"
-import { join } from "node:path"
-import { findProjectRoot, readActiveId, readTask, sizeRaisedPastPlan, taskDir, updateTask, type Task } from "@junto/core"
+import {
+  findProjectRoot, planApproval, readActiveId, readPlanDigest, readTask, sizeRaisedPastPlan, updateTask,
+  type PlanApproval, type Task,
+} from "@junto/core"
 import { runHook } from "./lib/io.js"
 import { contextOutput } from "./lib/render.js"
 
@@ -22,14 +23,20 @@ function isAbandon(prompt: string): boolean {
   return RAW_ABANDON.test(prompt) || prompt.includes(ABANDON_SENTINEL)
 }
 
-export function renderStateBlock(task: Task): string {
+const PLAN_LINE: Record<PlanApproval, string> = {
+  none: "",
+  approved: "Plan approved.",
+  changed: "Plan changed after approval; the user must type /junto:approve again.",
+}
+
+export function renderStateBlock(task: Task, approval: PlanApproval = planApproval(task, null)): string {
   const gates = Object.entries(task.gates).map(([name, gate]) => {
     if (gate.verdict === null) return `${name}(not-run)`
     if (gate.stale) return `${name}(stale)`
     return `${name}(ok)`
   }).join(" ")
 
-  const plan = task.phases.plan?.approvedBy === "user" ? "Plan approved." : ""
+  const plan = PLAN_LINE[approval]
   const step = task.phases[task.phase]?.step
   const of = task.phases[task.phase]?.of
   const progress = step !== undefined && of !== undefined ? ` Step ${step}/${of}.` : ""
@@ -68,29 +75,36 @@ export function handleState(input: { prompt?: string, cwd?: string }): string {
     )
   }
 
+  const digest = readPlanDigest(root, id)
+  const approval = planApproval(task, digest)
+
   if (isApproval(input.prompt ?? "")) {
-    // A matched rule or a size raised past the plan step owes an approval outside the plan phase.
-    const checkpoint = (task.ruleApprovalRequired || sizeRaisedPastPlan(task)) && task.phase !== "done"
+    // A matched rule or a size raised past the plan step owes an approval outside the plan phase,
+    // and so does a plan edited after the user approved it.
+    const changed = approval === "changed"
+    const checkpoint = (task.ruleApprovalRequired || sizeRaisedPastPlan(task) || changed) && task.phase !== "done"
     if (task.phase !== "plan" && !checkpoint) {
       return contextOutput(`Task "${id}" is not in the plan phase (current: "${task.phase}"); there is nothing to approve.`)
     }
-    if (checkpoint && !existsSync(join(taskDir(root, id), "plan.md"))) {
-      const cause = task.ruleApprovalRequired ? "A matched rule" : "The raised task size"
+    if (digest === null) {
+      const cause = task.ruleApprovalRequired ? "A matched rule" : sizeRaisedPastPlan(task) ? "The raised task size" : "Approval"
       return contextOutput(`${cause} requires a plan. Write plan.md before requesting /junto:approve.`)
     }
     updateTask(root, id, (current) => {
       if (current.phase !== task.phase) throw new Error("The task changed phase while approval was being recorded.")
-      current.phases.plan = { ...(current.phases.plan ?? { status: "done" }), approvedBy: "user" }
+      // Bind the approval to the text the user saw; editing plan.md afterwards voids it.
+      const planSha256 = readPlanDigest(root, id) ?? digest
+      current.phases.plan = { ...(current.phases.plan ?? { status: "done" }), approvedBy: "user", planSha256 }
     })
     return contextOutput(
-      `The user approved the plan for task "${id}". `
+      `The user approved the ${changed ? "changed plan" : "plan"} for task "${id}". `
       + (task.phase === "plan"
         ? `Call junto__advance with to="${task.size === "deep" ? "panel" : "build"}" to enter the next phase.`
         : "The human approval checkpoint is satisfied. Continue the current phase."),
     )
   }
 
-  return contextOutput(renderStateBlock(task))
+  return contextOutput(renderStateBlock(task, approval))
 }
 
 if (process.argv[1]?.replace(/\\/g, "/").endsWith("/state.js")) {

@@ -4096,6 +4096,8 @@ var phaseStatusSchema = external_exports.object({
   status: external_exports.enum(["pending", "active", "done"]),
   at: external_exports.string().optional(),
   approvedBy: external_exports.literal("user").optional(),
+  /** Digest of plan.md when the user approved it; a different plan.md voids the approval. */
+  planSha256: external_exports.string().regex(/^[0-9a-f]{64}$/).optional(),
   step: external_exports.number().int().optional(),
   of: external_exports.number().int().optional()
 });

@@ -8,6 +8,7 @@ import {
   gateStateSchema,
   readActiveId,
   readConfig,
+  readPlanDigest,
   readTask,
   taskBaseDrift,
   taskDir,
@@ -68,6 +69,7 @@ export function buildTransitionContext(root: string, task: Task, config: Config)
   return {
     briefNonEmpty: existsSync(brief) && readFileSync(brief, "utf-8").trim() !== "",
     planExists: existsSync(join(dir, "plan.md")),
+    planDigest: readPlanDigest(root, task.id),
     autoApprove: config.autoApprove,
     verdictStates,
   }

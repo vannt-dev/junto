@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto"
 import type { GateEvidence } from "./gates.js"
+import { planApproval } from "./plan-approval.js"
 import type { Phase, Size, StopGateState, Task } from "./schema.js"
 import { sizeRaisedPastPlan, unpassedRequiredGates } from "./transitions.js"
 
@@ -15,6 +16,8 @@ export interface StopFacts {
   maxBlocks: number
   autoApprove: Size[]
   planExists: boolean
+  /** Digest of plan.md now (planDigest), or null without one; compared with the approved one. */
+  planDigest: string | null
   verdicts: Record<string, GateEvidence>
   /** In-flight background tasks from the Stop input; the session is paused, not finished. */
   backgroundTasks: number
@@ -40,6 +43,9 @@ export function stopEvidence(task: Task, verdicts: Record<string, GateEvidence>)
 function waitsOnUser(task: Task, facts: StopFacts): string | null {
   const approved = task.phases.plan?.approvedBy === "user"
   if (task.abandonRequest !== undefined) return "the user asked to abandon the task"
+  if (planApproval(task, facts.planDigest) === "changed") {
+    return "the plan changed after approval and waits for the user to approve it again"
+  }
   if (task.ruleApprovalRequired && !approved) return "a matched rule waits for the user's plan approval"
   if (sizeRaisedPastPlan(task) && (!facts.planExists || (!facts.autoApprove.includes(task.size) && !approved))) {
     return "the raised task size owes a plan and the user's approval"

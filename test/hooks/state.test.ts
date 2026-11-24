@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import { readActiveId, readTask, setActiveId, taskDir, writeTask, type Task } from "@junto/core"
+import { planDigest, readActiveId, readTask, setActiveId, taskDir, writeTask, type Task } from "@junto/core"
 import { readHookInput } from "../../src-hooks/lib/io.js"
 import { contextOutput } from "../../src-hooks/lib/render.js"
 import { ABANDON_SENTINEL, APPROVE_SENTINEL, handleState, renderStateBlock } from "../../src-hooks/state.js"
@@ -35,6 +35,8 @@ function seed(overrides: Partial<Task> = {}): Task {
     ...overrides,
   }
   mkdirSync(taskDir(root, task.id), { recursive: true })
+  // A plan-phase task has written its plan; approval is tied to that text.
+  if (task.phase === "plan") writeFileSync(join(taskDir(root, task.id), "plan.md"), "1. Do it\n")
   writeTask(root, task)
   setActiveId(root, task.id)
   return task
@@ -175,6 +177,42 @@ describe("handleState - approval recording", () => {
       sizeChanges: [{ from: "small", to: "standard", at: "2026-08-30T10:00:00Z", phase: "build", reason: "Bigger." }],
     })
     expect(renderStateBlock(task)).toContain('escalated-from="small"')
+  })
+})
+
+describe("handleState - approval tied to the plan text", () => {
+  it("records the digest of plan.md with the approval", () => {
+    seed()
+    handleState({ prompt: "/junto:approve", cwd: root })
+    expect(readTask(root, activeId()).phases.plan?.planSha256).toBe(planDigest("1. Do it\n"))
+  })
+
+  it("refuses approval in the plan phase until plan.md exists", () => {
+    const task = seed()
+    rmSync(join(taskDir(root, task.id), "plan.md"))
+    expect(handleState({ prompt: "/junto:approve", cwd: root })).toMatch(/Write plan.md/)
+    expect(readTask(root, task.id).phases.plan?.approvedBy).toBeUndefined()
+  })
+
+  it("shows a plan changed after approval and lets the user approve it again", () => {
+    const task = seed({ phase: "build", phases: { plan: { status: "done", approvedBy: "user", planSha256: planDigest("1. Do it\n") } } })
+    writeFileSync(join(taskDir(root, task.id), "plan.md"), "1. Do it\n")
+    expect(handleState({ prompt: "next", cwd: root })).toMatch(/Plan approved\./)
+
+    writeFileSync(join(taskDir(root, task.id), "plan.md"), "1. Do it\n2. And more\n")
+    expect(handleState({ prompt: "next", cwd: root })).toMatch(/Plan changed after approval/)
+
+    expect(handleState({ prompt: "/junto:approve", cwd: root })).toMatch(/changed plan/)
+    const after = readTask(root, task.id)
+    expect(after.phase).toBe("build")
+    expect(after.phases.plan?.planSha256).toBe(planDigest("1. Do it\n2. And more\n"))
+    expect(handleState({ prompt: "next", cwd: root })).toMatch(/Plan approved\./)
+  })
+
+  it("does not count ticked checkboxes as a plan change", () => {
+    const task = seed({ phase: "verify", phases: { plan: { status: "done", approvedBy: "user", planSha256: planDigest("- [ ] try it\n") } } })
+    writeFileSync(join(taskDir(root, task.id), "plan.md"), "- [x] try it\n")
+    expect(handleState({ prompt: "next", cwd: root })).toMatch(/Plan approved\./)
   })
 })
 

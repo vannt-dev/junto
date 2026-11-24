@@ -32,6 +32,7 @@ function facts(over: Partial<StopFacts> = {}): StopFacts {
     maxBlocks: 3,
     autoApprove: [],
     planExists: true,
+    planDigest: null,
     verdicts: {},
     backgroundTasks: 0,
     ...over,
@@ -115,6 +116,12 @@ describe("decideStop", () => {
   it("allows when a required gate keeps failing, so the user can decide on the plan", () => {
     const task = makeTask({ gates: { tests: gate({ verdict: "verdicts/tests.json", failStreak: 3 }) } })
     expect(decideStop(task, facts({ verdicts: { tests: { state: "fail", startedAt: "x" } } })).action).toBe("allow")
+  })
+
+  it("allows while a plan changed after approval waits for the user to approve it again", () => {
+    const task = makeTask({ phases: { plan: { status: "done", approvedBy: "user", planSha256: "a" }, build: { status: "active" } } })
+    expect(decideStop(task, facts({ planDigest: "b" })).action).toBe("allow")
+    expect(decideStop(task, facts({ planDigest: "a" })).action).toBe("block")
   })
 
   it("allows while background tasks are still running", () => {

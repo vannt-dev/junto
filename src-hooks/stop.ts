@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs"
 import { join } from "node:path"
 import {
-  decideStop, findProjectRoot, readActiveId, readConfig, readGateEvidence, readTask, stopGateConfigSchema, taskDir, updateTask,
+  decideStop, findProjectRoot, readActiveId, readConfig, readGateEvidence, readPlanDigest, readTask, stopGateConfigSchema, taskDir, updateTask,
   type StopGateConfig, type Task,
 } from "@junto/core"
 import { runHook } from "./lib/io.js"
@@ -40,6 +40,7 @@ export function handleStop(input: StopInput): string {
     ...stopConfig,
     autoApprove,
     planExists: existsSync(join(taskDir(root, id), "plan.md")),
+    planDigest: readPlanDigest(root, id),
     verdicts: readGateEvidence(root, task),
     backgroundTasks: Array.isArray(input.background_tasks) ? input.background_tasks.length : 0,
   })

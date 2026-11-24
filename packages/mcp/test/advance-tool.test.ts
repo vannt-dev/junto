@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import { readActiveId, readTask, taskDir, writeTask } from "@junto/core"
+import { planDigest, readActiveId, readTask, taskDir, writeTask } from "@junto/core"
 import { advanceTool } from "../src/tools/advance.js"
 import { taskTool } from "../src/tools/task.js"
 import { persistTaskPolicy } from "../src/tools/policy.js"
@@ -64,6 +64,23 @@ describe("advanceTool", () => {
     const task = readTask(root, id)
     task.phases.plan = { status: "done", approvedBy: "user" }
     writeTask(root, task)
+    await advanceTool(ctx(), { to: "build" })
+    expect(readTask(root, id).phase).toBe("build")
+  })
+
+  it("refuses plan -> build when plan.md changed after approval", async () => {
+    await taskTool(ctx(), { action: "start", title: "X", size: "standard" })
+    const id = activeId()
+    write(id, "brief.md", "x")
+    await advanceTool(ctx(), { to: "plan" })
+    write(id, "plan.md", "1. Implement the change")
+    const task = readTask(root, id)
+    task.phases.plan = { status: "done", approvedBy: "user", planSha256: planDigest("1. Implement the change") }
+    writeTask(root, task)
+    write(id, "plan.md", "1. Implement the change\n2. Also rewrite the parser")
+    await expect(advanceTool(ctx(), { to: "build" })).rejects.toThrow(/plan changed after approval.*\/junto:approve/i)
+    expect(readTask(root, id).phase).toBe("plan")
+    write(id, "plan.md", "1. Implement the change")
     await advanceTool(ctx(), { to: "build" })
     expect(readTask(root, id).phase).toBe("build")
   })
