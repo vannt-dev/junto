@@ -119,4 +119,20 @@ describe("statusTool", () => {
     expect(output).toMatch(/Next: \/junto:plan, then \/junto:approve/)
     expect(output).toMatch(/Blockers: .*size was raised/)
   })
+
+  it("shows a gate's cwd when it is not the project root", async () => {
+    writeFileSync(join(root, ".junto", "config.json"), JSON.stringify({
+      schemaVersion: 1,
+      gates: {
+        tests: { argv: ["node", "-e", "process.exit(0)"], required: true },
+        web: { argv: ["node", "-e", "process.exit(0)"], required: false, cwd: "packages/web", env: { MODE: "ci" } },
+      },
+    }))
+    await taskTool(ctx(), { action: "start", title: "Web", size: "small" })
+
+    const output = await statusTool(ctx())
+
+    expect(output).toMatch(/- tests: required, not run$/m)
+    expect(output).toMatch(/- web: optional, not run \(cwd: packages\/web\)/)
+  })
 })

@@ -81,9 +81,13 @@ export async function summarizeActiveTask(root: string): Promise<TaskSummary | n
     if (!check.ok) blocker = check.reason
   }
 
-  const gates = Object.entries(task.gates).map(([name, gate]) => ({
-    name, required: gate.required, state: gateState(gate, transitionContext.verdictStates[name] ?? null),
-  }))
+  const gates = Object.entries(task.gates).map(([name, gate]) => {
+    const cwd = config.gates[name]?.cwd
+    return {
+      name, required: gate.required, state: gateState(gate, transitionContext.verdictStates[name] ?? null),
+      ...(cwd === undefined ? {} : { cwd }),
+    }
+  })
 
   const cap = config.consultBudget?.maxTokensPerTask
   const budget = cap === undefined

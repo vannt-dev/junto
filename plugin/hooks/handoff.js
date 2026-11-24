@@ -4132,16 +4132,49 @@ var taskSchema = external_exports.object({
   stopGate: stopGateStateSchema.optional()
 });
 var reviewSeveritySchema = external_exports.enum(["critical", "high", "medium", "low", "info"]);
+var ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+function gateCwdProblem(cwd) {
+  if (cwd === "" || cwd.includes("\0")) return "must be a non-empty relative path";
+  if (/^[\\/]/.test(cwd) || /^[A-Za-z]:/.test(cwd)) return "must be relative to the project root, not absolute";
+  let depth = 0;
+  for (const part of cwd.split(/[\\/]+/)) {
+    if (part === "..") depth -= 1;
+    else if (part !== "" && part !== ".") depth += 1;
+    if (depth < 0) return "must stay inside the project root";
+  }
+  return null;
+}
 var gateSpecSchema = external_exports.object({
   type: external_exports.enum(["command", "review"]).optional(),
   argv: external_exports.array(external_exports.string()).min(1).optional(),
   provider: external_exports.enum(["open-code-review", "cli"]).optional(),
   failOn: external_exports.array(reviewSeveritySchema).min(1).optional(),
   required: external_exports.boolean(),
-  timeoutMs: external_exports.number().int().positive().optional()
+  timeoutMs: external_exports.number().int().positive().optional(),
+  /** Directory the command runs in, relative to the project root. */
+  cwd: external_exports.string().optional(),
+  /** Merged over the process environment; values may reference `${VAR}` from it. */
+  env: external_exports.record(external_exports.string(), external_exports.string()).optional()
 }).superRefine((spec, ctx) => {
-  if ((spec.type ?? "command") === "command" && spec.argv === void 0) {
+  const command = (spec.type ?? "command") === "command";
+  if (command && spec.argv === void 0) {
     ctx.addIssue({ code: external_exports.ZodIssueCode.custom, message: "A command gate requires argv", path: ["argv"] });
+  }
+  for (const field of ["cwd", "env"]) {
+    if (!command && spec[field] !== void 0) {
+      ctx.addIssue({ code: external_exports.ZodIssueCode.custom, message: `${field} is only supported on a command gate`, path: [field] });
+    }
+  }
+  const cwdProblem = spec.cwd === void 0 ? null : gateCwdProblem(spec.cwd);
+  if (cwdProblem !== null) ctx.addIssue({ code: external_exports.ZodIssueCode.custom, message: cwdProblem, path: ["cwd"] });
+  for (const name of Object.keys(spec.env ?? {})) {
+    if (!ENV_NAME.test(name)) {
+      ctx.addIssue({
+        code: external_exports.ZodIssueCode.custom,
+        message: `"${name}" is not a valid variable name; use letters, digits and "_", not starting with a digit`,
+        path: ["env"]
+      });
+    }
   }
 });
 var ruleSpecSchema = external_exports.object({

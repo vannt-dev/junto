@@ -127,6 +127,15 @@ A gate is one command plus its exit status:
 `skipped` never satisfies a required gate. Full output is stored in a `.log`; the JSON verdict stores a
 bounded output tail and metadata. Successful tool output stays terse, while failures return the useful tail.
 
+A command gate may set `cwd`, a directory relative to the project root, and `env`, variables merged
+over the server's environment (case-insensitively on Windows). The config schema rejects an absolute
+`cwd` or one that leaves the root lexically; the runner rechecks the real path, so a missing directory
+or a link out of the root is refused as `skipped` with a reason and no process starts. `env` values may
+reference `${NAME}` from the server's environment; an unset reference refuses the gate the same way.
+The verdict records the absolute run directory in `cwd` and the sorted `env` names in `envKeys`, never
+the values (R3). Both fields are part of the hashed gate spec, so in a Git repository root changing
+them voids earlier command verdicts. Review gates do not accept `cwd` or `env`.
+
 Any relevant code edit marks existing verdicts stale. `staleIgnore` defaults to Markdown, docs, and `.junto`
 paths. Three consecutive real failures prompt reconsideration of the plan; skipped runs do not affect the streak.
 

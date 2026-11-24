@@ -200,3 +200,55 @@ describe("parseConfig", () => {
     })).toThrow()
   })
 })
+
+describe("gate cwd and env", () => {
+  const gate = (extra: Record<string, unknown>, type?: "review") => ({
+    schemaVersion: 1,
+    gates: { web: { ...(type ? { type, provider: "cli" } : { argv: ["npm", "test"] }), required: true, ...extra } },
+  })
+
+  it("accepts a relative cwd and an env map", () => {
+    const cfg = parseConfig(gate({ cwd: "packages/web", env: { NODE_ENV: "test", TOKEN: "${CI_TOKEN}" } }))
+    expect(cfg.gates.web?.cwd).toBe("packages/web")
+    expect(cfg.gates.web?.env).toEqual({ NODE_ENV: "test", TOKEN: "${CI_TOKEN}" })
+  })
+
+  it("leaves a gate without cwd or env unchanged, so existing fingerprints stay valid", () => {
+    expect(parseConfig(gate({})).gates.web).toEqual({ argv: ["npm", "test"], required: true })
+  })
+
+  it.each([".", "./web", "packages\\web", "a/../b"])("accepts the cwd %s inside the root", (cwd) => {
+    expect(parseConfig(gate({ cwd })).gates.web?.cwd).toBe(cwd)
+  })
+
+  it.each(["/etc", "C:\\Windows", "C:Windows", "\\\\server\\share", "..", "../x", "a/../../b", "..\\x", ""])(
+    "rejects the cwd %j that is absolute or leaves the root",
+    (cwd) => {
+      expect(() => parseConfig(gate({ cwd }))).toThrow(/gates\.web\.cwd/)
+    },
+  )
+
+  it("names the gate and field in a readable error", () => {
+    expect(() => parseConfig(gate({ cwd: "../outside" })))
+      .toThrow(/Invalid \.junto\/config\.json[\s\S]*gates\.web\.cwd: .*inside the project root/)
+  })
+
+  it.each(["", "A=B", "1ABC", "HAS SPACE"])("rejects the env name %j", (name) => {
+    expect(() => parseConfig(gate({ env: { [name]: "x" } }))).toThrow(/gates\.web\.env/)
+  })
+
+  it("rejects non-string env values without echoing values", () => {
+    expect(() => parseConfig(gate({ env: { PORT: 3000 } }))).toThrow(/gates\.web\.env\.PORT/)
+    try {
+      parseConfig(gate({ env: { "BAD NAME": "s3cret-value" } }))
+      expect.unreachable("expected an error")
+    } catch (error) {
+      expect((error as Error).message).not.toContain("s3cret-value")
+    }
+  })
+
+  it("rejects cwd and env on a review gate", () => {
+    expect(() => parseConfig(gate({ cwd: "web" }, "review"))).toThrow(/gates\.web\.cwd: .*command gate/)
+    expect(() => parseConfig(gate({ env: { A: "b" } }, "review"))).toThrow(/gates\.web\.env: .*command gate/)
+  })
+})

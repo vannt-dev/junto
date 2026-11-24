@@ -8,8 +8,8 @@ import { persistTaskPolicy, resolveTaskPolicy } from "./policy.js"
 
 const FAIL_STREAK_HINT_AT = 3
 
-function render(v: VerdictFile, streak: number): string {
-  const head = `## ${v.gate} - ${v.state} (${v.durationMs}ms)`
+function render(v: VerdictFile, streak: number, cwd: string | undefined): string {
+  const head = `## ${v.gate} - ${v.state} (${v.durationMs}ms${cwd === undefined ? "" : `, cwd: ${cwd}`})`
 
   if (v.state === "pass") {
     // Successful output is intentionally terse.
@@ -102,7 +102,7 @@ export async function verifyTool(ctx: ToolContext, input: { gates?: string[] }):
     // Only real failures affect the streak. A skipped gate neither increments nor resets it.
     if (verdict.state === "pass") status.failStreak = 0
     else if (verdict.state === "fail") status.failStreak = status.failStreak + 1
-    sections.push(render(verdict, status.failStreak))
+    sections.push(render(verdict, status.failStreak, spec.cwd))
 
     // Hash outside the task lock: edit hooks wait only briefly for it. Source edited while the gate
     // ran leaves a result that may describe neither version; advance rechecks the fingerprint later.

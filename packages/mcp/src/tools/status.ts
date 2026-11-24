@@ -16,7 +16,8 @@ export async function statusTool(ctx: ToolContext, input: StatusInput = {}): Pro
   const summary = await summarizeActiveTask(ctx.root)
   if (summary === null) return "No active task. Run /junto:start to create one."
   const { task } = summary
-  const gates = summary.gates.map(gate => `- ${gate.name}: ${gate.required ? "required" : "optional"}, ${gate.state}`)
+  const gates = summary.gates.map(gate => `- ${gate.name}: ${gate.required ? "required" : "optional"}, ${gate.state}`
+    + (gate.cwd === undefined ? "" : ` (cwd: ${gate.cwd})`))
 
   return `# Junto status\n\n`
     + `Task: ${task.id} — ${task.title}\n`

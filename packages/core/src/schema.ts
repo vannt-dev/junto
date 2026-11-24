@@ -97,6 +97,25 @@ export const reviewSeveritySchema = z.enum(["critical", "high", "medium", "low",
  * A gate is either a command (default) or a review. Both produce the same verdict evidence and
  * only the real result of the command or reviewer can set the state.
  */
+export const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+/**
+ * Lexical check that a gate cwd is relative and stays inside the project root on every platform.
+ * Both separators count, so a config written on POSIX cannot escape when run on Windows.
+ * The runner repeats the check on the real path, which also catches links.
+ */
+export function gateCwdProblem(cwd: string): string | null {
+  if (cwd === "" || cwd.includes("\0")) return "must be a non-empty relative path"
+  if (/^[\\/]/.test(cwd) || /^[A-Za-z]:/.test(cwd)) return "must be relative to the project root, not absolute"
+  let depth = 0
+  for (const part of cwd.split(/[\\/]+/)) {
+    if (part === "..") depth -= 1
+    else if (part !== "" && part !== ".") depth += 1
+    if (depth < 0) return "must stay inside the project root"
+  }
+  return null
+}
+
 export const gateSpecSchema = z.object({
   type: z.enum(["command", "review"]).optional(),
   argv: z.array(z.string()).min(1).optional(),
@@ -104,9 +123,30 @@ export const gateSpecSchema = z.object({
   failOn: z.array(reviewSeveritySchema).min(1).optional(),
   required: z.boolean(),
   timeoutMs: z.number().int().positive().optional(),
+  /** Directory the command runs in, relative to the project root. */
+  cwd: z.string().optional(),
+  /** Merged over the process environment; values may reference `${VAR}` from it. */
+  env: z.record(z.string(), z.string()).optional(),
 }).superRefine((spec, ctx) => {
-  if ((spec.type ?? "command") === "command" && spec.argv === undefined) {
+  const command = (spec.type ?? "command") === "command"
+  if (command && spec.argv === undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A command gate requires argv", path: ["argv"] })
+  }
+  for (const field of ["cwd", "env"] as const) {
+    if (!command && spec[field] !== undefined) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${field} is only supported on a command gate`, path: [field] })
+    }
+  }
+  const cwdProblem = spec.cwd === undefined ? null : gateCwdProblem(spec.cwd)
+  if (cwdProblem !== null) ctx.addIssue({ code: z.ZodIssueCode.custom, message: cwdProblem, path: ["cwd"] })
+  for (const name of Object.keys(spec.env ?? {})) {
+    if (!ENV_NAME.test(name)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `"${name}" is not a valid variable name; use letters, digits and "_", not starting with a digit`,
+        path: ["env"],
+      })
+    }
   }
 })
 
@@ -221,6 +261,8 @@ export interface VerdictFile {
   outputBytes: number
   outputFile: string
   runner: string
+  /** Names of the variables the gate's `env` set, sorted; values are never recorded. */
+  envKeys?: string[]
   reason?: string
   /** Present on source-bound reviews; legacy reviews must be rerun. */
   reviewFingerprint?: string
@@ -233,7 +275,21 @@ export function parseTask(raw: unknown): Task {
   return taskSchema.parse(raw)
 }
 
+function issueLine(issue: z.ZodIssue): string {
+  return `- ${issue.path.join(".") || "(root)"}: ${issue.message}`
+}
+
+/** Lists each problem by its config path. Messages never quote config values, which may be secrets. */
+export class ConfigError extends Error {
+  constructor(public issues: z.ZodIssue[]) {
+    super(`Invalid .junto/config.json:\n${issues.map(issueLine).join("\n")}`)
+    this.name = "ConfigError"
+  }
+}
+
 export function parseConfig(raw: unknown): Config {
   assertVersion(raw)
-  return configSchema.parse(raw)
+  const result = configSchema.safeParse(raw)
+  if (!result.success) throw new ConfigError(result.error.issues)
+  return result.data
 }

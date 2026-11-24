@@ -29,6 +29,10 @@ stopping to ask a question here would move the start into a turn where they are 
    }
    ```
 
+   For a command that must run in a subfolder (one package of a monorepo), set `"cwd": "packages/web"`
+   (relative, inside the project) instead of wrapping it in a shell `cd`. Variables go in `"env"`;
+   reference secrets as `"${NAME}"` and never write their values into the file.
+
    Gates run only at `/junto:verify`, so the user can still change the file before then. Show the
    gates you wrote in your report and say that.
 2. Choose a size and explain why:
