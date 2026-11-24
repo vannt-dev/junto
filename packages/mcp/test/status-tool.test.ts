@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import { readActiveId, readTask, taskDir, writeTask } from "@junto/core"
+import { planDigest, readActiveId, readTask, taskDir, writeTask } from "@junto/core"
 import { advanceTool } from "../src/tools/advance.js"
 import { statusTool } from "../src/tools/status.js"
 import { taskTool } from "../src/tools/task.js"
@@ -32,6 +32,22 @@ function activeId(): string {
 describe("statusTool", () => {
   it("reports clearly when no task is active", async () => {
     expect(await statusTool(ctx())).toMatch(/no active task/i)
+  })
+
+  it("shows a plan changed after approval and asks for approval again", async () => {
+    await taskTool(ctx(), { action: "start", title: "Add auth", size: "standard" })
+    const id = activeId()
+    const task = readTask(root, id)
+    task.phase = "build"
+    task.phases.plan = { status: "done", approvedBy: "user", planSha256: planDigest("1. Old plan") }
+    writeTask(root, task)
+    writeFileSync(join(taskDir(root, id), "plan.md"), "1. New plan")
+
+    const output = await statusTool(ctx())
+
+    expect(output).toMatch(/Plan: changed after approval/)
+    expect(output).toMatch(/Next: \/junto:approve/)
+    expect(output).toMatch(/Blockers: .*plan changed after approval/i)
   })
 
   it("shows identity, next action, gate state, budget, and a transition blocker", async () => {

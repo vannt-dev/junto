@@ -25,3 +25,5 @@ Write an implementation plan for the active junto task.
    raised after the plan step stays in its current phase; do not advance it.
 
 Then stop. Do not transition to `build`. Ask the user to review the plan and type `/junto:approve` if they agree.
+The approval covers this text: if you later change `plan.md` beyond ticking checkboxes, the approval
+is void and the user must type `/junto:approve` again before the task can move on.

@@ -98,6 +98,11 @@ Transition rules:
 4. verify -> done requires every required gate to have a readable, non-stale `pass` verdict.
 
 Only the `UserPromptSubmit` hook may record `approvedBy: "user"`; no MCP tool may do so.
+The hook stores `planSha256`, the sha256 of `plan.md` with line endings and checkbox ticks normalized,
+next to the approval. When `plan.md` no longer matches it, the approval is void: every transition that
+needs approval refuses until the user approves again, which the hook allows in any phase before `done`.
+`plan.md` stays writable by the model, since writing it is the model's job; the hash, not the guard,
+ties the approval to its text. Approvals without `planSha256` predate the check and remain valid.
 
 ## 6. MCP tools
 

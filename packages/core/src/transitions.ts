@@ -1,3 +1,4 @@
+import { planApproval, PLAN_CHANGED_REASON } from "./plan-approval.js"
 import type { GateState, Phase, Size, Task } from "./schema.js"
 
 export type TransitionCheck = { ok: true } | { ok: false; reason: string }
@@ -7,6 +8,8 @@ export interface TransitionContext {
   briefNonEmpty: boolean
   /** plan.md exists. */
   planExists: boolean
+  /** planDigest() of plan.md, or null when it does not exist. */
+  planDigest: string | null
   /** config.autoApprove */
   autoApprove: Size[]
   /** Gate name to state read from its verdict file; null means no verdict. */
@@ -75,9 +78,15 @@ export function canEnter(task: Task, to: Phase, ctx: TransitionContext): Transit
   if (ctx.unknownRuleGates?.length) {
     return { ok: false, reason: `Rules reference unconfigured gates: ${ctx.unknownRuleGates.join(", ")}. Fix .junto/config.json.` }
   }
+  // An approval covers the plan text the user read; an edit after it voids the approval.
+  const approval = planApproval(task, ctx.planDigest)
+  const approvalNeeded = task.ruleApprovalRequired
+    || (requiredPhases(task.size).includes("plan") && !ctx.autoApprove.includes(task.size))
+  if (approval === "changed" && approvalNeeded && to !== "plan") return { ok: false, reason: PLAN_CHANGED_REASON }
+
   if (task.ruleApprovalRequired && to !== "plan") {
     if (!ctx.planExists) return { ok: false, reason: "A matched rule requires a plan and human approval. Write plan.md, then ask the user to type /junto:approve." }
-    if (task.phases.plan?.approvedBy !== "user") {
+    if (approval !== "approved") {
       return { ok: false, reason: "A matched rule requires human approval, including auto-approved task sizes. The user must type /junto:approve." }
     }
   }
@@ -87,7 +96,7 @@ export function canEnter(task: Task, to: Phase, ctx: TransitionContext): Transit
     if (!ctx.planExists) {
       return { ok: false, reason: `The task size was raised to "${task.size}" after the plan step. Write plan.md (/junto:plan) before moving on.` }
     }
-    if (!ctx.autoApprove.includes(task.size) && task.phases.plan?.approvedBy !== "user") {
+    if (!ctx.autoApprove.includes(task.size) && approval !== "approved") {
       return { ok: false, reason: `The task size was raised to "${task.size}", which needs an approved plan. The user must type /junto:approve.` }
     }
   }
@@ -102,7 +111,7 @@ export function canEnter(task: Task, to: Phase, ctx: TransitionContext): Transit
   if (task.phase === "plan" && (to === "build" || to === "panel")) {
     if (!ctx.planExists) return { ok: false, reason: "plan.md does not exist." }
     if (ctx.autoApprove.includes(task.size)) return { ok: true }
-    if (task.phases.plan?.approvedBy !== "user") {
+    if (approval !== "approved") {
       return { ok: false, reason: "The plan is not approved. The user must type /junto:approve; the model cannot approve its own plan." }
     }
     return { ok: true }

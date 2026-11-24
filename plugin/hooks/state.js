@@ -5,10 +5,6 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// src-hooks/state.ts
-import { existsSync as existsSync3 } from "node:fs";
-import { join as join3 } from "node:path";
-
 // node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/external.js
 var external_exports = {};
 __export(external_exports, {
@@ -4096,6 +4092,8 @@ var phaseStatusSchema = external_exports.object({
   status: external_exports.enum(["pending", "active", "done"]),
   at: external_exports.string().optional(),
   approvedBy: external_exports.literal("user").optional(),
+  /** Digest of plan.md when the user approved it; a different plan.md voids the approval. */
+  planSha256: external_exports.string().regex(/^[0-9a-f]{64}$/).optional(),
   step: external_exports.number().int().optional(),
   of: external_exports.number().int().optional()
 });
@@ -4347,6 +4345,27 @@ function updateTask(root, id, update) {
   });
 }
 
+// packages/core/src/plan-approval.ts
+import { createHash } from "node:crypto";
+import { existsSync as existsSync3, readFileSync as readFileSync2 } from "node:fs";
+import { join as join3 } from "node:path";
+var CHECKBOX = /^(\s*[-*+]\s+)\[[ xX]\]/gm;
+function planDigest(text) {
+  const normalized = text.replace(/\r\n?/g, "\n").replace(CHECKBOX, "$1[ ]");
+  return createHash("sha256").update(normalized, "utf-8").digest("hex");
+}
+function readPlanDigest(root, taskId) {
+  const path = join3(taskDir(root, taskId), "plan.md");
+  if (!existsSync3(path)) return null;
+  return planDigest(readFileSync2(path, "utf-8"));
+}
+function planApproval(task, currentDigest) {
+  const plan = task.phases.plan;
+  if (plan?.approvedBy !== "user") return "none";
+  if (plan.planSha256 === void 0) return "approved";
+  return plan.planSha256 === currentDigest ? "approved" : "changed";
+}
+
 // packages/core/src/transitions.ts
 function sizeRaisedPastPlan(task) {
   return (task.sizeChanges ?? []).some((change) => change.phase !== "brief" && change.phase !== "plan");
@@ -4402,13 +4421,18 @@ var RAW_ABANDON = /^\s*\/junto:abandon(?:\s[\s\S]*)?$/;
 function isAbandon(prompt) {
   return RAW_ABANDON.test(prompt) || prompt.includes(ABANDON_SENTINEL);
 }
-function renderStateBlock(task) {
+var PLAN_LINE = {
+  none: "",
+  approved: "Plan approved.",
+  changed: "Plan changed after approval; the user must type /junto:approve again."
+};
+function renderStateBlock(task, approval = planApproval(task, null)) {
   const gates = Object.entries(task.gates).map(([name, gate]) => {
     if (gate.verdict === null) return `${name}(not-run)`;
     if (gate.stale) return `${name}(stale)`;
     return `${name}(ok)`;
   }).join(" ");
-  const plan = task.phases.plan?.approvedBy === "user" ? "Plan approved." : "";
+  const plan = PLAN_LINE[approval];
   const step = task.phases[task.phase]?.step;
   const of = task.phases[task.phase]?.of;
   const progress = step !== void 0 && of !== void 0 ? ` Step ${step}/${of}.` : "";
@@ -4439,24 +4463,28 @@ function handleState(input) {
       `The user asked to abandon task "${id}" (phase "${task.phase}"). Call junto__task with action="abandon" and the reason the user gave. The task is archived as abandoned, not finished.`
     );
   }
+  const digest = readPlanDigest(root, id);
+  const approval = planApproval(task, digest);
   if (isApproval(input.prompt ?? "")) {
-    const checkpoint = (task.ruleApprovalRequired || sizeRaisedPastPlan(task)) && task.phase !== "done";
+    const changed = approval === "changed";
+    const checkpoint = (task.ruleApprovalRequired || sizeRaisedPastPlan(task) || changed) && task.phase !== "done";
     if (task.phase !== "plan" && !checkpoint) {
       return contextOutput(`Task "${id}" is not in the plan phase (current: "${task.phase}"); there is nothing to approve.`);
     }
-    if (checkpoint && !existsSync3(join3(taskDir(root, id), "plan.md"))) {
-      const cause = task.ruleApprovalRequired ? "A matched rule" : "The raised task size";
+    if (digest === null) {
+      const cause = task.ruleApprovalRequired ? "A matched rule" : sizeRaisedPastPlan(task) ? "The raised task size" : "Approval";
       return contextOutput(`${cause} requires a plan. Write plan.md before requesting /junto:approve.`);
     }
     updateTask(root, id, (current) => {
       if (current.phase !== task.phase) throw new Error("The task changed phase while approval was being recorded.");
-      current.phases.plan = { ...current.phases.plan ?? { status: "done" }, approvedBy: "user" };
+      const planSha256 = readPlanDigest(root, id) ?? digest;
+      current.phases.plan = { ...current.phases.plan ?? { status: "done" }, approvedBy: "user", planSha256 };
     });
     return contextOutput(
-      `The user approved the plan for task "${id}". ` + (task.phase === "plan" ? `Call junto__advance with to="${task.size === "deep" ? "panel" : "build"}" to enter the next phase.` : "The human approval checkpoint is satisfied. Continue the current phase.")
+      `The user approved the ${changed ? "changed plan" : "plan"} for task "${id}". ` + (task.phase === "plan" ? `Call junto__advance with to="${task.size === "deep" ? "panel" : "build"}" to enter the next phase.` : "The human approval checkpoint is satisfied. Continue the current phase.")
     );
   }
-  return contextOutput(renderStateBlock(task));
+  return contextOutput(renderStateBlock(task, approval));
 }
 if (process.argv[1]?.replace(/\\/g, "/").endsWith("/state.js")) {
   await runHook((input) => handleState(input));

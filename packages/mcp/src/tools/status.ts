@@ -22,6 +22,7 @@ export async function statusTool(ctx: ToolContext, input: StatusInput = {}): Pro
     + `Task: ${task.id} — ${task.title}\n`
     + `Size: ${summary.size}\n`
     + `Phase: ${task.phase}\n`
+    + (summary.planWarning === null ? "" : `Plan: ${summary.planWarning}\n`)
     + `Next: ${summary.next}\n`
     + `Next phase: ${summary.nextPhase ?? "none"}\n`
     + `Blockers: ${summary.blocker}\n`

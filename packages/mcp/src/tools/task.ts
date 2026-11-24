@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { join } from "node:path"
 import { execa } from "execa"
 import {
-  juntoDir, readActiveId, readConfig, readTask, requiredPhases, setActiveId, taskDir, updateTask, writeTask,
+  juntoDir, planApproval, readActiveId, readConfig, readPlanDigest, readTask, requiredPhases, setActiveId, taskDir, updateTask, writeTask,
   SCHEMA_VERSION, canEnter, canRaiseSize,
   type GateStatus, type Size, type SizeChange, type Task,
 } from "@junto/core"
@@ -281,7 +281,7 @@ function escalate(ctx: ToolContext, input: Extract<TaskToolInput, { action: "esc
   const pastPlan = task.phase !== "brief" && task.phase !== "plan"
   const notes: string[] = []
   if (pastPlan) {
-    const approval = config.autoApprove.includes(input.size) || task.phases.plan?.approvedBy === "user"
+    const approval = config.autoApprove.includes(input.size) || planApproval(task, readPlanDigest(ctx.root, id)) === "approved"
       ? ""
       : " and the user must type /junto:approve"
     notes.push(

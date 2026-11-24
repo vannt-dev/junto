@@ -28,6 +28,7 @@ function gate(over: Partial<GateStatus> = {}): GateStatus {
 const ctx = (over: Partial<TransitionContext> = {}): TransitionContext => ({
   briefNonEmpty: true,
   planExists: true,
+  planDigest: null,
   autoApprove: [],
   verdictStates: {},
   ...over,
@@ -280,5 +281,43 @@ describe("raising the task size", () => {
     })
     expect(canEnter(task, "review", ctx())).toEqual({ ok: true })
     expect(canEnter(task, "verify", ctx()).ok).toBe(false)
+  })
+})
+
+describe("plan changed after approval", () => {
+  const approvedAt = "a".repeat(64)
+  const edited = "b".repeat(64)
+  const approved = { status: "done" as const, approvedBy: "user" as const, planSha256: approvedAt }
+
+  it("allows plan -> build while plan.md matches the approved version", () => {
+    const task = makeTask({ phase: "plan", phases: { plan: approved } })
+    expect(canEnter(task, "build", ctx({ planDigest: approvedAt }))).toEqual({ ok: true })
+  })
+
+  it("refuses plan -> build and panel once plan.md changed", () => {
+    const task = makeTask({ phase: "plan", phases: { plan: approved } })
+    const check = canEnter(task, "build", ctx({ planDigest: edited }))
+    expect(check.ok).toBe(false)
+    if (!check.ok) expect(check.reason).toMatch(/plan changed after approval.*\/junto:approve/i)
+    expect(canEnter({ ...task, size: "deep" }, "panel", ctx({ planDigest: edited })).ok).toBe(false)
+  })
+
+  it("refuses later phases of a task whose size needs approval", () => {
+    const build = makeTask({ phase: "build", phases: { plan: approved } })
+    expect(canEnter(build, "verify", ctx({ planDigest: edited })).ok).toBe(false)
+    const verify = makeTask({ phase: "verify", phases: { plan: approved }, gates: { g: gate() } })
+    const check = canEnter(verify, "done", ctx({ planDigest: null, verdictStates: { g: "pass" } }))
+    expect(check.ok === false && check.reason).toMatch(/plan changed after approval/i)
+  })
+
+  it("refuses a rule checkpoint whose approved plan changed, even for an auto-approved size", () => {
+    const task = makeTask({ size: "small", phase: "build", ruleApprovalRequired: true, phases: { plan: approved } })
+    const check = canEnter(task, "verify", ctx({ planDigest: edited, autoApprove: ["small"] }))
+    expect(check.ok === false && check.reason).toMatch(/plan changed after approval/i)
+  })
+
+  it("does not block an auto-approved size, which never needed the approval", () => {
+    const task = makeTask({ phase: "build", phases: { plan: approved } })
+    expect(canEnter(task, "verify", ctx({ planDigest: edited, autoApprove: ["standard"] }))).toEqual({ ok: true })
   })
 })
